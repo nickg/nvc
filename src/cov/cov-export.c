@@ -110,17 +110,19 @@ static cobertura_line_t *cobertura_get_line(cobertura_class_t *class,
 
 static void cobertura_export_scope(cobertura_report_t *report,
                                    cobertura_class_t *class,
+                                   cover_data_t *db,
                                    cover_scope_t *s)
 {
    if (s->block_name != NULL)
       class = cobertura_get_class(report, s);
 
    for (int i = 0; i < s->items.count; i++) {
-      const cover_item_t *item = s->items.items[i];
+      cover_item_t *item = s->items.items[i];
+      cover_bin_t *bins = cover_get_bins(db, item);
       cobertura_line_t *l = cobertura_get_line(class, &(item->loc));
 
       for (int j = 0; j < item->nbins; j++) {
-         const cover_bin_t *bin = &(item->bins[j]);
+         const cover_bin_t *bin = &(bins[j]);
          switch (item->kind) {
          case COV_ITEM_STMT:
             l->hits += bin->data;
@@ -137,7 +139,7 @@ static void cobertura_export_scope(cobertura_report_t *report,
    }
 
    for (int i = 0; i < s->children.count; i++)
-      cobertura_export_scope(report, class, s->children.items[i]);
+      cobertura_export_scope(report, class, db, s->children.items[i]);
 }
 
 static void cobertura_class_stats(const cobertura_class_t *class,
@@ -208,7 +210,7 @@ void cover_export_cobertura(cover_data_t *data, FILE *f, const char *relative)
       .relative = relative,
    };
 
-   cobertura_export_scope(&report, NULL, data->root_scope);
+   cobertura_export_scope(&report, NULL, data, data->root_scope);
 
    fprintf(f, "<?xml version='1.0' encoding='UTF-8'?>\n");
    fprintf(f, "<!DOCTYPE coverage SYSTEM "
@@ -269,10 +271,13 @@ void cover_export_cobertura(cover_data_t *data, FILE *f, const char *relative)
 ////////////////////////////////////////////////////////////////////////////////
 // XML dump format for debugging and testing
 
-static void dump_item_xml(const cover_item_t *item, int indent, FILE *f)
+static void dump_item_xml(cover_data_t *db, cover_item_t *item, int indent,
+                          FILE *f)
 {
+   cover_bin_t *bins = cover_get_bins(db, item);
+
    for (int i = 0; i < item->nbins; i++) {
-      const cover_bin_t *bin = &(item->bins[i]);
+      const cover_bin_t *bin = &(bins[i]);
       switch (item->kind) {
       case COV_ITEM_STMT:
          fprintf(f, "%*s<statement hier=\"%s\" data=\"%d\"/>\n", indent + 2, "",
@@ -302,8 +307,8 @@ static void dump_item_xml(const cover_item_t *item, int indent, FILE *f)
    }
 }
 
-static void dump_scope_xml(const cover_scope_t *s, int indent, const loc_t *loc,
-                           const char *relative, FILE *f)
+static void dump_scope_xml(cover_data_t *db, cover_scope_t *s, int indent,
+                           const loc_t *loc, const char *relative, FILE *f)
 {
    fprintf(f, "%*s<scope name=\"%s\"", indent, "", istr(s->name));
 
@@ -323,10 +328,11 @@ static void dump_scope_xml(const cover_scope_t *s, int indent, const loc_t *loc,
    fprintf(f, ">\n");
 
    for (int i = 0; i < s->items.count; i++)
-      dump_item_xml(s->items.items[i], indent, f);
+      dump_item_xml(db, s->items.items[i], indent, f);
 
    for (int i = 0; i < s->children.count; i++)
-      dump_scope_xml(s->children.items[i], indent + 2, &s->loc, relative, f);
+      dump_scope_xml(db, s->children.items[i], indent + 2, &s->loc,
+                     relative, f);
 
    fprintf(f, "%*s</scope>\n", indent, "");
 }
@@ -334,5 +340,5 @@ static void dump_scope_xml(const cover_scope_t *s, int indent, const loc_t *loc,
 void cover_export_xml(cover_data_t *data, FILE *f, const char *relative)
 {
    fprintf(f, "<?xml version=\"1.0\"?>\n");
-   dump_scope_xml(data->root_scope, 0, &LOC_INVALID, relative, f);
+   dump_scope_xml(data, data->root_scope, 0, &LOC_INVALID, relative, f);
 }

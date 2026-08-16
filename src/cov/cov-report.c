@@ -192,11 +192,12 @@ static void rpt_merge_file_items(cover_rpt_t *rpt, rpt_file_t *f,
    // TODO: This has O(n^2). May be issue for large designs ?
    for (int i = 0; i < s->items.count; i++) {
       cover_item_t *scope_item = AGET(s->items, i);
-      const cover_bin_t *scope_bin = &(scope_item->bins[0]);
+      cover_bin_t *scope_bins = cover_get_bins(rpt->data, scope_item);
       bool found = false;
 
       for (int j = 0; j < f->items.count; j++) {
          rpt_item_t *file_item = AREF(f->items, j);
+         cover_bin_t *file_bins = cover_get_bins(rpt->data, file_item->item);
 
          // We must take into account:
          //    - kind   - different kind items can be at the same loc
@@ -206,10 +207,10 @@ static void rpt_merge_file_items(cover_rpt_t *rpt, rpt_file_t *f,
             (file_item->item->kind == scope_item->kind)
             && file_item->item->loc.first_line == scope_item->loc.first_line
             && file_item->item->loc.first_column == scope_item->loc.first_column
-            && (file_item->item->bins[0].flags == scope_bin->flags);
+            && (file_bins[0].flags == scope_bins[0].flags);
 
          if (found) {
-            rpt_merge_data(file_item, scope_bin->data);
+            rpt_merge_data(file_item, scope_bins[0].data);
             break;
          }
       }
@@ -217,8 +218,8 @@ static void rpt_merge_file_items(cover_rpt_t *rpt, rpt_file_t *f,
       if (!found) {
          const rpt_item_t new = {
             .item = scope_item,
-            .bin  = scope_bin,
-            .data = scope_bin->data,
+            .bin  = scope_bins,
+            .data = scope_bins[0].data,
          };
          APUSH(f->items, new);
       }
@@ -316,9 +317,11 @@ static void rpt_visit_sub_scope(cover_rpt_t *rpt, rpt_hier_t *h,
          assert(item->loc.file_ref == s->loc.file_ref);
 
          const rpt_line_t *line = rpt_get_line(f_src, &item->loc);
-         if (line != NULL)
-            rpt_get_detail(rpt, &h->detail, &h->flat_stats, item, item->bins,
-                           NULL, item->nbins, line);
+         if (line != NULL) {
+            cover_bin_t *bins = cover_get_bins(rpt->data, item);
+            rpt_get_detail(rpt, &h->detail, &h->flat_stats, item, bins, NULL,
+                           item->nbins, line);
+         }
       }
    }
 

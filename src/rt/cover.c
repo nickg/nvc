@@ -446,7 +446,8 @@ void _nvc_add_cover_item(jit_scalar_t *args)
 
    const size_t pfxlen = tb_len(tb);
    for (int i = 0, dup = 0; i < us->scope->items.count; i++) {
-      if (icmp(us->scope->items.items[i]->bins[0].hier, tb_get(tb))) {
+      cover_bin_t *bins = cover_get_bins(data, us->scope->items.items[i]);
+      if (icmp(bins[0].hier, tb_get(tb))) {
          tb_trim(tb, pfxlen);
          tb_printf(tb, "#%d", ++dup);
       }
@@ -456,7 +457,9 @@ void _nvc_add_cover_item(jit_scalar_t *args)
       cover_add_items_for(data, us->scope, NULL, COV_ITEM_FUNCTIONAL);
    assert(item != NULL);   // Preconditions checked above
 
-   cover_bin_t *bin = &(item->bins[0]);
+   cover_bin_t *bins = cover_get_bins(data, item);
+
+   cover_bin_t *bin = &(bins[0]);
    bin->hier = ident_new(tb_get(tb));
    item->loc = us->scope->loc;   // XXX: keeps report from crashing but location
                                  //      does not make sense here
@@ -509,5 +512,7 @@ void _nvc_increment_cover_item(jit_scalar_t *args)
 
    cover_item_t *item = us->scope->items.items[index];
    assert(item->nbins == 1);
-   cover_merge_bin(item, &(item->bins[0]), 1);
+
+   cover_bin_t *bins = cover_get_bins(data, item);
+   cover_merge_bin(item, bins, 1);
 }

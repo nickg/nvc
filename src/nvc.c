@@ -1852,7 +1852,7 @@ static int coverage_cmd(int argc, char **argv, cmd_state_t *state)
             merged = db;
          else {
             cover_merge(merged, db, MERGE_UNION);
-            // TODO: not safe to free db here
+            cover_data_free(db);
          }
       }
       else

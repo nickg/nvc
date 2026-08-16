@@ -187,14 +187,16 @@ static void excl_trie_print(excl_trie_t *et, int indent)
 ////////////////////////////////////////////////////////////////////////////////
 // Exclude file
 
-static void cover_exclude_items(cover_ef_t *ef, cover_item_t *item)
+static void cover_exclude_items(cover_data_t *db, cover_item_t *item)
 {
+   cover_bin_t *bins = cover_get_bins(db, item);
+
    for (int i = 0; i < item->nbins; i++) {
-      cover_bin_t *bin = &(item->bins[i]);
+      cover_bin_t *bin = &(bins[i]);
       ident_t hier = bin->hier;
 
-      for (int j = 0; j < ef->n_excl_cmds; j++) {
-         cover_excl_cmd_t *excl = &(ef->excl[j]);
+      for (int j = 0; j < db->ef->n_excl_cmds; j++) {
+         cover_excl_cmd_t *excl = &(db->ef->excl[j]);
          const char *excl_hier = istr(excl->hier);
 
          if (ident_glob(hier, excl_hier, strlen(excl_hier))) {
@@ -218,7 +220,7 @@ static void cover_exclude_items(cover_ef_t *ef, cover_item_t *item)
 static void cover_exclude_scope(cover_data_t *data, cover_scope_t *s)
 {
    for (int i = 0; i < s->items.count; i++)
-      cover_exclude_items(data->ef, AGET(s->items, i));
+      cover_exclude_items(data, AGET(s->items, i));
 
    for (int i = 0; i < s->children.count; i++)
       cover_exclude_scope(data, s->children.items[i]);
@@ -337,7 +339,8 @@ static void cover_apply_exclude_cmds(cover_data_t *data)
                  "coverage item: '%s'", istr(data->ef->excl[i].hier));
 }
 
-static void cover_fold_scopes(cover_scope_t *tgt_scope, cover_scope_t *src_scope)
+static void cover_fold_scopes(cover_data_t *db, cover_scope_t *tgt_scope,
+                              cover_scope_t *src_scope)
 {
    int tgt_prefix_len = ident_len(tgt_scope->hier);
    int src_prefix_len = ident_len(src_scope->hier);
@@ -345,21 +348,24 @@ static void cover_fold_scopes(cover_scope_t *tgt_scope, cover_scope_t *src_scope
    // Process items
    for (int i = 0; i < src_scope->items.count; i++) {
       cover_item_t *src = AGET(src_scope->items, i);
+      cover_bin_t *sbins = cover_get_bins(db, src);
 
       for (int j = 0; j < tgt_scope->items.count; j++) {
          cover_item_t *tgt = AGET(tgt_scope->items, j);
          if (tgt->kind != src->kind)
             continue;
 
+         cover_bin_t *tbins = cover_get_bins(db, tgt);
+
          for (int k = 0; k < src->nbins; k++) {
-            const cover_bin_t *sbin = &(src->bins[k]);
+            const cover_bin_t *sbin = &(sbins[k]);
             ident_t src_suffix_hier = NULL;
             if (ident_len(sbin->hier) > src_prefix_len)
                src_suffix_hier =
                   ident_new(istr(sbin->hier) + src_prefix_len);
 
             for (int l = 0; l < tgt->nbins; l++) {
-               cover_bin_t *tbin = &(tgt->bins[l]);
+               cover_bin_t *tbin = &(tbins[l]);
                ident_t tgt_suffix_hier = NULL;
                if (ident_len(tbin->hier) > tgt_prefix_len)
                   tgt_suffix_hier =
@@ -393,7 +399,7 @@ static void cover_fold_scopes(cover_scope_t *tgt_scope, cover_scope_t *src_scope
             src_suffix_hier = ident_new(istr(src->hier) + src_prefix_len);
 
          if (tgt_suffix_hier == src_suffix_hier) {
-            cover_fold_scopes(tgt, src);
+            cover_fold_scopes(db, tgt, src);
             break;
          }
       }
@@ -413,7 +419,7 @@ static void cover_iterate_fold_source(cover_data_t *data, cover_scope_t *tgt_sco
          diag_hint(d, NULL, "        Target - %s", istr(tgt_scope->hier));
          diag_hint(d, NULL, "        Source - %s", istr(curr_scp->hier));
          diag_emit(d);
-         cover_fold_scopes(tgt_scope, curr_scp);
+         cover_fold_scopes(data, tgt_scope, curr_scp);
       }
 
       cover_iterate_fold_source(data, tgt_scope, curr_scp, cmd);

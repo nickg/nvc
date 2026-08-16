@@ -50,6 +50,12 @@ typedef struct _cover_ef {
    int                   alloc_fold_cmds;
 } cover_ef_t;
 
+typedef struct {
+   unsigned     count;
+   unsigned     limit;
+   cover_bin_t *items;
+} bin_tab_t;
+
 struct _cover_data {
    cover_mask_t     mask;
    int              array_limit;
@@ -60,6 +66,7 @@ struct _cover_data {
    cover_scope_t   *root_scope;
    hash_t          *blocks;
    mem_pool_t      *pool;
+   bin_tab_t        bins;
 };
 
 typedef struct {

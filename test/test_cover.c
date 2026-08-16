@@ -119,16 +119,17 @@ START_TEST(test_toggle1)
    ck_assert_int_eq(vect->items.count, 1);
 
    cover_item_t *vect15 = vect->items.items[0];
+   cover_bin_t *vect15_bins = cover_get_bins(db, vect15);
    ck_assert_int_eq(vect15->nbins, 32);
-   ck_assert(vect15->bins[0].flags & COV_FLAG_TOGGLE_TO_1);
-   ck_assert(vect15->bins[1].flags & COV_FLAG_TOGGLE_TO_0);
-   ck_assert_int_eq(vect15->bins[0].data, 0);
-   ck_assert_int_eq(vect15->bins[1].data, 0);
+   ck_assert(vect15_bins[0].flags & COV_FLAG_TOGGLE_TO_1);
+   ck_assert(vect15_bins[1].flags & COV_FLAG_TOGGLE_TO_0);
+   ck_assert_int_eq(vect15_bins[0].data, 0);
+   ck_assert_int_eq(vect15_bins[1].data, 0);
 
    cover_rpt_t *rpt = cover_report_new(db, INT_MAX);
 
-   ck_assert_int_eq(vect15->bins[0].data, 0);   // Should not change
-   ck_assert_int_eq(vect15->bins[1].data, 0);
+   ck_assert_int_eq(vect15_bins[0].data, 0);   // Should not change
+   ck_assert_int_eq(vect15_bins[1].data, 0);
 
    const rpt_hier_t *u1_h = rpt_get_hier(rpt, u1);
    ck_assert_int_eq(u1_h->flat_stats.total[COV_ITEM_TOGGLE], 32);
@@ -178,7 +179,7 @@ START_TEST(test_merge1)
 
    cover_merge(db1, db2, MERGE_UNION);
 
-   // TODO: should be safe to call cover_data_free(db2) here
+   cover_data_free(db2);
 
    cover_scope_t *u1 = cover_get_scope(db1, ident_new("WORK.MERGE1"));
    ck_assert_ptr_nonnull(u1);
@@ -213,7 +214,6 @@ START_TEST(test_merge1)
    cover_report_free(rpt);
 
    cover_data_free(db1);
-   cover_data_free(db2);
 
    fail_if_errors();
 }
@@ -283,16 +283,17 @@ START_TEST(test_toggle2)
    ck_assert_int_eq(s1->items.count, 1);
 
    cover_item_t *s1_toggle = s1->items.items[0];
+   cover_bin_t *s1_bins = cover_get_bins(db, s1_toggle);
    ck_assert_int_eq(s1_toggle->nbins, 10);
-   ck_assert(s1_toggle->bins[0].flags & COV_FLAG_TOGGLE_TO_1);
-   ck_assert(s1_toggle->bins[1].flags & COV_FLAG_TOGGLE_TO_0);
-   ck_assert_int_eq(s1_toggle->bins[0].data, 1);
-   ck_assert_int_eq(s1_toggle->bins[1].data, 0);
-   ck_assert_ident_eq(s1_toggle->bins[0].hier,
+   ck_assert(s1_bins[0].flags & COV_FLAG_TOGGLE_TO_1);
+   ck_assert(s1_bins[1].flags & COV_FLAG_TOGGLE_TO_0);
+   ck_assert_int_eq(s1_bins[0].data, 1);
+   ck_assert_int_eq(s1_bins[1].data, 0);
+   ck_assert_ident_eq(s1_bins[0].hier,
                       "WORK.TOGGLE2.S1.A.BIN_0_TO_1");
-   ck_assert_ident_eq(s1_toggle->bins[2].hier,
+   ck_assert_ident_eq(s1_bins[2].hier,
                       "WORK.TOGGLE2.S1.C(3).BIN_0_TO_1");
-   ck_assert_int_eq(s1_toggle->bins[2].data, 0);
+   ck_assert_int_eq(s1_bins[2].data, 0);
 
    cover_rpt_t *rpt = cover_report_new(db, INT_MAX);
 
@@ -387,8 +388,9 @@ START_TEST(test_issue1431)
    ck_assert_ident_eq(transfer->name, "TRANSFER");
    ck_assert_int_eq(transfer->children.count, 1);
 
-   ck_assert_int_eq(
-      transfer->children.items[0]->items.items[0]->bins[0].data, 2);
+   cover_item_t *item = transfer->children.items[0]->items.items[0];
+   cover_bin_t *bins = cover_get_bins(db, item);
+   ck_assert_int_eq(bins[0].data, 2);
 
    cover_data_free(db);
 }

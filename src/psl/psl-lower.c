@@ -150,9 +150,11 @@ static void psl_lower_cover(lower_unit_t *lu, psl_node_t p)
    if (item == NULL)
       return;
 
+   cover_bin_t *bins = cover_get_bins(lu->cover, item);
+
    // TODO: move this to initialisation
    vcode_reg_t counters = emit_get_counters(lu->name);
-   emit_cover_stmt(counters, item->bins[0].tag);
+   emit_cover_stmt(counters, bins[0].tag);
 }
 
 static void psl_lower_assert(lower_unit_t *lu, vcode_reg_t taken_reg,

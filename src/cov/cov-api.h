@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2023  Nick Gasson
+//  Copyright (C) 2013-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,32 @@
 
 #include "prim.h"
 #include "diag.h"
+
+#define COVER_TAG_NULL 0
+#define COVER_TAG_ITEM 1
+#define COVER_TAG_BIN  2
+
+#define _COVER_TAG_BITS   3
+#define _COVER_ID_BITS    29
+
+STATIC_ASSERT(_COVER_TAG_BITS + _COVER_ID_BITS == 32);
+
+#define COVER_ID_MAX ((1 << _COVER_ID_BITS) - 1)
+
+typedef union _cover_obj {
+   struct {
+      unsigned tag : _COVER_TAG_BITS;
+      unsigned id : _COVER_ID_BITS;
+   };
+   uint32_t bits;
+} cover_obj_t;
+
+STATIC_ASSERT(sizeof(cover_obj_t) == 4);
+
+#define COVER_NULL_OBJ ((cover_obj_t){ .tag = COVER_TAG_NULL })
+
+#define cover_is_null(o) ((o).tag == COVER_TAG_NULL)
+#define cover_equals(a, b) ((a).bits == (b).bits)
 
 typedef enum {
    // Statement/Line coverage
@@ -133,7 +159,7 @@ typedef struct _cover_item {
    int64_t           metadata;
 
    uint32_t    nbins;
-   cover_bin_t bins[];
+   cover_obj_t first_bin;
 } cover_item_t;
 
 typedef enum {
@@ -212,6 +238,7 @@ void cover_merge(cover_data_t *dst, const cover_data_t *src, merge_mode_t mode);
 
 int32_t *cover_get_counters(cover_data_t *db, ident_t name);
 cover_scope_t *cover_get_scope(cover_data_t *db, ident_t name);
+cover_bin_t *cover_get_bins(const cover_data_t *db, const cover_item_t *item);
 
 cover_scope_t *cover_get_child(cover_scope_t *s, ident_t name);
 cover_item_t *cover_get_item(cover_scope_t *s, cover_item_kind_t kind, int nth);
