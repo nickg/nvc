@@ -44,7 +44,10 @@ typedef struct {
 typedef struct {
    const cover_item_t *item;
    const cover_bin_t  *bin;
+   int32_t             data;
 } rpt_item_t;
+
+typedef A(rpt_item_t) rpt_item_array_t;
 
 typedef struct {
    const rpt_line_t   *line;
@@ -65,7 +68,7 @@ typedef struct {
    const char        *path;
    char               path_hash[SHA_HEX_LEN];
    rpt_stats_t        stats;
-   cov_item_array_t   items;
+   rpt_item_array_t   items;
    rpt_detail_t       detail;
    rpt_line_t        *lines;
    unsigned           n_lines;

@@ -59,19 +59,25 @@ static void rpt_merge_stats(rpt_stats_t *dst, const rpt_stats_t *src)
    }
 }
 
-static bool rpt_is_hit(const cover_item_t *item, const cover_bin_t *bin)
+static bool rpt_is_hit(const rpt_item_t *ri)
 {
-   return bin->data >= item->atleast && item->atleast > 0;
+   return ri->data >= ri->item->atleast && ri->item->atleast > 0;
 }
 
-static bool rpt_is_excluded(cover_rpt_t *rpt, const cover_item_t *item,
-                            const cover_bin_t *bin)
+static bool rpt_is_excluded(cover_rpt_t *rpt, const rpt_item_t *ri)
 {
-   if (bin->flags & COV_FLAG_EXCLUDED)
+   if (ri->bin->flags & COV_FLAG_EXCLUDED)
       return true;
 
-   if (cover_bin_unreachable(rpt->data, item->kind, bin))
-      return true;
+   if (rpt->data->mask & COVER_MASK_EXCLUDE_UNREACHABLE) {
+      if (ri->item->kind == COV_ITEM_TOGGLE
+          && (ri->data & COV_FLAG_UNREACHABLE))
+         return true;
+
+      if (ri->item->kind == COV_ITEM_EXPRESSION
+          && (ri->bin->flags & COV_FLAG_UNREACHABLE))
+         return true;
+   }
 
    return false;
 }
@@ -92,19 +98,24 @@ static rpt_table_t *rpt_table_new(cover_rpt_t *rpt, const rpt_line_t *line,
 
 static void rpt_get_detail(cover_rpt_t *rpt, rpt_detail_t *detail,
                            rpt_stats_t *stats, const cover_item_t *item,
-                           const rpt_line_t *line)
+                           const cover_bin_t *bins, const int32_t *data,
+                           int count, const rpt_line_t *line)
 {
    int nhit = 0, nmiss = 0, nexcl = 0;
 
-   for (int i = 0; i < item->nbins; i++) {
-      const cover_bin_t *bin = &(item->bins[i]);
+   for (int i = 0; i < count; i++) {
+      const rpt_item_t ri = {
+         .item = item,
+         .bin  = &(bins[i]),
+         .data = data != NULL ? data[i] : bins[i].data,
+      };
       stats->total[item->kind]++;
 
-      if (rpt_is_hit(item, bin)) {
+      if (rpt_is_hit(&ri)) {
          stats->hit[item->kind]++;
          nhit++;
       }
-      else if (rpt_is_excluded(rpt, item, bin)) {
+      else if (rpt_is_excluded(rpt, &ri)) {
          stats->hit[item->kind]++;
          nexcl++;
       }
@@ -116,12 +127,15 @@ static void rpt_get_detail(cover_rpt_t *rpt, rpt_detail_t *detail,
    rpt_table_t *miss = rpt_table_new(rpt, line, nmiss);
    rpt_table_t *excl = rpt_table_new(rpt, line, nexcl);
 
-   for (int i = 0, hpos = 0, mpos = 0, epos = 0; i < item->nbins; i++) {
-      const cover_bin_t *bin = &(item->bins[i]);
-      const rpt_item_t ref = { item, bin };
-      if (rpt_is_hit(item, bin))
+   for (int i = 0, hpos = 0, mpos = 0, epos = 0; i < count; i++) {
+      const rpt_item_t ref = {
+         .item = item,
+         .bin  = &(bins[i]),
+         .data = data != NULL ? data[i] : bins[i].data,
+      };
+      if (rpt_is_hit(&ref))
          hit->items[hpos++] = ref;
-      else if (rpt_is_excluded(rpt, item, bin))
+      else if (rpt_is_excluded(rpt, &ref))
          excl->items[epos++] = ref;
       else
          miss->items[mpos++] = ref;
@@ -157,6 +171,21 @@ static void rpt_get_detail(cover_rpt_t *rpt, rpt_detail_t *detail,
    detail->total += nhit + nmiss + nexcl;
 }
 
+static void rpt_merge_data(rpt_item_t *ri, int32_t data)
+{
+   switch (ri->item->kind) {
+   case COV_ITEM_TOGGLE:
+      if ((ri->data & COV_FLAG_UNREACHABLE) || (data & COV_FLAG_UNREACHABLE))
+         ri->data = COV_FLAG_UNREACHABLE;
+      else
+         ri->data = saturate_add(ri->data, data);
+      break;
+   default:
+      ri->data = saturate_add(ri->data, data);
+      break;
+   }
+}
+
 static void rpt_merge_file_items(cover_rpt_t *rpt, rpt_file_t *f,
                                  const cover_scope_t *s)
 {
@@ -167,33 +196,31 @@ static void rpt_merge_file_items(cover_rpt_t *rpt, rpt_file_t *f,
       bool found = false;
 
       for (int j = 0; j < f->items.count; j++) {
-         cover_item_t *file_item = AGET(f->items, j);
-         assert(file_item->nbins == 1);
+         rpt_item_t *file_item = AREF(f->items, j);
 
          // We must take into account:
          //    - kind   - different kind items can be at the same loc
          //    - loc    - to get aggregated per-file data
          //    - flags  - to not merge different bins
          found =
-            (file_item->kind == scope_item->kind)
-            && file_item->loc.first_line == scope_item->loc.first_line
-            && file_item->loc.first_column == scope_item->loc.first_column
-            && (file_item->bins[0].flags == scope_bin->flags);
+            (file_item->item->kind == scope_item->kind)
+            && file_item->item->loc.first_line == scope_item->loc.first_line
+            && file_item->item->loc.first_column == scope_item->loc.first_column
+            && (file_item->item->bins[0].flags == scope_bin->flags);
 
          if (found) {
-            cover_merge_bin(file_item, &(file_item->bins[0]), scope_bin->data);
+            rpt_merge_data(file_item, scope_bin->data);
             break;
          }
       }
 
       if (!found) {
-         cover_item_t *copy =
-            pool_malloc_flex(rpt->pool, sizeof(cover_item_t), 1,
-                             sizeof(cover_bin_t));
-         memcpy(copy, scope_item, sizeof(cover_item_t));
-         copy->nbins = 1;
-         copy->bins[0] = *scope_bin;
-         APUSH(f->items, copy);
+         const rpt_item_t new = {
+            .item = scope_item,
+            .bin  = scope_bin,
+            .data = scope_bin->data,
+         };
+         APUSH(f->items, new);
       }
    }
 }
@@ -290,7 +317,8 @@ static void rpt_visit_sub_scope(cover_rpt_t *rpt, rpt_hier_t *h,
 
          const rpt_line_t *line = rpt_get_line(f_src, &item->loc);
          if (line != NULL)
-            rpt_get_detail(rpt, &h->detail, &h->flat_stats, item, line);
+            rpt_get_detail(rpt, &h->detail, &h->flat_stats, item, item->bins,
+                           NULL, item->nbins, line);
       }
    }
 
@@ -314,11 +342,12 @@ static void rpt_visit_children(cover_rpt_t *rpt, rpt_hier_t *h,
 static void rpt_gen_file_details(cover_rpt_t *rpt, rpt_file_t *f)
 {
    for (int i = 0; i < f->items.count; i++) {
-      cover_item_t *item = f->items.items[i];
+      const rpt_item_t *ri = &(f->items.items[i]);
 
-      const rpt_line_t *line = rpt_get_line(f, &item->loc);
+      const rpt_line_t *line = rpt_get_line(f, &ri->item->loc);
       if (line != NULL)
-         rpt_get_detail(rpt, &f->detail, &f->stats, item, line);
+         rpt_get_detail(rpt, &f->detail, &f->stats, ri->item, ri->bin,
+                        &ri->data, 1, line);
    }
 }
 
