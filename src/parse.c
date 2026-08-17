@@ -9337,7 +9337,7 @@ static tree_t p_block_configuration(tree_t of)
       case T_ARCH:
          {
             ident_t expect = ident_rfrom(tree_ident(of), '-');
-            if (tree_ident(b) != expect)
+            if (!ident_casecmp(tree_ident(b), expect))
                parse_error(CURRENT_LOC, "block specification label %s does not "
                            "match architecture name %s", istr(tree_ident(b)),
                            istr(expect));

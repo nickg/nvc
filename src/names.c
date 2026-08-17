@@ -632,6 +632,8 @@ static bool compare_name(ident_t a, ident_t b)
 {
    if (a == b)
       return true;
+   else if (a == NULL || b == NULL)
+      return false;
    else if (isalpha_iso88591(ident_char(a, 0)))
       return ident_casecmp(a, b);
    else
@@ -1541,7 +1543,7 @@ void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
 
    spec_t **p;
    for (p = &(scope->specs); *p != NULL; p = &((*p)->next)) {
-      if (kind == SPEC_EXACT && (*p)->ident == ident) {
+      if (kind == SPEC_EXACT && compare_name((*p)->ident, ident)) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(spec));
          diag_printf(d, "duplicate specification for instance %s", istr(ident));
          diag_hint(d, tree_loc((*p)->tree), "previous specification was here");
@@ -1674,7 +1676,7 @@ tree_t query_spec(nametab_t *tab, tree_t object)
             others = it;
          break;
       case SPEC_EXACT:
-         if (it->ident == tree_ident(object)) {
+         if (compare_name(it->ident, tree_ident(object))) {
             it->matches++;
             return it->tree;
          }
@@ -3459,7 +3461,7 @@ static tree_t finish_overload_resolution(overload_t *o)
                   {
                      tree_t ref = name_to_ref(tree_name(param));
                      if (ref != NULL)
-                        match = ident_casecmp(tree_ident(ref), tree_ident(port));
+                        match = compare_name(tree_ident(ref), tree_ident(port));
                   }
                   break;
                }

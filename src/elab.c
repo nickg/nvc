@@ -2078,7 +2078,9 @@ static void elab_bind_components(tree_t block, tree_t config)
                bool apply = false;
                if (tree_has_ident(d)) {
                   ident_t match = tree_ident(d);
-                  if (match == tree_ident(s) || match == well_known(W_ALL))
+                  if (match == well_known(W_ALL))
+                     apply = true;
+                  else if (ident_casecmp(match, tree_ident(s)))
                      apply = true;
                }
                else if (spec == NULL)
@@ -2101,7 +2103,7 @@ static void elab_bind_components(tree_t block, tree_t config)
                tree_t d = tree_decl(config, j);
                if (tree_kind(d) != T_BLOCK_CONFIG)
                   continue;
-               else if (tree_ident(d) == tree_ident(s)) {
+               else if (ident_casecmp(tree_ident(d), tree_ident(s))) {
                   if (tree_kind(s) == T_IF_GENERATE)
                      elab_bind_components(tree_cond(s, 0), d);
                   else

@@ -63,6 +63,18 @@ START_TEST(test_elab3)
 }
 END_TEST
 
+START_TEST(test_casecmp1)
+{
+   opt_set_int(OPT_PRESERVE_CASE, 1);
+
+   input_from_file(TESTDIR "/elab/casecmp1.vhd");
+
+   (void)run_elab();
+
+   fail_if_errors();
+}
+END_TEST
+
 START_TEST(test_open)
 {
    tree_t top;
@@ -2410,6 +2422,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_elab1);
    tcase_add_test(tc, test_elab2);
    tcase_add_test(tc, test_elab3);
+   tcase_add_test(tc, test_casecmp1);
    tcase_add_test(tc, test_open);
    tcase_add_test(tc, test_genagg);
    tcase_add_test(tc, test_comp);
