@@ -1447,10 +1447,10 @@ tfcall11        verilog
 pattern1        verilog
 wave14          shell
 issue1621       vhpi,2008
-issue1624       tcl,2019
+issue1624       tcl,vhpi,2019
 ivtest61        verilog
 ivtest62        verilog
-issue1626       tcl,2008
+issue1626       tcl,vhpi,2008
 issue1627       normal
 issue1625       verilog
 vlog47          verilog
@@ -1464,5 +1464,6 @@ binary11        verilog
 signed7         verilog,gold
 signed8         verilog
 tfcall12        verilog
-issue1632       tcl,2008
+issue1632       tcl,vhpi,2008
 ivtest63        verilog
+issue1641       tcl,vhpi,no-collapse,2008

@@ -940,8 +940,15 @@ static bool run_test(test_t *test)
       if (file_exists("%s/regress/%s.vhd", test_dir, test->name)) {
          push_arg(&args, "-a");
          push_arg(&args, "%s/regress/%s.vhd", test_dir, test->name);
+
+         if (test->flags & F_VHPI)
+            push_arg(&args, "--preserve-case");
+
          push_arg(&args, "-e");
          push_arg(&args, "%s", test->name);
+
+         if (test->flags & F_NOCOLL)
+            push_arg(&args, "--no-collapse");
       }
 
       push_arg(&args, "--do");

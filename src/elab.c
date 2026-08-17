@@ -1053,7 +1053,7 @@ static void elab_ports(tree_t entity, tree_t bind, const elab_ctx_t *ctx)
                }
                assert(ref != NULL);
 
-               if (tree_ident(ref) != pname)
+               if (!ident_casecmp(tree_ident(ref), pname))
                   continue;
 
                map = tree_new(T_PARAM);
