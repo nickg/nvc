@@ -55,22 +55,29 @@ typedef struct {
 } cobertura_report_t;
 
 static cobertura_class_t *cobertura_get_class(cobertura_report_t *report,
-                                              ident_t name, const loc_t *loc)
+                                              cover_scope_t *s)
 {
-   cobertura_class_t *c = hash_get(report->class_map, name);
-   if (c == NULL) {
-      text_buf_t *tb = tb_new();
-      get_relative_path(tb, report->relative, loc_file_str(loc));
+   cobertura_class_t *c = hash_get(report->class_map, s->block_name);
+   if (c != NULL)
+      return c;
 
-      c = xcalloc(sizeof(cobertura_class_t));
-      c->name = name;
-      c->file = tb_claim(tb);
-      c->next = report->classes;
+   // For instance scopes location will be in the instantiating file
+   const loc_t *loc = &s->loc;
+   if (s->items.count > 0)
+      loc = &s->items.items[0]->loc;
+   else if (s->children.count > 0)
+      loc = &s->children.items[0]->loc;
 
-      report->classes = c;
-      hash_put(report->class_map, name, c);
-   }
+   LOCAL_TEXT_BUF tb = tb_new();
+   get_relative_path(tb, report->relative, loc_file_str(loc));
 
+   c = xcalloc(sizeof(cobertura_class_t));
+   c->name = s->block_name;
+   c->file = tb_claim(tb);
+   c->next = report->classes;
+
+   report->classes = c;
+   hash_put(report->class_map, s->block_name, c);
    return c;
 }
 
@@ -106,7 +113,7 @@ static void cobertura_export_scope(cobertura_report_t *report,
                                    cover_scope_t *s)
 {
    if (s->block_name != NULL)
-      class = cobertura_get_class(report, s->block_name, &s->loc);
+      class = cobertura_get_class(report, s);
 
    for (int i = 0; i < s->items.count; i++) {
       const cover_item_t *item = s->items.items[i];

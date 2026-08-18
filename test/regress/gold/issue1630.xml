@@ -1,0 +1,27 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE coverage SYSTEM 'http://cobertura.sourceforge.net/xml/coverage-04.dtd'>
+<coverage version="TEST" line-rate="1.000000" branch-rate="-nan" complexity="0.0" lines-valid="4" lines-covered="4" branches-valid="0" branches-covered="0" timestamp="0">
+<sources>
+<source>.</source>
+</sources>
+<packages>
+<package name="WORK" line-rate="1.000000" branch-rate="-nan" complexity="0.0">
+<classes>
+<class name="ISSUE1630_DUT(TEST)" filename="issue1630_dut.vhd" line-rate="1.000000" branch-rate="-nan" complexity="0.0" >
+<methods/>
+<lines>
+<line number="8" hits="1" branch="false"/>
+<line number="9" hits="1" branch="false"/>
+</lines>
+</class>
+<class name="ISSUE1630(TEST)" filename="issue1630.vhd" line-rate="1.000000" branch-rate="-nan" complexity="0.0" >
+<methods/>
+<lines>
+<line number="10" hits="1" branch="false"/>
+<line number="11" hits="1" branch="false"/>
+</lines>
+</class>
+</classes>
+</package>
+</packages>
+</coverage>
