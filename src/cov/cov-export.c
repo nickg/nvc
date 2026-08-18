@@ -164,8 +164,10 @@ static void cobertura_print_class(cobertura_class_t *class, FILE *f)
    int nlines = 0, hitlines = 0, nbranches = 0, hitbranches = 0;
    cobertura_class_stats(class, &nlines, &hitlines, &nbranches, &hitbranches);
 
-   const double line_rate = (double)hitlines / (double)nlines;
-   const double branch_rate = (double)hitbranches / (double)nbranches;
+   const double line_rate =
+      nlines > 0 ? (double)hitlines / (double)nlines : 1.0;
+   const double branch_rate =
+      nbranches > 0 ? (double)hitbranches / (double)nbranches : 1.0;
 
    fprintf(f, "<class name=\"%s(%s)\" filename=\"%s\" "
            "line-rate=\"%f\" branch-rate=\"%f\" complexity=\"0.0\" >\n",
@@ -215,8 +217,10 @@ void cover_export_cobertura(cover_data_t *data, FILE *f, const char *relative)
    for (cobertura_class_t *it = report.classes; it; it = it->next)
       cobertura_class_stats(it, &nlines, &hitlines, &nbranches, &hitbranches);
 
-   const double line_rate = (double)hitlines / (double)nlines;
-   const double branch_rate = (double)hitbranches / (double)nbranches;
+   const double line_rate =
+      nlines > 0 ? (double)hitlines / (double)nlines : 1.0;
+   const double branch_rate =
+      nbranches > 0 ? (double)hitbranches / (double)nbranches : 1.0;
 
    time_t timestamp;
    const long override_time = opt_get_int(OPT_COVER_TIMESTAMP);
