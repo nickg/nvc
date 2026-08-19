@@ -772,6 +772,8 @@ static c_abstractDecl *is_abstractDecl(c_vhpiObject *obj)
    case vhpiConstParamDeclK:
    case vhpiSigParamDeclK:
    case vhpiVarParamDeclK:
+   case vhpiFuncDeclK:
+   case vhpiProcDeclK:
       return container_of(obj, c_abstractDecl, object);
    default:
       return NULL;

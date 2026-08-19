@@ -8,7 +8,7 @@
   declared with an unconstrained subtype (#1632).
 - Fixed several cases where `--preserve-case` would cause incorrect
   behaviour (#1641).
-- Several other minor bugs were resolved (#1638, #1636).
+- Several other minor bugs were resolved (#1638, #1636, #1579).
 
 ## Version 1.22.1 - 2026-08-01
 - Waveform dumping now dumps multiple top units instead of only the first

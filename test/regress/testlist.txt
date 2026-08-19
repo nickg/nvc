@@ -1468,3 +1468,4 @@ issue1632       tcl,vhpi,2008
 ivtest63        verilog
 issue1641       tcl,vhpi,no-collapse,2008
 issue1630       cover,shell
+issue1579       vhpi
