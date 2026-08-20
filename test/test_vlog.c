@@ -219,7 +219,7 @@ START_TEST(test_parse1)
    vlog_node_t m = vlog_parse();
    fail_if(m == NULL);
    fail_unless(vlog_kind(m) == V_MODULE);
-   ck_assert_int_eq(vlog_stmts(m), 44);
+   ck_assert_int_eq(vlog_stmts(m), 45);
    ck_assert_int_eq(vlog_ports(m), 0);
    ck_assert_int_eq(vlog_decls(m), 39);
 

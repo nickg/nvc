@@ -174,6 +174,7 @@ typedef enum {
    V_COVER,
    V_PATTERN_EXPR,
    V_PATTERN_ITEM,
+   V_CAST,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;
@@ -330,6 +331,14 @@ typedef enum {
    V_METHOD_ENUM_NUM,
    V_METHOD_ENUM_NAME,
 } vlog_method_t;
+
+typedef enum {
+   V_CAST_TYPE,
+   V_CAST_WIDTH,
+   V_CAST_SIGN,
+   V_CAST_STRING,
+   V_CAST_CONST,
+} vlog_cast_t;
 
 typedef enum {
    VLOG_F_SIGNED = (1 << 0),

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2024-2025 Nick Gasson
+//  Copyright (C) 2024-2026 Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 bool vlog_is_net(vlog_node_t v);
 unsigned vlog_dimensions(vlog_node_t v);
 bool vlog_get_const(vlog_node_t v, int64_t *value);
+int64_t vlog_must_be_const(vlog_node_t v);
 bool vlog_is_const(vlog_node_t v);
 bool vlog_is_up(vlog_node_t v);
 bool vlog_bounds(vlog_node_t v, int64_t *left, int64_t *right);

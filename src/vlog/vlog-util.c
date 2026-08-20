@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2024 Nick Gasson
+//  Copyright (C) 2024-2026 Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -76,10 +76,20 @@ bool vlog_get_const(vlog_node_t v, int64_t *value)
    case V_CONCAT:
       if (vlog_params(v) == 1 && !vlog_has_value(v))
          return vlog_get_const(vlog_param(v, 0), value);
-      // Fall through
+      else
+         return false;
    default:
-      fatal_at(vlog_loc(v), "expression is not constant");
+      return false;
    }
+}
+
+int64_t vlog_must_be_const(vlog_node_t v)
+{
+   int64_t value;
+   if (vlog_get_const(v, &value))
+      return value;
+
+   fatal_at(vlog_loc(v), "expression is not constant");
 }
 
 bool vlog_is_const(vlog_node_t v)
@@ -323,6 +333,16 @@ unsigned vlog_width(vlog_node_t v)
          return vlog_width(vlog_param(v, 0));
       default:
          return 32;  // TODO: call VPI
+      }
+   case V_CAST:
+      {
+         assert(vlog_subkind(v) == V_CAST_WIDTH);
+
+         int64_t width;
+         if (vlog_get_const(vlog_left(v), &width))
+            return width;
+         else
+            return 0;  // Undefined
       }
    default:
       CANNOT_HANDLE(v);

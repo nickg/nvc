@@ -162,4 +162,5 @@ module parse1;
   rtran (x, y);
   reg s;
   initial #0 s = 1;  // Not a time literal
+  initial by1 = 8'(si);
 endmodule // parse1
