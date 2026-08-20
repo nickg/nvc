@@ -280,6 +280,14 @@ void vhpi14_startup(void)
    vhpi_register_foreignf(&test3_data);
    check_error();
 
+   vhpiForeignDataT test4_data = {
+      .kind = vhpiFuncF,
+      .libraryName = "lib",
+      .modelName = "test4",
+      .execf = test1,
+   };
+   VHPI_CHECK(vhpi_register_foreignf(&test4_data));
+
    vhpiForeignDataT iota_data = {
       .kind = vhpiFuncF,
       .libraryName = "lib",
