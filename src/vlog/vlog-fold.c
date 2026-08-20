@@ -419,6 +419,17 @@ static vlog_node_t fold_const_value(vlog_node_t v, fold_ctx_t *ctx)
    return v;
 }
 
+static vlog_node_t fold_cast(vlog_node_t v, fold_ctx_t *ctx)
+{
+   assert(vlog_subkind(v) == V_CAST_WIDTH);
+
+   vlog_node_t width = fold_const_expr(vlog_left(v), ctx);
+   if (width != NULL)
+      vlog_set_left(v, width);
+
+   return v;
+}
+
 static vlog_node_t fold_if_generate(vlog_node_t v, fold_ctx_t *ctx)
 {
    const int nconds = vlog_conds(v);
@@ -494,6 +505,8 @@ static vlog_node_t vlog_fold_post_cb(vlog_node_t v, void *context)
    case V_ENUM_NAME:
    case V_DEFPARAM:
       return fold_const_value(v, context);
+   case V_CAST:
+      return fold_cast(v, context);
    case V_IF_GENERATE:
       return fold_if_generate(v, context);
    case V_FUNC_DECL:

@@ -1153,6 +1153,12 @@ static type_mask_t vlog_check_pattern_expr(vlog_node_t v)
    return get_type_mask(vlog_type(v));
 }
 
+static type_mask_t vlog_check_cast(vlog_node_t v)
+{
+   vlog_check_expr(vlog_left(v));
+   return vlog_check_expr(vlog_value(v));
+}
+
 static type_mask_t vlog_check_expr(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -1193,6 +1199,8 @@ static type_mask_t vlog_check_expr(vlog_node_t v)
       return vlog_check_prefix_postfix(v);
    case V_PATTERN_EXPR:
       return vlog_check_pattern_expr(v);
+   case V_CAST:
+      return vlog_check_cast(v);
    case V_NUMBER:
    case V_STRENGTH:
       return TM_INTEGRAL | TM_CONST;

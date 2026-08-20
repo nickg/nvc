@@ -347,6 +347,9 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
 
    // V_PATTERN_ITEM
    (I_LEFT | I_RIGHT),
+
+   // V_CAST
+   (I_SUBKIND | I_LEFT | I_VALUE),
 };
 
 static const char *kind_text_map[V_LAST_NODE_KIND] = {
@@ -376,7 +379,7 @@ static const char *kind_text_map[V_LAST_NODE_KIND] = {
    "V_SUPER_CALL",    "V_IMPORT_DECL",  "V_NAMESPACE",     "V_DEFPARAM",
    "V_PORT_MAP",      "V_FINAL",        "V_LOCAL_DECL",    "V_GEN_BLOCK",
    "V_METHOD_CALL",   "V_MOD_REF",      "V_ASSERT",        "V_ASSUME",
-   "V_COVER",         "V_PATTERN_EXPR", "V_PATTERN_ITEM",
+   "V_COVER",         "V_PATTERN_EXPR", "V_PATTERN_ITEM",  "V_CAST",
 };
 
 static const change_allowed_t change_allowed[] = {

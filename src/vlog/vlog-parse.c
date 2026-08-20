@@ -1708,6 +1708,40 @@ static vlog_node_t p_assignment_pattern_expression(vlog_node_t dt)
    return v;
 }
 
+static void p_casting_type(vlog_node_t cast, vlog_node_t head)
+{
+   // simple_type | constant_primary | signing | string | const
+
+   BEGIN("casting type");
+
+   assert(head != NULL);
+
+   vlog_set_subkind(cast, V_CAST_WIDTH);
+   vlog_set_left(cast, head);
+}
+
+
+static vlog_node_t p_cast(vlog_node_t head)
+{
+   // casting_type ' ( expression )
+
+   BEGIN_WITH_HEAD("cast", head);
+
+   vlog_node_t v = vlog_new(V_CAST);
+
+   p_casting_type(v, head);
+
+   consume(tTICK);
+   consume(tLPAREN);
+
+   vlog_set_value(v, p_expression());
+
+   consume(tRPAREN);
+
+   vlog_set_loc(v, CURRENT_LOC);
+   return v;
+}
+
 static vlog_node_t p_primary(void)
 {
    // primary_literal | empty_queue
@@ -1721,62 +1755,72 @@ static vlog_node_t p_primary(void)
 
    BEGIN("primary");
 
+   vlog_node_t head;
    switch (peek()) {
    case tID:
       switch (peek_nth(2)) {
       case tLPAREN:
       case tATTRBEGIN:
-         return p_subroutine_call(V_USER_FCALL);
+         head = p_subroutine_call(V_USER_FCALL);
+         break;
       case tDOT:
          if (peek_nth(4) == tLPAREN)
-            return p_subroutine_call(V_METHOD_CALL);
+            head = p_subroutine_call(V_METHOD_CALL);
          else
-            return p_select(p_identifier());
+            head = p_select(p_identifier());
+         break;
       case tSCOPE:
          p_package_scope();
          // Fall-through
       default:
-         return p_select(p_identifier());
+         head = p_select(p_identifier());
+         break;
       }
+      break;
    case tSTRING:
    case tNUMBER:
    case tUNSNUM:
    case tREAL:
-      return p_primary_literal();
+      head = p_primary_literal();
+      break;
    case tSYSTASK:
-      return p_subroutine_call(V_SYS_FCALL);
+      head = p_subroutine_call(V_SYS_FCALL);
+      break;
    case tLPAREN:
-      {
-         consume(tLPAREN);
-         vlog_node_t expr = p_mintypmax_expression();
-         consume(tRPAREN);
-         return expr;
-      }
+      consume(tLPAREN);
+      head = p_mintypmax_expression();
+      consume(tRPAREN);
+      break;
    case tLBRACE:
       {
          consume(tLBRACE);
 
-         vlog_node_t head = p_expression();
+         vlog_node_t head2 = p_expression();
          if (peek() == tLBRACE)
-            return p_multiple_concatenation(head);
+            head = p_multiple_concatenation(head2);
          else
-            return p_concatenation(head);
+            head = p_concatenation(head2);
       }
+      break;
    case tNULL:
-      {
-         consume(tNULL);
-
-         vlog_node_t v = vlog_new(V_NULL);
-         vlog_set_loc(v, CURRENT_LOC);
-         return v;
-      }
+      consume(tNULL);
+      head =  vlog_new(V_NULL);
+      vlog_set_loc(head, CURRENT_LOC);
+      break;
    case tTICK:
-      return p_assignment_pattern_expression(NULL);
+      head = p_assignment_pattern_expression(NULL);
+      break;
    default:
       one_of(tID, tSTRING, tNUMBER, tUNSNUM, tREAL, tSYSTASK, tLPAREN,
              tLBRACE, tNULL, tTICK);
-      return p_select(error_marker());
+      head = p_select(error_marker());
+      break;
    }
+
+   if (peek() == tTICK && peek_nth(2) == tLPAREN)
+      return p_cast(head);
+   else
+      return head;
 }
 
 static vlog_binary_t p_binary_operator(void)

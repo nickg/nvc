@@ -1826,8 +1826,7 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
          }
 
          if (vlog_has_value(v)) {
-            int64_t cval;
-            vlog_get_const(vlog_value(v), &cval);
+            int64_t cval = vlog_must_be_const(vlog_value(v));
             size *= (repeat = MAX(0, cval));
          }
 
@@ -2004,6 +2003,18 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
       }
    case V_PATTERN_EXPR:
       return vlog_lower_pattern_expr(g, v, context);
+   case V_CAST:
+      {
+         assert(vlog_subkind(v) == V_CAST_WIDTH);
+
+         mir_value_t value = vlog_lower_rvalue(g, vlog_value(v));
+
+         bool issigned = mir_get_signed(g->mu, mir_get_type(g->mu, value));
+         int64_t width = vlog_must_be_const(vlog_left(v));
+         mir_type_t type = mir_vec4_type(g->mu, width, issigned);
+
+         return mir_build_cast(g->mu, type, value);
+      }
    default:
       CANNOT_HANDLE(v);
    }
