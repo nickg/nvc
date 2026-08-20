@@ -113,6 +113,8 @@ static vcode_reg_t lower_record_aggregate(lower_unit_t *lu, tree_t expr,
                                           vcode_reg_t hint);
 static vcode_reg_t lower_aggregate(lower_unit_t *lu, tree_t expr,
                                    vcode_reg_t hint);
+static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
+                                         type_t type, vcode_reg_t hint);
 static void lower_decls(lower_unit_t *lu, tree_t scope, gen_stack_t *gs);
 static void lower_check_array_sizes(lower_unit_t *lu, type_t ltype,
                                     type_t rtype, vcode_reg_t lval,
@@ -3694,6 +3696,38 @@ static vcode_reg_t lower_record_sub_aggregate(lower_unit_t *lu, tree_t value,
       return lower_rvalue(lu, value);
 }
 
+static vcode_reg_t lower_record_others(lower_unit_t *lu, tree_t value,
+                                       tree_t field, bool is_const)
+{
+   type_t ftype = tree_type(field);
+
+   if (is_const && type_is_array(ftype)) {
+      int nvals;
+         vcode_reg_t *values LOCAL =
+            lower_const_array_aggregate(lu, value, ftype, 0, &nvals);
+         return emit_const_array(lower_type(ftype), values, nvals);
+   }
+   else if (is_const && type_is_record(ftype))
+      return lower_record_aggregate(lu, value, true, true, VCODE_INVALID_REG);
+   else if (type_is_scalar(ftype) || type_is_access(ftype))
+      return lower_rvalue(lu, value);
+   else if (type_is_array(ftype)) {
+      if (tree_kind(value) == T_AGGREGATE)
+         return lower_array_aggregate(lu, value, ftype, VCODE_INVALID_REG);
+      else {
+         vcode_reg_t value_reg = lower_rvalue(lu, value);
+         if (!type_is_unconstrained(ftype)) {
+            vcode_reg_t locus = lower_debug_locus(field);
+            lower_check_array_sizes(lu, ftype, tree_type(value),
+                                    VCODE_INVALID_REG, value_reg, locus);
+         }
+         return lower_coerce_arrays(lu, tree_type(value), ftype, value_reg);
+      }
+   }
+   else
+      return lower_rvalue(lu, value);
+}
+
 static vcode_reg_t lower_record_aggregate(lower_unit_t *lu, tree_t expr,
                                           bool nest, bool is_const,
                                           vcode_reg_t hint)
@@ -3735,7 +3769,7 @@ static vcode_reg_t lower_record_aggregate(lower_unit_t *lu, tree_t expr,
          for (int j = 0; j < nfields; j++) {
             if (vals[j] == VCODE_INVALID_REG) {
                tree_t field = type_field(type, j);
-               vals[j] = lower_record_sub_aggregate(lu, value, field, is_const);
+               vals[j] = lower_record_others(lu, value, field, is_const);
                map[j] = value;
             }
          }
@@ -3989,11 +4023,10 @@ static vcode_reg_t lower_aggregate_bounds(lower_unit_t *lu, tree_t expr,
 }
 
 static vcode_reg_t lower_array_aggregate(lower_unit_t *lu, tree_t expr,
-                                         vcode_reg_t hint)
+                                         type_t type, vcode_reg_t hint)
 {
    emit_debug_info(tree_loc(expr));
 
-   type_t type = tree_type(expr);
    type_t elem_type = type_elem(type);
    type_t scalar_elem_type = type_elem_recur(type);
 
@@ -4519,7 +4552,7 @@ static vcode_reg_t lower_aggregate(lower_unit_t *lu, tree_t expr,
       return lower_record_aggregate(lu, expr, false,
                                     lower_is_const(expr), hint);
    else if (type_is_array(type))
-      return lower_array_aggregate(lu, expr, hint);
+      return lower_array_aggregate(lu, expr, type, hint);
    else
       fatal_trace("invalid type %s in lower_aggregate", type_pp(type));
 }
