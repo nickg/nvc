@@ -63,7 +63,7 @@ static const struct {
 };
 
 #define COVER_FILE_MAGIC   0x6e636462   // ASCII "ncdb"
-#define COVER_FILE_VERSION 7
+#define COVER_FILE_VERSION 8
 
 static inline unsigned get_next_tag(cover_block_t *b)
 {
@@ -168,6 +168,28 @@ static cover_obj_t cover_alloc_bins(cover_data_t *db, unsigned count)
    return obj;
 }
 
+static cover_obj_t cover_alloc_ranges(cover_data_t *db, unsigned count)
+{
+   if (count == 0)
+      return COVER_NULL_OBJ;
+
+   if (db->ranges.count + count > db->ranges.limit) {
+      const unsigned new_limit =
+         MAX(8, MAX(db->ranges.limit * 2, db->ranges.count + count));
+      db->ranges.items = xrealloc_array(db->ranges.items, new_limit,
+                                        sizeof(cover_range_t));
+      db->ranges.limit = new_limit;
+   }
+
+   cover_obj_t obj = {
+      .tag = COVER_TAG_RANGE,
+      .id = db->ranges.count,
+   };
+
+   db->ranges.count += count;
+   return obj;
+}
+
 static cover_item_t *cover_add_item(cover_data_t *db, cover_scope_t *cs,
                                     object_t *obj, cover_item_kind_t kind,
                                     uint32_t flags, int nbins)
@@ -206,12 +228,10 @@ static cover_item_t *cover_add_item(cover_data_t *db, cover_scope_t *cs,
    cover_bin_t *bins = cover_get_bins(db, new);
    for (int i = 0; i < nbins; i++) {
       bins[i] = (cover_bin_t){
-         .tag           = get_next_tag(cs->block),
-         .data          = 0,
-         .flags         = flags,
-         .hier          = hier,
-         .n_ranges      = 0,
-         .ranges        = NULL,
+         .tag   = get_next_tag(cs->block),
+         .data  = 0,
+         .flags = flags,
+         .hier  = hier,
       };
    }
 
@@ -705,6 +725,14 @@ cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cs,
    }
 }
 
+void cover_add_ranges(cover_data_t *db, cover_bin_t *bin, unsigned count)
+{
+   assert(cover_is_null(bin->first_range));
+
+   bin->first_range = cover_alloc_ranges(db, count);
+   bin->n_ranges = count;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Coverage data write/read to covdb, covdb merging and coverage scope handling
 ///////////////////////////////////////////////////////////////////////////////
@@ -782,10 +810,8 @@ static void cover_write_item(cover_data_t *db, cover_item_t *item, fbuf_t *f,
       fbuf_put_uint(f, bin->flags);
       fbuf_put_uint(f, bin->n_ranges);
 
-      for (int j = 0; j < bin->n_ranges; j++) {
-         fbuf_put_uint(f, bin->ranges[j].min);
-         fbuf_put_uint(f, bin->ranges[j].max);
-      }
+      if (bin->n_ranges > 0)
+         fbuf_put_uint(f, bin->first_range.id);
 
       if (bin->flags & COVER_FLAGS_LHS_RHS_BINS) {
          loc_write(&(item->loc_lhs), loc_ctx);
@@ -879,6 +905,12 @@ void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
    loc_wr_ctx_t *loc_wr = loc_write_begin(f);
    ident_wr_ctx_t ident_ctx = ident_write_begin(f);
 
+   fbuf_put_uint(f, db->ranges.count);
+   for (int i = 0; i < db->ranges.count; i++) {
+      fbuf_put_uint(f, db->ranges.items[i].min);
+      fbuf_put_uint(f, db->ranges.items[i].max);
+   }
+
    cover_write_scope(db, db->root_scope, f, ident_ctx, loc_wr);
 
    write_u8(CTRL_END_OF_FILE, f);
@@ -910,6 +942,7 @@ void cover_data_free(cover_data_t *db)
 #endif
 
    free(db->bins.items);
+   free(db->ranges.items);
    hash_free(db->blocks);
    pool_free(db->pool);
    free(db);
@@ -1076,13 +1109,9 @@ static cover_item_t *cover_read_item(cover_data_t *db, fbuf_t *f,
       bin->flags = fbuf_get_uint(f);
       bin->n_ranges = fbuf_get_uint(f);
 
-      if (bin->n_ranges > 0)
-         bin->ranges = pool_malloc_array(db->pool, bin->n_ranges,
-                                         sizeof(cover_range_t));
-
-      for (int j = 0; j < bin->n_ranges; j++) {
-         bin->ranges[j].min = fbuf_get_uint(f);
-         bin->ranges[j].max = fbuf_get_uint(f);
+      if (bin->n_ranges > 0) {
+         bin->first_range.tag = COVER_TAG_RANGE;
+         bin->first_range.id = fbuf_get_uint(f);
       }
 
       if (bin->flags & COVER_FLAGS_LHS_RHS_BINS) {
@@ -1164,6 +1193,14 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
 
    loc_rd_ctx_t *loc_rd = loc_read_begin(f);
    ident_rd_ctx_t ident_ctx = ident_read_begin(f);
+
+   db->ranges.count = db->ranges.limit = fbuf_get_uint(f);
+   db->ranges.items = xmalloc_array(db->ranges.count, sizeof(cover_range_t));
+
+   for (int i = 0; i < db->ranges.count; i++) {
+      db->ranges.items[i].min = fbuf_get_uint(f);
+      db->ranges.items[i].max = fbuf_get_uint(f);
+   }
 
    bool eof = false;
    do {
@@ -1424,6 +1461,17 @@ cover_bin_t *cover_get_bins(const cover_data_t *db, const cover_item_t *item)
    assert(item->first_bin.id < db->bins.count);
 
    return db->bins.items + item->first_bin.id;
+}
+
+cover_range_t *cover_get_ranges(const cover_data_t *db, const cover_bin_t *bin)
+{
+   if (cover_is_null(bin->first_range))
+      return NULL;
+
+   assert(bin->first_range.tag == COVER_TAG_RANGE);
+   assert(bin->first_range.id < db->ranges.count);
+
+   return db->ranges.items + bin->first_range.id;
 }
 
 void cover_bmask_to_bin_list(uint32_t bmask, text_buf_t *tb)

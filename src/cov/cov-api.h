@@ -21,9 +21,10 @@
 #include "prim.h"
 #include "diag.h"
 
-#define COVER_TAG_NULL 0
-#define COVER_TAG_ITEM 1
-#define COVER_TAG_BIN  2
+#define COVER_TAG_NULL  0
+#define COVER_TAG_ITEM  1
+#define COVER_TAG_BIN   2
+#define COVER_TAG_RANGE 3
 
 #define _COVER_TAG_BITS   3
 #define _COVER_ID_BITS    29
@@ -121,13 +122,13 @@ typedef struct {
 } cover_range_t;
 
 typedef struct {
-   ident_t        hier;
-   cover_range_t *ranges;
-   int32_t        tag;
-   int32_t        data;
-   uint32_t       flags;
-   uint32_t       n_ranges;
-   uint32_t       field_idx;
+   ident_t     hier;
+   cover_obj_t first_range;
+   int32_t     tag;
+   int32_t     data;
+   uint32_t    flags;
+   uint32_t    n_ranges;
+   uint32_t    field_idx;
 } cover_bin_t;
 
 typedef struct _cover_item {
@@ -239,6 +240,7 @@ void cover_merge(cover_data_t *dst, const cover_data_t *src, merge_mode_t mode);
 int32_t *cover_get_counters(cover_data_t *db, ident_t name);
 cover_scope_t *cover_get_scope(cover_data_t *db, ident_t name);
 cover_bin_t *cover_get_bins(const cover_data_t *db, const cover_item_t *item);
+cover_range_t *cover_get_ranges(const cover_data_t *db, const cover_bin_t *bin);
 
 cover_scope_t *cover_get_child(cover_scope_t *s, ident_t name);
 cover_item_t *cover_get_item(cover_scope_t *s, cover_item_kind_t kind, int nth);
@@ -277,6 +279,7 @@ cover_scope_t *cover_create_user_scope(cover_data_t *db, cover_scope_t *parent,
                                        loc_t loc, ident_t name);
 cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cscope,
                                   object_t *obj, cover_item_kind_t kind);
+void cover_add_ranges(cover_data_t *db, cover_bin_t *bin, unsigned count);
 
 bool cover_compatible_spec(cover_data_t *db, const cover_scope_t *a,
                            const cover_scope_t *b);

@@ -474,14 +474,16 @@ void _nvc_add_cover_item(jit_scalar_t *args)
    if (item->atleast == 0)
       bin->flags |= (COV_FLAG_EXCLUDED | COV_FLAG_EXCLUDED_USER);
 
-   bin->n_ranges = ffi_array_length(args[10].integer);
-   bin->ranges = xcalloc_array(bin->n_ranges, sizeof(cover_range_t));
+   const int n_ranges = ffi_array_length(args[10].integer);
+   cover_add_ranges(data, bin, n_ranges);
+
+   cover_range_t *ranges = cover_get_ranges(data, bin);
 
    int64_t *ptr = (int64_t *)args[8].pointer;
 
    for (int i = 0; i < bin->n_ranges; i++) {
-      bin->ranges[i].min = *ptr++;
-      bin->ranges[i].max = *ptr++;
+      ranges[i].min = *ptr++;
+      ranges[i].max = *ptr++;
    }
 
    *index_ptr = us->scope->items.count - 1;

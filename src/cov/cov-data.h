@@ -56,6 +56,12 @@ typedef struct {
    cover_bin_t *items;
 } bin_tab_t;
 
+typedef struct {
+   unsigned       count;
+   unsigned       limit;
+   cover_range_t *items;
+} range_tab_t;
+
 struct _cover_data {
    cover_mask_t     mask;
    int              array_limit;
@@ -67,6 +73,7 @@ struct _cover_data {
    hash_t          *blocks;
    mem_pool_t      *pool;
    bin_tab_t        bins;
+   range_tab_t      ranges;
 };
 
 typedef struct {

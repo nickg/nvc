@@ -508,8 +508,8 @@ static void cover_print_bin_header(FILE *f, cov_pair_kind_t pkind, int cols,
    fprintf(f, "</tr>");
 }
 
-static void html_print_table(const rpt_table_t *table, cov_pair_kind_t pkind,
-                             FILE *f)
+static void html_print_table(html_gen_t *g, const rpt_table_t *table,
+                             cov_pair_kind_t pkind, FILE *f)
 {
    assert(table->count > 0);
 
@@ -723,13 +723,15 @@ static void html_print_table(const rpt_table_t *table, cov_pair_kind_t pkind,
                const cover_bin_t *bin = table->items[i].bin;
                assert(item->source == COV_SRC_USER_COVER);
 
+               const cover_range_t *ranges = cover_get_ranges(g->data, bin);
+
                const char *v[bin->n_ranges];
                for (int j = 0; j < bin->n_ranges; j++)
-                  if (bin->ranges[j].min == bin->ranges[j].max)
-                     v[j] = xasprintf("%"PRIi64, bin->ranges[j].min);
+                  if (ranges[j].min == ranges[j].max)
+                     v[j] = xasprintf("%"PRIi64, ranges[j].min);
                   else
-                     v[j] = xasprintf("%"PRIi64" - %"PRIi64, bin->ranges[j].min,
-                                      bin->ranges[j].max);
+                     v[j] = xasprintf("%"PRIi64" - %"PRIi64, ranges[j].min,
+                                      ranges[j].max);
 
                cover_print_bin(f, item, bin, table->items[i].data,
                                COV_FLAG_USER_DEFINED, pkind, bin->n_ranges, v);
@@ -808,7 +810,7 @@ static void html_print_detail(html_gen_t *g, const rpt_detail_t *d,
       fprintf(f, "  <div style=\"padding:0px 10px;\">\n");
       for (int i = 0; i < d->miss[kind].count; i++) {
          if (i > 0) fprintf(f, "<hr/>\n");
-         html_print_table(d->miss[kind].items[i], PAIR_UNCOVERED, f);
+         html_print_table(g, d->miss[kind].items[i], PAIR_UNCOVERED, f);
       }
       fprintf(f, "  </div>\n");
 
@@ -826,7 +828,7 @@ static void html_print_detail(html_gen_t *g, const rpt_detail_t *d,
       fprintf(f, "  <div style=\"padding:0px 10px;\">\n");
       for (int i = 0; i < d->excl[kind].count; i++) {
          if (i > 0) fprintf(f, "<hr/>\n");
-         html_print_table(d->excl[kind].items[i], PAIR_EXCLUDED, f);
+         html_print_table(g, d->excl[kind].items[i], PAIR_EXCLUDED, f);
       }
       fprintf(f, "  </div>\n");
 
@@ -844,7 +846,7 @@ static void html_print_detail(html_gen_t *g, const rpt_detail_t *d,
       fprintf(f, "  <div style=\"padding:0px 10px;\">\n");
       for (int i = 0; i < d->hits[kind].count; i++) {
          if (i > 0) fprintf(f, "<hr/>\n");
-         html_print_table(d->hits[kind].items[i], PAIR_COVERED, f);
+         html_print_table(g, d->hits[kind].items[i], PAIR_COVERED, f);
       }
       fprintf(f, "  </div>\n");
 
