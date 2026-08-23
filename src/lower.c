@@ -99,9 +99,9 @@ typedef struct {
 } last_time_params_t;
 
 typedef struct {
-   cover_item_t *item;
-   unsigned      next;
-   unsigned      field_idx;
+   cover_obj_t item;
+   unsigned    next;
+   unsigned    field_idx;
 } field_toggle_params_t;
 
 static vcode_reg_t lower_expr(lower_unit_t *lu, tree_t expr, expr_ctx_t ctx);
@@ -1663,8 +1663,9 @@ static void lower_branch_coverage(lower_unit_t *lu, tree_t b, int nth,
 {
    assert(cover_enabled(lu->cover, COVER_MASK_BRANCH));
 
-   cover_item_t *item = cover_get_item(gs->cscope, COV_ITEM_BRANCH, nth);
-   if (item == NULL)
+   cover_obj_t item = cover_get_item(lu->cover, gs->cscope,
+                                     COV_ITEM_BRANCH, nth);
+   if (cover_is_null(item))
       return;
 
    cover_obj_t bins[2];
@@ -1691,8 +1692,8 @@ static void lower_stmt_coverage(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
    else if (!cover_enabled(lu->cover, COVER_MASK_STMT))
       return;
 
-   cover_item_t *item = cover_get_item(gs->cscope, COV_ITEM_STMT, 0);
-   if (item == NULL)
+   cover_obj_t item = cover_get_item(lu->cover, gs->cscope, COV_ITEM_STMT, 0);
+   if (cover_is_null(item))
       return;
 
    cover_obj_t bin = cover_at(lu->cover, item, COV_REL_BINS, 0);
@@ -1744,8 +1745,8 @@ static void lower_toggle_coverage(lower_unit_t *lu, tree_t decl,
 {
    assert(cover_enabled(lu->cover, COVER_MASK_TOGGLE));
 
-   cover_item_t *item = cover_get_item(gs->cscope, COV_ITEM_TOGGLE, 0);
-   if (item == NULL)
+   cover_obj_t item = cover_get_item(lu->cover, gs->cscope, COV_ITEM_TOGGLE, 0);
+   if (cover_is_null(item))
       return;
 
    type_t type = tree_type(decl);
@@ -1771,8 +1772,8 @@ static void lower_state_coverage(lower_unit_t *lu, tree_t decl, gen_stack_t *gs)
 {
    assert(cover_enabled(lu->cover, COVER_MASK_STATE));
 
-   cover_item_t *item = cover_get_item(gs->cscope, COV_ITEM_STATE, 0);
-   if (item == NULL)
+   cover_obj_t item = cover_get_item(lu->cover, gs->cscope, COV_ITEM_STATE, 0);
+   if (cover_is_null(item))
       return;
 
    int hops = 0;
@@ -1788,12 +1789,12 @@ static void lower_state_coverage(lower_unit_t *lu, tree_t decl, gen_stack_t *gs)
    // Then value of lower bound will correspond to first coverage
    // tag.  Need to remember the lower bound, so that run-time can
    // subtract lower bound to get correct index of coverage data.
-   vcode_reg_t low_reg = emit_const(vtype_int(INT64_MIN, INT64_MAX),
-                                    item->metadata);
+   int64_t metadata = cover_get_i64(lu->cover, item, COV_ATTR_METADATA, 0);
+   vcode_reg_t low_reg = emit_const(vtype_int(INT64_MIN, INT64_MAX), metadata);
    emit_cover_state(nets_reg, low_reg, tag);
 }
 
-static void lower_logic_expr_coverage(lower_unit_t *lu, cover_item_t *item,
+static void lower_logic_expr_coverage(lower_unit_t *lu, cover_obj_t item,
                                       vcode_reg_t lhs, vcode_reg_t rhs)
 {
    if (vcode_unit_kind(lu->vunit) == VCODE_UNIT_PROPERTY)
@@ -2448,7 +2449,7 @@ static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall,
    return emit_fcall(name, rtype, rbounds, args.items, args.count);
 }
 
-static vcode_reg_t lower_expr_coverge(lower_unit_t *lu, cover_item_t *item,
+static vcode_reg_t lower_expr_coverge(lower_unit_t *lu, cover_obj_t item,
                                       vcode_reg_t result, vcode_reg_t lhs,
                                       vcode_reg_t rhs, unsigned unrc_msk)
 {
@@ -2538,9 +2539,9 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t t, int *nth,
    if (!vhdl_is_logical(kind))
       return lower_rvalue(lu, t);
 
-   cover_item_t *first = cover_get_item(gs->cscope, COV_ITEM_EXPRESSION,
-                                        (*nth)++);
-   if (first == NULL)
+   cover_obj_t item = cover_get_item(lu->cover, gs->cscope,
+                                     COV_ITEM_EXPRESSION, (*nth)++);
+   if (cover_is_null(item))
       return lower_rvalue(lu, t);
 
    tree_t p0 = tree_value(tree_param(t, 0)), p1 = NULL;
@@ -2596,7 +2597,7 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t t, int *nth,
       }
 
       // Only emit expression coverage when also arg1 is evaluated.
-      lower_expr_coverge(lu, first, emit_load(tmp_var), r0, r1, unrc_msk);
+      lower_expr_coverge(lu, item, emit_load(tmp_var), r0, r1, unrc_msk);
 
       emit_jump(after_bb);
 
@@ -2619,22 +2620,22 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t t, int *nth,
       case S_SCALAR_GE:
          {
             vcode_reg_t result = lower_comparison(lu, t, kind, r0, r1);
-            return lower_expr_coverge(lu, first, result, r0, r1, 0);
+            return lower_expr_coverge(lu, item, result, r0, r1, 0);
          }
       case S_SCALAR_NOT:
-         return lower_expr_coverge(lu, first, emit_not(r0), r0, r1, 0);
+         return lower_expr_coverge(lu, item, emit_not(r0), r0, r1, 0);
       case S_SCALAR_AND:
-         return lower_expr_coverge(lu, first, emit_and(r0, r1), r0, r1, 0);
+         return lower_expr_coverge(lu, item, emit_and(r0, r1), r0, r1, 0);
       case S_SCALAR_OR:
-         return lower_expr_coverge(lu, first, emit_or(r0, r1), r0, r1, 0);
+         return lower_expr_coverge(lu, item, emit_or(r0, r1), r0, r1, 0);
       case S_SCALAR_NAND:
-         return lower_expr_coverge(lu, first, emit_nand(r0, r1), r0, r1, 0);
+         return lower_expr_coverge(lu, item, emit_nand(r0, r1), r0, r1, 0);
       case S_SCALAR_NOR:
-         return lower_expr_coverge(lu, first, emit_nor(r0, r1), r0, r1, 0);
+         return lower_expr_coverge(lu, item, emit_nor(r0, r1), r0, r1, 0);
       case S_SCALAR_XOR:
-         return lower_expr_coverge(lu, first, emit_xor(r0, r1), r0, r1, 0);
+         return lower_expr_coverge(lu, item, emit_xor(r0, r1), r0, r1, 0);
       case S_SCALAR_XNOR:
-         return lower_expr_coverge(lu, first, emit_xnor(r0, r1), r0, r1, 0);
+         return lower_expr_coverge(lu, item, emit_xnor(r0, r1), r0, r1, 0);
       case S_IEEE_AND:
       case S_IEEE_OR:
       case S_IEEE_XOR:
@@ -2643,7 +2644,7 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t t, int *nth,
       case S_IEEE_XNOR:
       case S_IEEE_NOT:
          {
-            lower_logic_expr_coverage(lu, first, r0, r1);
+            lower_logic_expr_coverage(lu, item, r0, r1);
             return lower_std_ulogic_op(lu, t, kind, r0, r1);
          }
       default:

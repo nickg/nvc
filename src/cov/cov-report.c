@@ -59,9 +59,10 @@ static void rpt_merge_stats(rpt_stats_t *dst, const rpt_stats_t *src)
    }
 }
 
-static bool rpt_is_hit(const rpt_item_t *ri)
+static bool rpt_is_hit(cover_rpt_t *rpt, const rpt_item_t *ri)
 {
-   return ri->data >= ri->item->atleast && ri->item->atleast > 0;
+   int32_t threshold = cover_get_threshold(rpt->data, ri->item);
+   return ri->data >= threshold && threshold > 0;
 }
 
 static bool rpt_is_excluded(cover_rpt_t *rpt, const rpt_item_t *ri)
@@ -72,12 +73,12 @@ static bool rpt_is_excluded(cover_rpt_t *rpt, const rpt_item_t *ri)
       return true;
 
    if (rpt->data->mask & COVER_MASK_EXCLUDE_UNREACHABLE) {
-      if (ri->item->kind == COV_ITEM_TOGGLE
-          && (ri->data & COV_FLAG_UNREACHABLE))
+      cover_item_kind_t kind = cover_get_kind(rpt->data, ri->item);
+
+      if (kind == COV_ITEM_TOGGLE && (ri->data & COV_FLAG_UNREACHABLE))
          return true;
 
-      if (ri->item->kind == COV_ITEM_EXPRESSION
-          && (flags & COV_FLAG_UNREACHABLE))
+      if (kind == COV_ITEM_EXPRESSION && (flags & COV_FLAG_UNREACHABLE))
          return true;
    }
 
@@ -99,11 +100,13 @@ static rpt_table_t *rpt_table_new(cover_rpt_t *rpt, const rpt_line_t *line,
 }
 
 static void rpt_get_detail(cover_rpt_t *rpt, rpt_detail_t *detail,
-                           rpt_stats_t *stats, const cover_item_t *item,
+                           rpt_stats_t *stats, cover_obj_t item,
                            const cover_obj_t *bins, const int32_t *data,
                            int count, const rpt_line_t *line)
 {
    int nhit = 0, nmiss = 0, nexcl = 0;
+
+   cover_item_kind_t kind = cover_get_kind(rpt->data, item);
 
    for (int i = 0; i < count; i++) {
       rpt_item_t ri = {
@@ -116,14 +119,14 @@ static void rpt_get_detail(cover_rpt_t *rpt, rpt_detail_t *detail,
       else
          ri.data = data[i];
 
-      stats->total[item->kind]++;
+      stats->total[kind]++;
 
-      if (rpt_is_hit(&ri)) {
-         stats->hit[item->kind]++;
+      if (rpt_is_hit(rpt, &ri)) {
+         stats->hit[kind]++;
          nhit++;
       }
       else if (rpt_is_excluded(rpt, &ri)) {
-         stats->hit[item->kind]++;
+         stats->hit[kind]++;
          nexcl++;
       }
       else
@@ -145,7 +148,7 @@ static void rpt_get_detail(cover_rpt_t *rpt, rpt_detail_t *detail,
       else
          ref.data = data[i];
 
-      if (rpt_is_hit(&ref))
+      if (rpt_is_hit(rpt, &ref))
          hit->items[hpos++] = ref;
       else if (rpt_is_excluded(rpt, &ref))
          excl->items[epos++] = ref;
@@ -154,7 +157,7 @@ static void rpt_get_detail(cover_rpt_t *rpt, rpt_detail_t *detail,
    }
 
    if (hit != NULL) {
-      APUSH(detail->hits[item->kind], hit);
+      APUSH(detail->hits[kind], hit);
 
       if (hit->count > rpt->item_limit) {
          rpt->skipped += hit->count - rpt->item_limit;
@@ -163,7 +166,7 @@ static void rpt_get_detail(cover_rpt_t *rpt, rpt_detail_t *detail,
    }
 
    if (miss != NULL) {
-      APUSH(detail->miss[item->kind], miss);
+      APUSH(detail->miss[kind], miss);
 
       if (miss->count > rpt->item_limit) {
          rpt->skipped += miss->count - rpt->item_limit;
@@ -172,7 +175,7 @@ static void rpt_get_detail(cover_rpt_t *rpt, rpt_detail_t *detail,
    }
 
    if (excl != NULL) {
-      APUSH(detail->excl[item->kind], excl);
+      APUSH(detail->excl[kind], excl);
 
       if (excl->count > rpt->item_limit) {
          rpt->skipped += excl->count - rpt->item_limit;
@@ -183,9 +186,9 @@ static void rpt_get_detail(cover_rpt_t *rpt, rpt_detail_t *detail,
    detail->total += nhit + nmiss + nexcl;
 }
 
-static void rpt_merge_data(rpt_item_t *ri, int32_t data)
+static void rpt_merge_data(cover_rpt_t *rpt, rpt_item_t *ri, int32_t data)
 {
-   switch (ri->item->kind) {
+   switch (cover_get_kind(rpt->data, ri->item)) {
    case COV_ITEM_TOGGLE:
       if ((ri->data & COV_FLAG_UNREACHABLE) || (data & COV_FLAG_UNREACHABLE))
          ri->data = COV_FLAG_UNREACHABLE;
@@ -203,11 +206,14 @@ static void rpt_merge_file_items(cover_rpt_t *rpt, rpt_file_t *f,
 {
    // TODO: This has O(n^2). May be issue for large designs ?
    for (int i = 0; i < s->items.count; i++) {
-      cover_item_t *scope_item = AGET(s->items, i);
+      cover_obj_t scope_item = AGET(s->items, i);
 
       cover_obj_t scope_bin0 = cover_at(rpt->data, scope_item, COV_REL_BINS, 0);
       cover_flags_t scope_flags = cover_get_flags(rpt->data, scope_bin0);
       uint32_t data = cover_get_u32(rpt->data, scope_bin0, COV_ATTR_DATA, 0);
+
+      loc_t scope_loc = cover_get_loc(rpt->data, scope_item, COV_ATTR_LOC);
+      cover_item_kind_t scope_kind = cover_get_kind(rpt->data, scope_item);
 
       bool found = false;
       for (int j = 0; j < f->items.count; j++) {
@@ -217,18 +223,23 @@ static void rpt_merge_file_items(cover_rpt_t *rpt, rpt_file_t *f,
                                           COV_REL_BINS, 0);
          cover_flags_t file_flags = cover_get_flags(rpt->data, file_bin0);
 
+         loc_t file_loc =
+            cover_get_loc(rpt->data, file_item->item, COV_ATTR_LOC);
+         cover_item_kind_t file_kind =
+            cover_get_kind(rpt->data, file_item->item);
+
          // We must take into account:
          //    - kind   - different kind items can be at the same loc
          //    - loc    - to get aggregated per-file data
          //    - flags  - to not merge different bins
          found =
-            (file_item->item->kind == scope_item->kind)
-            && file_item->item->loc.first_line == scope_item->loc.first_line
-            && file_item->item->loc.first_column == scope_item->loc.first_column
+            (file_kind == scope_kind)
+            && file_loc.first_line == scope_loc.first_line
+            && file_loc.first_column == scope_loc.first_column
             && (file_flags == scope_flags);
 
          if (found) {
-            rpt_merge_data(file_item, data);
+            rpt_merge_data(rpt, file_item, data);
             break;
          }
       }
@@ -331,16 +342,18 @@ static void rpt_visit_sub_scope(cover_rpt_t *rpt, rpt_hier_t *h,
    rpt_file_t *f_src = rpt_visit_file(rpt, s);
    if (f_src != NULL) {
       for (int i = 0; i < s->items.count; i++) {
-         cover_item_t *item = s->items.items[i];
-         assert(item->loc.file_ref == s->loc.file_ref);
+         cover_obj_t item = s->items.items[i];
 
-         const rpt_line_t *line = rpt_get_line(f_src, &item->loc);
+         loc_t loc = cover_get_loc(rpt->data, item, COV_ATTR_LOC);
+         assert(loc.file_ref == s->loc.file_ref);
+
+         const rpt_line_t *line = rpt_get_line(f_src, &loc);
          if (line == NULL)
             continue;
 
          cover_obj_t small[10];
          const int nbins = cover_rel(rpt->data, item, COV_REL_BINS, 0, small,
-                                     ARRAY_LEN(small));
+                                      ARRAY_LEN(small));
 
          if (nbins <= ARRAY_LEN(small))
             rpt_get_detail(rpt, &h->detail, &h->flat_stats, item, small, NULL,
@@ -377,7 +390,9 @@ static void rpt_gen_file_details(cover_rpt_t *rpt, rpt_file_t *f)
    for (int i = 0; i < f->items.count; i++) {
       const rpt_item_t *ri = &(f->items.items[i]);
 
-      const rpt_line_t *line = rpt_get_line(f, &ri->item->loc);
+      loc_t loc = cover_get_loc(rpt->data, ri->item, COV_ATTR_LOC);
+
+      const rpt_line_t *line = rpt_get_line(f, &loc);
       if (line == NULL)
          continue;
 

@@ -88,7 +88,6 @@ typedef struct sens_list sens_list_t;
 typedef struct _vcode_unit *vcode_unit_t;
 
 typedef struct _cover_data  cover_data_t;
-typedef struct _cover_item  cover_item_t;
 typedef struct _cover_scope cover_scope_t;
 typedef struct _cover_block cover_block_t;
 typedef struct _cover_rpt   cover_rpt_t;

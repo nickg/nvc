@@ -42,9 +42,9 @@ typedef struct {
 } rpt_stats_t;
 
 typedef struct {
-   const cover_item_t *item;
-   cover_obj_t         bin;
-   int32_t             data;
+   cover_obj_t item;
+   cover_obj_t bin;
+   int32_t     data;
 } rpt_item_t;
 
 typedef A(rpt_item_t) rpt_item_array_t;

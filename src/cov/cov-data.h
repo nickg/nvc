@@ -61,6 +61,49 @@ typedef struct {
 } cover_bin_t;
 
 typedef struct {
+   int64_t min;
+   int64_t max;
+} cover_range_t;
+
+typedef struct {
+   // Type of coverage
+   cover_item_kind_t kind;
+
+   // Location of the item in the source file
+   loc_t             loc;
+
+   // Locations of LHS/RHS operands
+   loc_t             loc_rhs;
+   loc_t             loc_lhs;
+
+   // Additional name for cover item:
+   //    COV_ITEM_EXPRESSION     Name of expression (e.g. OR, AND, XOR)
+   //    COV_ITEM_STATE          Name of FSM state
+   //    COV_ITEM_FUNCTIONAL     Name of user-defined functional over point
+   ident_t           func_name;
+
+   // Type of source statement or expression
+   cover_src_t       source;
+
+   // Threshold for being covered
+   int               atleast;
+
+   // Secondary numeric data:
+   //    COV_ITEM_TOGGLE - Start position of signal name
+   //    COV_ITEM_STATE  - Value of low-index of enum sub-type
+   int64_t           metadata;
+
+   uint32_t    nbins;
+   cover_obj_t first_bin;
+} cover_item_t;
+
+typedef struct {
+   unsigned       count;
+   unsigned       limit;
+   cover_item_t **items;
+} item_tab_t;
+
+typedef struct {
    unsigned     count;
    unsigned     limit;
    cover_bin_t *items;
@@ -82,6 +125,7 @@ struct _cover_data {
    cover_scope_t   *root_scope;
    hash_t          *blocks;
    mem_pool_t      *pool;
+   item_tab_t       items;
    bin_tab_t        bins;
    range_tab_t      ranges;
 };
@@ -93,8 +137,8 @@ typedef struct {
 } ignore_range_t;
 
 typedef A(ignore_range_t) ignore_array_t;
-typedef A(cover_item_t *) cov_item_array_t;
 typedef A(cover_scope_t *) scope_array_t;
+typedef A(cover_obj_t) cover_array_t;
 
 typedef enum {
    CSCOPE_NONE,
@@ -118,7 +162,7 @@ typedef struct _cover_scope {
    cover_scope_t    *parent;
    cover_block_t    *block;
    scope_array_t     children;
-   cov_item_array_t  items;
+   cover_array_t     items;
    ignore_array_t    ignore_lines;
    int               sig_pos;
    bool              emit;

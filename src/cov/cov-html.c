@@ -212,7 +212,7 @@ static void cover_print_single_code_line(FILE *f, loc_t loc,
    }
 }
 
-static void cover_print_item_title(FILE *f, const cover_item_t *item)
+static void cover_print_item_title(html_gen_t *g, FILE *f, cover_obj_t item)
 {
    static const char *text[] = {
       [COV_SRC_IF_CONDITION] = "\"if\" / \"when\" / \"else\" condition",
@@ -234,24 +234,34 @@ static void cover_print_item_title(FILE *f, const cover_item_t *item)
 
    fprintf(f, "<h3>");
 
-   switch (item->kind) {
+   switch (cover_get_kind(g->data, item)) {
    case COV_ITEM_STMT:
    case COV_ITEM_BRANCH:
    case COV_ITEM_FUNCTIONAL:
-      fprintf(f, "%s", text[item->source]);
+      {
+         cover_src_t src = cover_get_u32(g->data, item, COV_ATTR_SOURCE,
+                                         COV_SRC_UNKNOWN);
+         fprintf(f, "%s", text[src]);
+      }
       break;
    case COV_ITEM_EXPRESSION:
-      cover_print_string(f, istr(item->func_name));
-      fprintf(f, " expression");
+      {
+         ident_t func_name = cover_get_ident(g->data, item, COV_ATTR_FUNC_NAME);
+         cover_print_string(f, istr(func_name));
+         fprintf(f, " expression");
+      }
       break;
    case COV_ITEM_STATE:
-      fprintf(f, "\"%s\" FSM", istr(item->func_name));
+      {
+         ident_t func_name = cover_get_ident(g->data, item, COV_ATTR_FUNC_NAME);
+         fprintf(f, "\"%s\" FSM", istr(func_name));
+      }
       break;
    default:
       break;
    }
 
-   const loc_t loc = item->loc;
+   const loc_t loc = cover_get_loc(g->data, item, COV_ATTR_LOC);
    if (loc.line_delta == 0)
       fprintf(f, " on line %d:", loc.first_line);
    else
@@ -260,10 +270,10 @@ static void cover_print_item_title(FILE *f, const cover_item_t *item)
    fprintf(f, "</h3>");
 }
 
-static void cover_print_expr(html_gen_t *g, FILE *f, const cover_item_t *item,
+static void cover_print_expr(html_gen_t *g, FILE *f, cover_obj_t item,
                              cover_obj_t bin, const rpt_line_t *line)
 {
-   loc_t loc = item->loc;
+   loc_t loc = cover_get_loc(g->data, item, COV_ATTR_LOC);
    cover_flags_t flags = cover_get_flags(g->data, bin);
 
    const rpt_line_t *curr_line = line;
@@ -286,21 +296,21 @@ static void cover_print_expr(html_gen_t *g, FILE *f, const cover_item_t *item,
 
          // Track start of LHS / RHS sub-expressions
          if (flags & COVER_FLAGS_LHS_RHS_BINS) {
-            const loc_t *loc_lhs = &(item->loc_lhs);
-            const loc_t *loc_rhs = &(item->loc_rhs);
+            loc_t loc_lhs = cover_get_loc(g->data, item, COV_ATTR_LHS_LOC);
+            loc_t loc_rhs = cover_get_loc(g->data, item, COV_ATTR_RHS_LOC);
 
-            if (loc_lhs->first_line == line_num && loc_lhs->first_column == line_pos)
+            if (loc_lhs.first_line == line_num && loc_lhs.first_column == line_pos)
                lhs_beg = glob_pos;
 
-            if (loc_rhs->first_line == line_num && loc_rhs->first_column == line_pos)
+            if (loc_rhs.first_line == line_num && loc_rhs.first_column == line_pos)
                rhs_beg = glob_pos;
 
-            if (loc_lhs->first_line + loc_lhs->line_delta == line_num &&
-                loc_lhs->first_column + loc_lhs->column_delta == line_pos)
+            if (loc_lhs.first_line + loc_lhs.line_delta == line_num &&
+                loc_lhs.first_column + loc_lhs.column_delta == line_pos)
                lhs_end = glob_pos;
 
-            if (loc_rhs->first_line + loc_rhs->line_delta == line_num &&
-                loc_rhs->first_column + loc_rhs->column_delta == line_pos)
+            if (loc_rhs.first_line + loc_rhs.line_delta == line_num &&
+                loc_rhs.first_column + loc_rhs.column_delta == line_pos)
                rhs_end = glob_pos;
          }
 
@@ -389,10 +399,10 @@ static void cover_print_expr(html_gen_t *g, FILE *f, const cover_item_t *item,
    fprintf(f, "</code>");
 }
 
-static void cover_print_code_loc(FILE *f, const cover_item_t *item,
+static void cover_print_code_loc(html_gen_t *g, FILE *f, cover_obj_t item,
                                  const rpt_line_t *line)
 {
-   loc_t loc = item->loc;
+   loc_t loc = cover_get_loc(g->data, item, COV_ATTR_LOC);
    const rpt_line_t *curr_line = line;
    const rpt_line_t *last_line = line + loc.line_delta;
 
@@ -433,9 +443,8 @@ static void cover_print_code_loc(FILE *f, const cover_item_t *item,
 }
 
 static void cover_print_get_exclude_button(html_gen_t *g, FILE *f,
-                                           const cover_item_t *item,
-                                           cover_obj_t bin, uint32_t flag,
-                                           bool add_td)
+                                           cover_obj_t item, cover_obj_t bin,
+                                           uint32_t flag, bool add_td)
 {
    if (add_td)
       fprintf(f, "<td>");
@@ -443,10 +452,12 @@ static void cover_print_get_exclude_button(html_gen_t *g, FILE *f,
    cover_flags_t flags = cover_get_flags(g->data, bin);
    ident_t hier = cover_get_ident(g->data, bin, COV_ATTR_HIER);
 
+   cover_item_kind_t kind = cover_get_kind(g->data, item);
+
    bool out_of_table = false;
-   if (item->kind == COV_ITEM_STMT)
+   if (kind == COV_ITEM_STMT)
       out_of_table = true;
-   else if ((item->kind == COV_ITEM_FUNCTIONAL) &&
+   else if ((kind == COV_ITEM_FUNCTIONAL) &&
             ((flags & COV_FLAG_USER_DEFINED) == 0))
       out_of_table = true;
 
@@ -459,7 +470,7 @@ static void cover_print_get_exclude_button(html_gen_t *g, FILE *f,
       fprintf(f, "</td>");
 }
 
-static void cover_print_bin(html_gen_t *g, FILE *f, const cover_item_t *item,
+static void cover_print_bin(html_gen_t *g, FILE *f, cover_obj_t item,
                             cover_obj_t bin, int32_t data, uint32_t flag,
                             cov_pair_kind_t pkind, int cols, const char **vals)
 {
@@ -470,10 +481,12 @@ static void cover_print_bin(html_gen_t *g, FILE *f, const cover_item_t *item,
       for (int i = 0; i < cols; i++)
          fprintf(f, "<td>%s</td>", vals[i]);
 
+      uint32_t atleast = cover_get_threshold(g->data, item);
+
       // Toggle flags hold unreachability in highest bit of runtime data
       // Must be masked out to print properly
       fprintf(f, "<td>%d</td>", data & ~COV_FLAG_UNREACHABLE);
-      fprintf(f, "<td>%d</td>", item->atleast);
+      fprintf(f, "<td>%d</td>", atleast);
 
       if (pkind == PAIR_UNCOVERED)
          cover_print_get_exclude_button(g, f, item, bin, flag, true);
@@ -518,10 +531,10 @@ static void html_print_table(html_gen_t *g, const rpt_table_t *table,
 {
    assert(table->count > 0);
 
-   const cover_item_t *item0 = table->items[0].item;
+   cover_obj_t item0 = table->items[0].item;
    cover_obj_t bin0 = table->items[0].bin;
 
-   switch (item0->kind) {
+   switch (cover_get_kind(g->data, item0)) {
    case COV_ITEM_STMT:
       {
          assert(table->count == 1);
@@ -531,18 +544,19 @@ static void html_print_table(html_gen_t *g, const rpt_table_t *table,
          else if (pkind == PAIR_EXCLUDED)
             fprintf(f, "<div style=\"float: right\"><b>Excluded due to:</b> Exclude file</div>");
 
-         cover_print_item_title(f, item0);
-         cover_print_code_loc(f, item0, table->line);
+         cover_print_item_title(g, f, item0);
+         cover_print_code_loc(g, f, item0, table->line);
 
          fprintf(f, "<br><b>Count:</b> %d", table->items[0].data);
-         fprintf(f, "<br><b>Threshold:</b> %d", item0->atleast);
+         fprintf(f, "<br><b>Threshold:</b> %d",
+                 cover_get_threshold(g->data, item0));
       }
       break;
 
    case COV_ITEM_BRANCH:
       {
-         cover_print_item_title(f, item0);
-         cover_print_code_loc(f, item0, table->line);
+         cover_print_item_title(g, f, item0);
+         cover_print_code_loc(g, f, item0, table->line);
 
          cover_flags_t flags0 = cover_get_flags(g->data, bin0);
          const char *title = (flags0 & COV_FLAG_CHOICE)
@@ -550,7 +564,7 @@ static void html_print_table(html_gen_t *g, const rpt_table_t *table,
          cover_print_bin_header(f, pkind, 1, &title);
 
          for (int i = 0; i < table->count; i++) {
-            const cover_item_t *item = table->items[i].item;
+            const cover_obj_t item = table->items[i].item;
             cover_obj_t bin = table->items[i].bin;
             const char *v_true = "True";
             const char *v_false = "False";
@@ -561,10 +575,10 @@ static void html_print_table(html_gen_t *g, const rpt_table_t *table,
                             COV_FLAG_FALSE, pkind, 1, &v_false);
 
             if (flags0 & COV_FLAG_CHOICE) {
-               const loc_t *loc = &(item->loc);
-               int curr = loc->first_column;
-               int last = (loc->line_delta)
-                  ? table->line->len : loc->column_delta + curr;
+               loc_t loc = cover_get_loc(g->data, item, COV_ATTR_LOC);
+               int curr = loc.first_column;
+               int last = (loc.line_delta)
+                  ? table->line->len : loc.column_delta + curr;
 
                LOCAL_TEXT_BUF tb = tb_new();
                tb_printf(tb, "<code>");
@@ -585,7 +599,7 @@ static void html_print_table(html_gen_t *g, const rpt_table_t *table,
 
    case COV_ITEM_EXPRESSION:
       {
-         cover_print_item_title(f, item0);
+         cover_print_item_title(g, f, item0);
          cover_print_expr(g, f, item0, bin0, table->line);
 
          cover_flags_t flags0 = cover_get_flags(g->data, bin0);
@@ -600,7 +614,7 @@ static void html_print_table(html_gen_t *g, const rpt_table_t *table,
          }
 
          for (int i = 0; i < table->count; i++) {
-            const cover_item_t *item = table->items[i].item;
+            cover_obj_t item = table->items[i].item;
             cover_obj_t bin = table->items[i].bin;
             cover_flags_t flags = cover_get_flags(g->data, bin);
 
@@ -651,7 +665,9 @@ static void html_print_table(html_gen_t *g, const rpt_table_t *table,
          else if (flags0 & COV_FLAG_TOGGLE_PORT)
             fprintf(f, "<h3>Port:</h3>");
 
-         const char *sig_name = istr(hier0) + item0->metadata;
+         int64_t metadata0 =
+            cover_get_i64(g->data, item0, COV_ATTR_METADATA, 0);
+         const char *sig_name = istr(hier0) + metadata0;
 
          const char *bin_name = strrchr(sig_name, '.');
          assert(bin_name != NULL);
@@ -675,10 +691,10 @@ static void html_print_table(html_gen_t *g, const rpt_table_t *table,
             LOCAL_TEXT_BUF tb = tb_new();
 
             for (int i = 0; i < table->count; i++) {
-               const cover_item_t *item = table->items[i].item;
+               cover_obj_t item = table->items[i].item;
                cover_obj_t bin = table->items[i].bin;
                ident_t hier = cover_get_ident(g->data, bin, COV_ATTR_HIER);
-               const char *elem_name = istr(hier) + item0->metadata + name_len;
+               const char *elem_name = istr(hier) + metadata0 + name_len;
 
                const char *bin_name = strrchr(elem_name, '.');
                assert(bin_name != NULL);
@@ -701,7 +717,7 @@ static void html_print_table(html_gen_t *g, const rpt_table_t *table,
             cover_print_bin_header(f, pkind, 2, title);
 
             for (int i = 0; i < table->count; i++) {
-               const cover_item_t *item = table->items[i].item;
+               cover_obj_t item = table->items[i].item;
                cover_obj_t bin = table->items[i].bin;
                const char *v_01[2] = { "0", "1" };
                const char *v_10[2] = { "1", "0" };
@@ -720,11 +736,14 @@ static void html_print_table(html_gen_t *g, const rpt_table_t *table,
 
    case COV_ITEM_FUNCTIONAL:
       {
-         if (item0->source == COV_SRC_USER_COVER) {
-            cover_print_item_title(f, item0);
-            fprintf(f, "<br>%s", istr(item0->func_name));
+         if (cover_get_u32(g->data, item0, COV_ATTR_SOURCE,
+                           COV_SRC_UNKNOWN) == COV_SRC_USER_COVER) {
+            cover_print_item_title(g, f, item0);
+            ident_t func_name =
+               cover_get_ident(g->data, item0, COV_ATTR_FUNC_NAME);
+            fprintf(f, "<br>%s", istr(func_name));
 
-            const int n_ranges0 = cover_count2(g->data, bin0, COV_REL_RANGES);
+            const int n_ranges0 = cover_count(g->data, bin0, COV_REL_RANGES);
 
             const char *title[n_ranges0];
             for (int i = 0; i < n_ranges0; i++)
@@ -733,15 +752,16 @@ static void html_print_table(html_gen_t *g, const rpt_table_t *table,
             cover_print_bin_header(f, pkind, n_ranges0, title);
 
             for (int i = 0; i < table->count; i++) {
-               const cover_item_t *item = table->items[i].item;
+               cover_obj_t item = table->items[i].item;
                cover_obj_t bin = table->items[i].bin;
-               assert(item->source == COV_SRC_USER_COVER);
+               assert(cover_get_u32(g->data, item, COV_ATTR_SOURCE,
+                                    COV_SRC_UNKNOWN) == COV_SRC_USER_COVER);
 
-               const int n_ranges = cover_count2(g->data, bin, COV_REL_RANGES);
+               const int n_ranges = cover_count(g->data, bin, COV_REL_RANGES);
 
                const char *v[n_ranges];
                for (int j = 0; j < n_ranges; j++) {
-                  cover_obj_t r = cover_at2(g->data, bin, COV_REL_RANGES, j);
+                  cover_obj_t r = cover_at(g->data, bin, COV_REL_RANGES, j);
 
                   int64_t max = cover_get_i64(g->data, r, COV_ATTR_MAX, 0);
                   int64_t min = cover_get_i64(g->data, r, COV_ATTR_MIN, 0);
@@ -761,24 +781,25 @@ static void html_print_table(html_gen_t *g, const rpt_table_t *table,
          else {
             if (pkind == PAIR_UNCOVERED)
                cover_print_get_exclude_button(g, f, item0, bin0, 0, false);
-            cover_print_item_title(f, item0);
-            cover_print_code_loc(f, item0, table->line);
+            cover_print_item_title(g, f, item0);
+            cover_print_code_loc(g, f, item0, table->line);
             fprintf(f, "<br><b>Count:</b> %d", table->items[0].data);
-            fprintf(f, "<br><b>Threshold:</b> %d", item0->atleast);
+            fprintf(f, "<br><b>Threshold:</b> %d",
+                    cover_get_threshold(g->data, item0));
          }
       }
       break;
 
    case COV_ITEM_STATE:
       {
-         cover_print_item_title(f, item0);
-         cover_print_code_loc(f, item0, table->line);
+         cover_print_item_title(g, f, item0);
+         cover_print_code_loc(g, f, item0, table->line);
 
          const char *title = "State";
          cover_print_bin_header(f, pkind, 1, &title);
 
          for (int i = 0; i < table->count; i++) {
-            const cover_item_t *item = table->items[i].item;
+            cover_obj_t item = table->items[i].item;
             cover_obj_t bin = table->items[i].bin;
             ident_t hier = cover_get_ident(g->data, bin, COV_ATTR_HIER);
             ident_t state_name = ident_rfrom(hier, '.');

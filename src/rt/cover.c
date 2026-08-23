@@ -447,7 +447,7 @@ void _nvc_add_cover_item(jit_scalar_t *args)
    const size_t pfxlen = tb_len(tb);
    for (int i = 0, dup = 0; i < us->scope->items.count; i++) {
       cover_obj_t bin0 = cover_at(data, us->scope->items.items[i],
-                                  COV_REL_BINS, 0);
+                                   COV_REL_BINS, 0);
 
       ident_t hier = cover_get_ident(data, bin0, COV_ATTR_HIER);
       if (icmp(hier, tb_get(tb))) {
@@ -456,24 +456,26 @@ void _nvc_add_cover_item(jit_scalar_t *args)
       }
    }
 
-   cover_item_t *item =
+   cover_obj_t item =
       cover_add_items_for(data, us->scope, NULL, COV_ITEM_FUNCTIONAL);
-   assert(item != NULL);   // Preconditions checked above
+   assert(!cover_is_null(item));   // Preconditions checked above
 
    cover_obj_t bin0 = cover_at(data, item, COV_REL_BINS, 0);
    cover_put_ident(data, bin0, COV_ATTR_HIER, ident_new(tb_get(tb)));
 
-   item->loc = us->scope->loc;   // XXX: keeps report from crashing but location
-                                 //      does not make sense here
+   // XXX: keeps report from crashing but location does not make sense here
+   cover_put_loc(data, item, COV_ATTR_LOC, us->scope->loc);
 
    // Name remembered at the time of cover point creation in its scope
-   item->func_name = us->scope->name;
+   cover_put_ident(data, item, COV_ATTR_FUNC_NAME, us->scope->name);
 
-   item->source = COV_SRC_USER_COVER;
-   item->atleast = args[7].integer;
+   cover_put_u32(data, item, COV_ATTR_SOURCE, COV_SRC_USER_COVER);
+
+   const unsigned atleast = args[7].integer;
+   cover_put_u32(data, item, COV_ATTR_ATLEAST, atleast);
 
    cover_flags_t flags = COV_FLAG_USER_DEFINED;
-   if (item->atleast == 0)
+   if (atleast == 0)
       flags |= (COV_FLAG_EXCLUDED | COV_FLAG_EXCLUDED_USER);
 
    cover_put_flags(data, bin0, flags);
@@ -484,7 +486,7 @@ void _nvc_add_cover_item(jit_scalar_t *args)
    int64_t *ptr = (int64_t *)args[8].pointer;
 
    for (int i = 0; i < n_ranges; i++) {
-      cover_obj_t r = cover_at2(data, bin0, COV_REL_RANGES, i);
+      cover_obj_t r = cover_at(data, bin0, COV_REL_RANGES, i);
       cover_put_i64(data, r, COV_ATTR_MIN, *ptr++);
       cover_put_i64(data, r, COV_ATTR_MAX, *ptr++);
    }
@@ -515,8 +517,8 @@ void _nvc_increment_cover_item(jit_scalar_t *args)
    if (us->counters == NULL)
       us->counters = cover_get_counters(data, us->name);
 
-   cover_item_t *item = us->scope->items.items[index];
-   assert(item->nbins == 1);
+   cover_obj_t item = us->scope->items.items[index];
+   assert(cover_count(data, item, COV_REL_BINS) == 1);
 
    cover_obj_t bin0 = cover_at(data, item, COV_REL_BINS, 0);
    cover_merge_bin(data, bin0, 1);

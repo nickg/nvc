@@ -187,9 +187,11 @@ static void excl_trie_print(excl_trie_t *et, int indent)
 ////////////////////////////////////////////////////////////////////////////////
 // Exclude file
 
-static void cover_exclude_items(cover_data_t *db, cover_item_t *item)
+static void cover_exclude_items(cover_data_t *db, cover_obj_t item)
 {
-   for (int i = 0; i < item->nbins; i++) {
+   const int nbins = cover_count(db, item, COV_REL_BINS);
+
+   for (int i = 0; i < nbins; i++) {
       cover_obj_t bin = cover_at(db, item, COV_REL_BINS, i);
       ident_t hier = cover_get_ident(db, bin, COV_ATTR_HIER);
 
@@ -202,8 +204,9 @@ static void cover_exclude_items(cover_data_t *db, cover_item_t *item)
 
             uint32_t data = cover_get_u32(db, bin, COV_ATTR_DATA, 0);
 
-            const char *kind_str = cover_item_kind_str(item->kind);
-            if (data >= item->atleast) {
+            cover_item_kind_t kind = cover_get_kind(db, item);
+            const char *kind_str = cover_item_kind_str(kind);
+            if (data >= cover_get_threshold(db, item)) {
                warn_at(&excl->loc, "%s: '%s' is already covered, "
                                    "it will be reported as covered.",
                                    kind_str, istr(hier));
@@ -347,14 +350,21 @@ static void cover_fold_scopes(cover_data_t *db, cover_scope_t *tgt_scope,
 
    // Process items
    for (int i = 0; i < src_scope->items.count; i++) {
-      cover_item_t *src = AGET(src_scope->items, i);
+      cover_obj_t src = AGET(src_scope->items, i);
+
+      cover_item_kind_t src_kind = cover_get_kind(db, src);
+      int src_nbins = cover_count(db, src, COV_REL_BINS);
 
       for (int j = 0; j < tgt_scope->items.count; j++) {
-         cover_item_t *tgt = AGET(tgt_scope->items, j);
-         if (tgt->kind != src->kind)
+         cover_obj_t tgt = AGET(tgt_scope->items, j);
+
+         cover_item_kind_t tgt_kind = cover_get_kind(db, tgt);
+         int tgt_nbins = cover_count(db, tgt, COV_REL_BINS);
+
+         if (tgt_kind != src_kind)
             continue;
 
-         for (int k = 0; k < src->nbins; k++) {
+         for (int k = 0; k < src_nbins; k++) {
             cover_obj_t sbin = cover_at(db, src, COV_REL_BINS, k);
             ident_t src_hier = cover_get_ident(db, sbin, COV_ATTR_HIER);
             cover_flags_t src_flags = cover_get_flags(db, sbin);
@@ -363,7 +373,7 @@ static void cover_fold_scopes(cover_data_t *db, cover_scope_t *tgt_scope,
             if (ident_len(src_hier) > src_prefix_len)
                src_suffix_hier = ident_new(istr(src_hier) + src_prefix_len);
 
-            for (int l = 0; l < tgt->nbins; l++) {
+            for (int l = 0; l < tgt_nbins; l++) {
                cover_obj_t tbin = cover_at(db, tgt, COV_REL_BINS, l);
                ident_t tgt_hier = cover_get_ident(db, tbin, COV_ATTR_HIER);
                cover_flags_t tgt_flags = cover_get_flags(db, tbin);

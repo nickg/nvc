@@ -118,7 +118,10 @@ START_TEST(test_toggle1)
    ck_assert_ident_eq(vect->name, "VECT");
    ck_assert_int_eq(vect->items.count, 1);
 
-   cover_item_t *vect15 = vect->items.items[0];
+   cover_obj_t vect15 = vect->items.items[0];
+   ck_assert_int_eq(cover_get_kind(db, vect15), COV_ITEM_TOGGLE);
+   loc_t vect15_loc = cover_get_loc(db, vect15, COV_ATTR_LOC);
+   ck_assert(!loc_invalid_p(&vect15_loc));
    ck_assert_int_eq(cover_count(db, vect15, COV_REL_BINS), 32);
 
    cover_obj_t vect15_bins[32];
@@ -294,7 +297,7 @@ START_TEST(test_toggle2)
    ck_assert_ident_eq(s1->name, "S1");
    ck_assert_int_eq(s1->items.count, 1);
 
-   cover_item_t *s1_toggle = s1->items.items[0];
+   cover_obj_t s1_toggle = s1->items.items[0];
    ck_assert_int_eq(cover_count(db, s1_toggle, COV_REL_BINS), 10);
 
    cover_obj_t s1_bins[10];
@@ -405,7 +408,7 @@ START_TEST(test_issue1431)
    ck_assert_ident_eq(transfer->name, "TRANSFER");
    ck_assert_int_eq(transfer->children.count, 1);
 
-   cover_item_t *item = transfer->children.items[0]->items.items[0];
+   cover_obj_t item = transfer->children.items[0]->items.items[0];
 
    cover_obj_t bin0 = cover_at(db, item, COV_REL_BINS, 0);
    ck_assert_int_eq(cover_get_u32(db, bin0, COV_ATTR_DATA, -1), 2);

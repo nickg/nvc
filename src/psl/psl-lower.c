@@ -144,10 +144,10 @@ static void psl_lower_cover(lower_unit_t *lu, psl_node_t p)
    if (!cover_enabled(lu->cover, COVER_MASK_FUNCTIONAL))
       return;
 
-   cover_item_t *item = cover_add_items_for(lu->cover, lu->cscope,
-                                            psl_to_object(p),
-                                            COV_ITEM_FUNCTIONAL);
-   if (item == NULL)
+   cover_obj_t item = cover_add_items_for(lu->cover, lu->cscope,
+                                          psl_to_object(p),
+                                          COV_ITEM_FUNCTIONAL);
+   if (cover_is_null(item))
       return;
 
    cover_obj_t bin = cover_at(lu->cover, item, COV_REL_BINS, 0);
