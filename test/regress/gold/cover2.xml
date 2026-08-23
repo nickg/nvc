@@ -213,8 +213,6 @@
       <toggle hier="WORK.COVER2.MY_REC.Z.C(0).BIN_0_TO_1" data="1"/>
       <toggle hier="WORK.COVER2.MY_REC.Z.C(0).BIN_1_TO_0" data="0"/>
     </scope>
-    <scope name="MY_IGNORED_SIGNAL" line="79">
-    </scope>
     <scope name="SUB_MODULE_INST" block_name="SUB_MODULE-TEST" line="85">
       <scope name="A" line="6">
         <toggle hier="WORK.COVER2.SUB_MODULE_INST.A.BIN_0_TO_1" data="1"/>

@@ -256,8 +256,6 @@ void cover_put_flags(cover_data_t *db, cover_obj_t obj, cover_flags_t flags);
 // Spec and exclude file handling
 //
 
-void cover_ignore_from_pragmas(cover_data_t *data, cover_scope_t *cs,
-                               tree_t unit);
 void cover_load_spec_file(cover_data_t *db, const char *path);
 void cover_load_exclude_file(const char *path, cover_data_t *data);
 

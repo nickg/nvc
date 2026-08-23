@@ -19,8 +19,6 @@
           <branch hier="WORK.COVER3._P2.L_IF_1._B1.BIN_TRUE" data="1"/>
           <branch hier="WORK.COVER3._P2.L_IF_1._B1.BIN_FALSE" data="19"/>
         </scope>
-        <scope name="_B2">
-        </scope>
       </scope>
       <scope name="L_IF_2" line="51">
         <scope name="_B0">
@@ -51,8 +49,6 @@
       <scope name="L_CASE_1" line="67">
         <scope name="_B0" line="68">
           <branch hier="WORK.COVER3._P3.L_CASE_1._B0.BIN_CHOICE" data="1"/>
-        </scope>
-        <scope name="_B1" line="70">
         </scope>
         <scope name="_B2" line="72">
           <branch hier="WORK.COVER3._P3.L_CASE_1._B2.BIN_CHOICE" data="1"/>

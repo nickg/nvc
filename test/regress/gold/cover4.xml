@@ -19,8 +19,6 @@
           <branch hier="WORK.COVER4._P1._S0._B1.BIN_TRUE" data="1"/>
           <branch hier="WORK.COVER4._P1._S0._B1.BIN_FALSE" data="19"/>
         </scope>
-        <scope name="_B2" line="34">
-        </scope>
         <scope name="_B3" line="36">
           <branch hier="WORK.COVER4._P1._S0._B3.BIN_TRUE" data="1"/>
           <branch hier="WORK.COVER4._P1._S0._B3.BIN_FALSE" data="17"/>
@@ -52,8 +50,6 @@
         </scope>
         <scope name="_B3" line="44">
           <branch hier="WORK.COVER4._P2._S0._B3.BIN_CHOICE" data="1"/>
-        </scope>
-        <scope name="_B4" line="44">
         </scope>
         <scope name="_B5" line="44">
           <branch hier="WORK.COVER4._P2._S0._B5.BIN_CHOICE" data="1"/>

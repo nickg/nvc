@@ -394,17 +394,9 @@ START_TEST(test_issue1431)
 
    cover_scope_t *cs = cover_get_scope(db, ident_new("WORK.ISSUE1431.UUT"));
    ck_assert_ptr_nonnull(cs);
-   ck_assert_int_eq(cs->children.count, 4);
+   ck_assert_int_eq(cs->children.count, 3);
 
-   cover_scope_t *p = cs->children.items[2];
-   ck_assert_ident_eq(p->name, "P");
-   ck_assert_int_eq(p->children.count, 2);
-
-   cover_scope_t *s0 = p->children.items[0];
-   ck_assert_ident_eq(s0->name, "_S0");
-   ck_assert_int_eq(s0->items.count, 0);
-
-   cover_scope_t *transfer = cs->children.items[3];
+   cover_scope_t *transfer = cs->children.items[2];
    ck_assert_ident_eq(transfer->name, "TRANSFER");
    ck_assert_int_eq(transfer->children.count, 1);
 

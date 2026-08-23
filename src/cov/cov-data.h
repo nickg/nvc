@@ -163,7 +163,6 @@ typedef struct _cover_scope {
    cover_block_t    *block;
    scope_array_t     children;
    cover_array_t     items;
-   ignore_array_t    ignore_lines;
    int               sig_pos;
    bool              emit;
 } cover_scope_t;
