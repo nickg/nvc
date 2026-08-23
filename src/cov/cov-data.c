@@ -837,28 +837,13 @@ static void cover_write_item(cover_data_t *db, cover_item_t *item, fbuf_t *f,
        || item->kind == COV_ITEM_FUNCTIONAL)
       ident_write(item->func_name, ident_ctx);
 
-   cover_bin_t *bins = cover_get_bins(db, item);
-   for (int i = 0; i < item->nbins; i++) {
-      const cover_bin_t *bin = &(bins[i]);
-
-      fbuf_put_uint(f, bin->tag);
-      fbuf_put_uint(f, bin->data);
-      fbuf_put_uint(f, bin->flags);
-      fbuf_put_uint(f, bin->n_ranges);
-
-      if (bin->n_ranges > 0)
-         fbuf_put_uint(f, bin->first_range.id);
-
-      if (bin->flags & COVER_FLAGS_LHS_RHS_BINS) {
-         loc_write(&(item->loc_lhs), loc_ctx);
-         loc_write(&(item->loc_rhs), loc_ctx);
-      }
-
-      ident_write(bin->hier, ident_ctx);
-
-      if (item->kind == COV_ITEM_TOGGLE)
-         fbuf_put_uint(f, bin->field_idx);
+   if (item->kind == COV_ITEM_EXPRESSION) {
+      loc_write(&(item->loc_lhs), loc_ctx);
+      loc_write(&(item->loc_rhs), loc_ctx);
    }
+
+   if (item->nbins > 0)
+      fbuf_put_uint(f, item->first_bin.id);
 }
 
 static void cover_write_scope(cover_data_t *db, cover_scope_t *s, fbuf_t *f,
@@ -948,6 +933,22 @@ void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
    for (int i = 0; i < db->ranges.count; i++) {
       fbuf_put_uint(f, db->ranges.items[i].min);
       fbuf_put_uint(f, db->ranges.items[i].max);
+   }
+
+   fbuf_put_uint(f, db->bins.count);
+   for (int i = 0; i < db->bins.count; i++) {
+      cover_bin_t *bin = &(db->bins.items[i]);
+
+      fbuf_put_uint(f, bin->tag);
+      fbuf_put_uint(f, bin->data);
+      fbuf_put_uint(f, bin->flags);
+      fbuf_put_uint(f, bin->field_idx);
+      fbuf_put_uint(f, bin->n_ranges);
+
+      if (bin->n_ranges > 0)
+         fbuf_put_uint(f, bin->first_range.id);
+
+      ident_write(bin->hier, ident_ctx);
    }
 
    cover_write_scope(db, db->root_scope, f, ident_ctx, loc_wr);
@@ -1135,33 +1136,18 @@ static cover_item_t *cover_read_item(cover_data_t *db, fbuf_t *f,
        || kind == COV_ITEM_FUNCTIONAL)
       item->func_name = ident_read(ident_ctx);
 
-   item->loc_lhs = LOC_INVALID;
-   item->loc_rhs = LOC_INVALID;
+   if (item->kind == COV_ITEM_EXPRESSION) {
+      loc_read(&item->loc_lhs, loc_rd);
+      loc_read(&item->loc_rhs, loc_rd);
+   }
+   else {
+      item->loc_lhs = LOC_INVALID;
+      item->loc_rhs = LOC_INVALID;
+   }
 
-   item->first_bin = cover_alloc_bins(db, nbins);
-
-   cover_bin_t *bins = db->bins.items + item->first_bin.id;
-   for (int i = 0; i < nbins; i++) {
-      cover_bin_t *bin = &(bins[i]);
-      bin->tag = fbuf_get_uint(f);
-      bin->data = fbuf_get_uint(f);
-      bin->flags = fbuf_get_uint(f);
-      bin->n_ranges = fbuf_get_uint(f);
-
-      if (bin->n_ranges > 0) {
-         bin->first_range.tag = COVER_TAG_RANGE;
-         bin->first_range.id = fbuf_get_uint(f);
-      }
-
-      if (bin->flags & COVER_FLAGS_LHS_RHS_BINS) {
-         loc_read(&item->loc_lhs, loc_rd);
-         loc_read(&item->loc_rhs, loc_rd);
-      }
-
-      bin->hier = ident_read(ident_ctx);
-
-      if (kind == COV_ITEM_TOGGLE)
-         bin->field_idx = fbuf_get_uint(f);
+   if (nbins > 0) {
+      item->first_bin.tag = COVER_TAG_BIN;
+      item->first_bin.id = fbuf_get_uint(f);
    }
 
    return item;
@@ -1239,6 +1225,26 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
    for (int i = 0; i < db->ranges.count; i++) {
       db->ranges.items[i].min = fbuf_get_uint(f);
       db->ranges.items[i].max = fbuf_get_uint(f);
+   }
+
+   db->bins.count = db->bins.limit = fbuf_get_uint(f);
+   db->bins.items = xmalloc_array(db->bins.count, sizeof(cover_bin_t));
+
+   for (int i = 0; i < db->bins.count; i++) {
+      cover_bin_t *bin = &(db->bins.items[i]);
+
+      bin->tag = fbuf_get_uint(f);
+      bin->data = fbuf_get_uint(f);
+      bin->flags = fbuf_get_uint(f);
+      bin->field_idx = fbuf_get_uint(f);
+      bin->n_ranges = fbuf_get_uint(f);
+
+      if (bin->n_ranges > 0) {
+         bin->first_range.tag = COVER_TAG_RANGE;
+         bin->first_range.id = fbuf_get_uint(f);
+      }
+
+      bin->hier = ident_read(ident_ctx);
    }
 
    bool eof = false;
