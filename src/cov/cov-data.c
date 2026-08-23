@@ -165,14 +165,14 @@ static const cover_item_t *cover_item_data_const(const cover_data_t *db,
 {
    assert(obj.tag == COVER_TAG_ITEM);
    assert(obj.id < db->items.count);
-   return *(db->items.items + obj.id);
+   return db->items.items + obj.id;
 }
 
 static cover_item_t *cover_item_data(const cover_data_t *db, cover_obj_t obj)
 {
    assert(obj.tag == COVER_TAG_ITEM);
    assert(obj.id < db->items.count);
-   return *(db->items.items + obj.id);
+   return db->items.items + obj.id;
 }
 
 static const cover_range_t *cover_range_data_const(const cover_data_t *db,
@@ -270,19 +270,20 @@ static cover_obj_t cover_add_item(cover_data_t *db, cover_scope_t *cs,
    loc_t loc = get_cover_loc(kind, obj);
    cover_src_t src = get_cover_source(kind, obj);
 
-   cover_item_t *new = pool_calloc(db->pool, sizeof(cover_item_t));
-   new->nbins     = nbins;
-   new->kind      = kind;
-   new->loc       = loc;
-   new->loc_lhs   = LOC_INVALID;
-   new->loc_rhs   = LOC_INVALID;
-   new->func_name = NULL;
-   new->atleast   = db->threshold;
-   new->metadata  = metadata;
-   new->source    = src;
-   new->first_bin = cover_alloc_bins(db, nbins);
+   cover_item_t new = {
+      .nbins     = nbins,
+      .kind      = kind,
+      .loc       = loc,
+      .loc_lhs   = LOC_INVALID,
+      .loc_rhs   = LOC_INVALID,
+      .func_name = NULL,
+      .atleast   = db->threshold,
+      .metadata  = metadata,
+      .source    = src,
+      .first_bin = cover_alloc_bins(db, nbins),
+   };
 
-   cover_bin_t *bins = db->bins.items + new->first_bin.id;
+   cover_bin_t *bins = db->bins.items + new.first_bin.id;
    for (int i = 0; i < nbins; i++) {
       bins[i] = (cover_bin_t){
          .tag   = get_next_tag(cs->block),
@@ -846,31 +847,6 @@ static void cover_update_counts(cover_data_t *db, cover_scope_t *s)
       cover_update_counts(db, s->children.items[i]);
 }
 
-static void cover_write_item(cover_data_t *db, cover_item_t *item, fbuf_t *f,
-                             ident_wr_ctx_t ident_ctx, loc_wr_ctx_t *loc_ctx)
-{
-   fbuf_put_uint(f, item->nbins);
-   fbuf_put_uint(f, item->kind);
-   fbuf_put_uint(f, item->source);
-   fbuf_put_uint(f, item->atleast);
-   fbuf_put_uint(f, item->metadata);
-
-   loc_write(&(item->loc), loc_ctx);
-
-   if (item->kind == COV_ITEM_EXPRESSION
-       || item->kind == COV_ITEM_STATE
-       || item->kind == COV_ITEM_FUNCTIONAL)
-      ident_write(item->func_name, ident_ctx);
-
-   if (item->kind == COV_ITEM_EXPRESSION) {
-      loc_write(&(item->loc_lhs), loc_ctx);
-      loc_write(&(item->loc_rhs), loc_ctx);
-   }
-
-   if (item->nbins > 0)
-      fbuf_put_uint(f, item->first_bin.id);
-}
-
 static void cover_write_scope(cover_data_t *db, cover_scope_t *s, fbuf_t *f,
                               ident_wr_ctx_t ident_ctx, loc_wr_ctx_t *loc_ctx)
 {
@@ -890,9 +866,10 @@ static void cover_write_scope(cover_data_t *db, cover_scope_t *s, fbuf_t *f,
    loc_write(&s->loc, loc_ctx);
 
    fbuf_put_uint(f, s->items.count);
-   for (int i = 0; i < s->items.count; i++)
-      cover_write_item(db, db->items.items[s->items.items[i].id],
-                       f, ident_ctx, loc_ctx);
+   for (int i = 0; i < s->items.count; i++) {
+      assert(s->items.items[i].tag == COVER_TAG_ITEM);
+      fbuf_put_uint(f, s->items.items[i].id);
+   }
 
    for (int i = 0; i < s->children.count; i++)
       cover_write_scope(db, s->children.items[i], f, ident_ctx, loc_ctx);
@@ -958,6 +935,32 @@ void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
 
    loc_wr_ctx_t *loc_wr = loc_write_begin(f);
    ident_wr_ctx_t ident_ctx = ident_write_begin(f);
+
+   fbuf_put_uint(f, db->items.count);
+   for (int i = 0; i < db->items.count; i++) {
+      const cover_item_t *item = &(db->items.items[i]);
+
+      fbuf_put_uint(f, item->nbins);
+      fbuf_put_uint(f, item->kind);
+      fbuf_put_uint(f, item->source);
+      fbuf_put_uint(f, item->atleast);
+      fbuf_put_uint(f, item->metadata);
+
+      loc_write(&(item->loc), loc_wr);
+
+      if (item->kind == COV_ITEM_EXPRESSION
+          || item->kind == COV_ITEM_STATE
+          || item->kind == COV_ITEM_FUNCTIONAL)
+         ident_write(item->func_name, ident_ctx);
+
+      if (item->kind == COV_ITEM_EXPRESSION) {
+         loc_write(&(item->loc_lhs), loc_wr);
+         loc_write(&(item->loc_rhs), loc_wr);
+      }
+
+      if (item->nbins > 0)
+         fbuf_put_uint(f, item->first_bin.id);
+   }
 
    fbuf_put_uint(f, db->ranges.count);
    for (int i = 0; i < db->ranges.count; i++) {
@@ -1145,52 +1148,6 @@ static void cover_read_header(fbuf_t *f, cover_data_t *data)
    data->array_limit = fbuf_get_uint(f);
 }
 
-static cover_obj_t cover_read_item(cover_data_t *db, fbuf_t *f,
-                                   loc_rd_ctx_t *loc_rd,
-                                   ident_rd_ctx_t ident_ctx)
-{
-   const int nbins = fbuf_get_uint(f);
-   cover_item_t *item = pool_calloc(db->pool, sizeof(cover_item_t));
-
-   const cover_item_kind_t kind = fbuf_get_uint(f);
-   const cover_src_t src = fbuf_get_uint(f);
-   item->nbins = nbins;
-   item->kind = kind;
-   item->source = src;
-
-   item->atleast = fbuf_get_uint(f);
-   item->metadata = fbuf_get_uint(f);
-
-   loc_read(&item->loc, loc_rd);
-
-   if (kind == COV_ITEM_EXPRESSION || kind == COV_ITEM_STATE
-       || kind == COV_ITEM_FUNCTIONAL)
-      item->func_name = ident_read(ident_ctx);
-
-   if (item->kind == COV_ITEM_EXPRESSION) {
-      loc_read(&item->loc_lhs, loc_rd);
-      loc_read(&item->loc_rhs, loc_rd);
-   }
-   else {
-      item->loc_lhs = LOC_INVALID;
-      item->loc_rhs = LOC_INVALID;
-   }
-
-   if (nbins > 0) {
-      item->first_bin.tag = COVER_TAG_BIN;
-      item->first_bin.id = fbuf_get_uint(f);
-   }
-
-   cover_obj_t item_obj = {
-      .tag = COVER_TAG_ITEM,
-      .id = db->items.count,
-   };
-
-   APUSH(db->items, item);
-
-   return item_obj;
-}
-
 static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
                                        ident_rd_ctx_t ident_ctx,
                                        loc_rd_ctx_t *loc_ctx,
@@ -1209,8 +1166,12 @@ static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
 
    const int nitems = fbuf_get_uint(f);
    for (int i = 0; i < nitems; i++) {
-      cover_obj_t item = cover_read_item(db, f, loc_ctx, ident_ctx);
-      APUSH(s->items, item);
+      cover_obj_t obj = {
+         .tag = COVER_TAG_ITEM,
+         .id = fbuf_get_uint(f),
+      };
+      assert(obj.id < db->items.count);
+      APUSH(s->items, obj);
    }
 
    for (;;) {
@@ -1256,6 +1217,39 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
 
    loc_rd_ctx_t *loc_rd = loc_read_begin(f);
    ident_rd_ctx_t ident_ctx = ident_read_begin(f);
+
+   db->items.count = db->items.limit = fbuf_get_uint(f);
+   db->items.items = xmalloc_array(db->items.count, sizeof(cover_item_t));
+
+   for (int i = 0; i < db->items.count; i++) {
+      cover_item_t *item = &(db->items.items[i]);
+
+      item->nbins = fbuf_get_uint(f);
+      item->kind = fbuf_get_uint(f);
+      item->source = fbuf_get_uint(f);
+      item->atleast = fbuf_get_uint(f);
+      item->metadata = fbuf_get_uint(f);
+
+      loc_read(&item->loc, loc_rd);
+
+      if (item->kind == COV_ITEM_EXPRESSION || item->kind == COV_ITEM_STATE
+          || item->kind == COV_ITEM_FUNCTIONAL)
+         item->func_name = ident_read(ident_ctx);
+
+      if (item->kind == COV_ITEM_EXPRESSION) {
+         loc_read(&item->loc_lhs, loc_rd);
+         loc_read(&item->loc_rhs, loc_rd);
+      }
+      else {
+         item->loc_lhs = LOC_INVALID;
+         item->loc_rhs = LOC_INVALID;
+      }
+
+      if (item->nbins > 0) {
+         item->first_bin.tag = COVER_TAG_BIN;
+         item->first_bin.id = fbuf_get_uint(f);
+      }
+   }
 
    db->ranges.count = db->ranges.limit = fbuf_get_uint(f);
    db->ranges.items = xmalloc_array(db->ranges.count, sizeof(cover_range_t));
@@ -1389,16 +1383,16 @@ static bool cover_merge_items(cover_data_t *dst_db, const cover_data_t *src_db,
 
 static cover_obj_t cover_clone_item(cover_data_t *dst_db,
                                     const cover_data_t *src_db,
-                                    const cover_item_t *src)
+                                    cover_obj_t src)
 {
-   cover_item_t *copy = pool_malloc(dst_db->pool, sizeof(cover_item_t));
-   memcpy(copy, src, sizeof(cover_item_t));
+   const cover_item_t *src_data = cover_item_data_const(src_db, src);
+   cover_item_t copy = *src_data;
 
-   copy->first_bin = cover_alloc_bins(dst_db, src->nbins);
+   copy.first_bin = cover_alloc_bins(dst_db, src_data->nbins);
 
-   cover_bin_t *dst_bins = cover_get_bins(dst_db, copy);
-   cover_bin_t *src_bins = cover_get_bins(src_db, src);
-   memcpy(dst_bins, src_bins, src->nbins * sizeof(cover_bin_t));
+   cover_bin_t *dst_bins = cover_get_bins(dst_db, &copy);
+   cover_bin_t *src_bins = cover_get_bins(src_db, src_data);
+   memcpy(dst_bins, src_bins, src_data->nbins * sizeof(cover_bin_t));
 
    cover_obj_t item_obj = {
       .tag = COVER_TAG_ITEM,
@@ -1435,9 +1429,7 @@ static cover_scope_t *cover_clone_scope(cover_data_t *dst_db,
    copy->block = block;
 
    for (int i = 0; i < src->items.count; i++)
-      APUSH(copy->items,
-            cover_clone_item(dst_db, src_db,
-                             src_db->items.items[src->items.items[i].id]));
+      APUSH(copy->items, cover_clone_item(dst_db, src_db, src->items.items[i]));
 
    for (int i = 0; i < src->ignore_lines.count; i++)
       APUSH(copy->ignore_lines, src->ignore_lines.items[i]);
@@ -1559,7 +1551,7 @@ cover_obj_t cover_get_item(cover_data_t *db, cover_scope_t *s,
       return COVER_NULL_OBJ;
 
    for (int i = 0; i < s->items.count; i++) {
-      cover_item_t *item = db->items.items[s->items.items[i].id];
+      cover_item_t *item = &(db->items.items[s->items.items[i].id]);
       if (item->kind == kind && nth-- == 0)
          return s->items.items[i];
    }

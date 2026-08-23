@@ -98,9 +98,9 @@ typedef struct {
 } cover_item_t;
 
 typedef struct {
-   unsigned       count;
-   unsigned       limit;
-   cover_item_t **items;
+   unsigned      count;
+   unsigned      limit;
+   cover_item_t *items;
 } item_tab_t;
 
 typedef struct {
