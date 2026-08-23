@@ -627,6 +627,11 @@ bool cover_should_emit_fsm_type(cover_data_t *db, ident_t name)
    return true;
 }
 
+bool cover_should_emit_array_toggle(cover_data_t *db, int width)
+{
+   return db->array_limit == 0 || width < db->array_limit;
+}
+
 bool cover_compatible_spec(cover_data_t *db, const cover_scope_t *a,
                            const cover_scope_t *b)
 {

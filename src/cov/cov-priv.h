@@ -28,7 +28,6 @@ bool cover_bin_unreachable(cover_data_t *data, cover_item_kind_t kind,
                            const cover_bin_t *bin);
 
 bool cover_should_emit_scope(cover_data_t *db, cover_scope_t *cs);
-bool cover_should_emit_fsm_type(cover_data_t *db, ident_t name);
 
 const rpt_file_t *rpt_get_file(cover_rpt_t *rpt, cover_scope_t *s);
 const rpt_hier_t *rpt_get_hier(cover_rpt_t *rpt, cover_scope_t *s);

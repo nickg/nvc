@@ -222,6 +222,9 @@ cover_scope_t *cover_get_child(cover_scope_t *s, ident_t name);
 cover_obj_t cover_get_item(cover_data_t *db, cover_scope_t *s,
                            cover_item_kind_t kind, int nth);
 
+cover_obj_t cover_item_new(cover_data_t *db, cover_scope_t *scope,
+                           cover_item_kind_t kind, int nbins);
+
 size_t cover_count(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel);
 size_t cover_rel(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel,
                  unsigned first, cover_obj_t *out, size_t max);
@@ -259,6 +262,9 @@ void cover_put_flags(cover_data_t *db, cover_obj_t obj, cover_flags_t flags);
 void cover_load_spec_file(cover_data_t *db, const char *path);
 void cover_load_exclude_file(const char *path, cover_data_t *data);
 
+bool cover_should_emit_fsm_type(cover_data_t *db, ident_t name);
+bool cover_should_emit_array_toggle(cover_data_t *db, int width);
+
 //
 // Report generation and export
 //
@@ -282,11 +288,11 @@ cover_scope_t *cover_create_scope(cover_data_t *db, cover_scope_t *parent,
                                   tree_t t, ident_t name);
 cover_scope_t *cover_create_user_scope(cover_data_t *db, cover_scope_t *parent,
                                        loc_t loc, ident_t name);
-cover_obj_t cover_add_items_for(cover_data_t *data, cover_scope_t *cscope,
-                                object_t *obj, cover_item_kind_t kind);
 void cover_add_ranges(cover_data_t *db, cover_obj_t obj, unsigned count);
 
 bool cover_compatible_spec(cover_data_t *db, const cover_scope_t *a,
                            const cover_scope_t *b);
+
+const char *cover_bmask_to_bin_str(uint32_t bmask);
 
 #endif   // _COV_API_H

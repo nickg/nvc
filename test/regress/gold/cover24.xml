@@ -1,14 +1,6 @@
 <?xml version="1.0"?>
 <scope name="WORK">
   <scope name="COVER24" block_name="COVER24-TEST" file="cover24.vhd" line="4">
-    <scope name="A" line="6">
-    </scope>
-    <scope name="B" line="6">
-    </scope>
-    <scope name="C" line="6">
-    </scope>
-    <scope name="BOOL" line="7">
-    </scope>
     <scope name="_P0" line="15">
       <scope name="_S0">
         <statement hier="WORK.COVER24._P0._S0" data="1"/>

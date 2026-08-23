@@ -90,8 +90,6 @@
         <toggle hier="WORK.ISSUE1512.DUT.OUT_DATA(0).BIN_0_TO_1" data="7"/>
         <toggle hier="WORK.ISSUE1512.DUT.OUT_DATA(0).BIN_1_TO_0" data="7"/>
       </scope>
-      <scope name="DATA_S" line="100">
-      </scope>
       <scope name="VALID_S" line="101">
         <toggle hier="WORK.ISSUE1512.DUT.VALID_S(0).BIN_0_TO_1" data="10"/>
         <toggle hier="WORK.ISSUE1512.DUT.VALID_S(0).BIN_1_TO_0" data="2"/>

@@ -1,12 +1,6 @@
 <?xml version="1.0"?>
 <scope name="WORK">
   <scope name="ISSUE1494" block_name="ISSUE1494-TEST" file="issue1494.vhd" line="4">
-    <scope name="A" line="8">
-    </scope>
-    <scope name="B" line="9">
-    </scope>
-    <scope name="C" line="10">
-    </scope>
     <scope name="_P0" line="13">
       <scope name="_L0" line="15">
         <statement hier="WORK.ISSUE1494._P0._L0" data="1"/>

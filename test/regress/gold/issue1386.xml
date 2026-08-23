@@ -1,8 +1,6 @@
 <?xml version="1.0"?>
 <scope name="WORK">
   <scope name="ISSUE1386" block_name="ISSUE1386-TEST" file="issue1386.vhd" line="27">
-    <scope name="S" line="34">
-    </scope>
     <scope name="CHECK" line="39">
       <scope name="_S0" line="41">
         <statement hier="WORK.ISSUE1386.CHECK._S0" data="1"/>
@@ -15,11 +13,7 @@
       </scope>
     </scope>
     <scope name="U" block_name="SUB-TEST" line="37">
-      <scope name="O" line="13">
-      </scope>
       <scope name="IMPL" block_name="SUB_IMPL-TEST" line="18">
-        <scope name="O" line="2">
-        </scope>
         <scope name="ASSIGN" line="7">
           <scope name="_S0">
             <statement hier="WORK.ISSUE1386.U.IMPL.ASSIGN._S0" data="1"/>

@@ -456,8 +456,7 @@ void _nvc_add_cover_item(jit_scalar_t *args)
       }
    }
 
-   cover_obj_t item =
-      cover_add_items_for(data, us->scope, NULL, COV_ITEM_FUNCTIONAL);
+   cover_obj_t item = cover_item_new(data, us->scope, COV_ITEM_FUNCTIONAL, 1);
    assert(!cover_is_null(item));   // Preconditions checked above
 
    cover_obj_t bin0 = cover_at(data, item, COV_REL_BINS, 0);
