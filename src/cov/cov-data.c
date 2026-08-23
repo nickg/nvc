@@ -133,6 +133,48 @@ static cover_src_t get_cover_source(cover_item_kind_t kind, object_t *obj)
    return COV_SRC_UNKNOWN;
 }
 
+static cover_bin_t *cover_get_bins(const cover_data_t *db,
+                                   const cover_item_t *item)
+{
+   if (cover_is_null(item->first_bin))
+      return NULL;
+
+   assert(item->first_bin.tag == COVER_TAG_BIN);
+   assert(item->first_bin.id < db->bins.count);
+
+   return db->bins.items + item->first_bin.id;
+}
+
+static const cover_bin_t *cover_bin_data_const(const cover_data_t *db,
+                                               cover_obj_t obj)
+{
+   assert(obj.tag == COVER_TAG_BIN);
+   assert(obj.id < db->bins.count);
+   return db->bins.items + obj.id;
+}
+
+static cover_bin_t *cover_bin_data(cover_data_t *db, cover_obj_t obj)
+{
+   assert(obj.tag == COVER_TAG_BIN);
+   assert(obj.id < db->bins.count);
+   return db->bins.items + obj.id;
+}
+
+static const cover_range_t *cover_range_data_const(const cover_data_t *db,
+                                                   cover_obj_t obj)
+{
+   assert(obj.tag == COVER_TAG_RANGE);
+   assert(obj.id < db->ranges.count);
+   return db->ranges.items + obj.id;
+}
+
+static cover_range_t *cover_range_data(cover_data_t *db, cover_obj_t obj)
+{
+   assert(obj.tag == COVER_TAG_RANGE);
+   assert(obj.id < db->ranges.count);
+   return db->ranges.items + obj.id;
+}
+
 const loc_t get_cover_loc(cover_item_kind_t kind, object_t *obj)
 {
    if (obj == NULL)
@@ -225,7 +267,7 @@ static cover_item_t *cover_add_item(cover_data_t *db, cover_scope_t *cs,
    new->source    = src;
    new->first_bin = cover_alloc_bins(db, nbins);
 
-   cover_bin_t *bins = cover_get_bins(db, new);
+   cover_bin_t *bins = db->bins.items + new->first_bin.id;
    for (int i = 0; i < nbins; i++) {
       bins[i] = (cover_bin_t){
          .tag   = get_next_tag(cs->block),
@@ -276,10 +318,10 @@ static int cover_count_toggle_elems(cover_data_t *db, type_t type)
 
 static void cover_add_array_toggle_items(cover_data_t *data,
                                          cover_scope_t *cs,
-                                         type_t type, object_t *obj,
+                                         type_t type,
                                          const char *prefix, int curr_dim,
                                          cover_flags_t flags,
-                                         cover_bin_t **binp)
+                                         cover_obj_t **binp)
 {
    int t_dims = dimension_of(type);
    tree_t r = range_of(type, t_dims - curr_dim);
@@ -306,32 +348,35 @@ static void cover_add_array_toggle_items(cover_data_t *data,
       // are arrays, then start new (nested) recursion.
       if (curr_dim == 1) {
          if (memory)
-            cover_add_array_toggle_items(data, cs, elem, obj, tb_get(tb),
+            cover_add_array_toggle_items(data, cs, elem, tb_get(tb),
                                          dimension_of(elem), flags, binp);
          else {
-            cover_bin_t *pair = *binp;
+            cover_obj_t *pair = *binp;
             *binp += 2;
 
-            pair[0].flags |= COV_FLAG_TOGGLE_TO_1;
-            pair[1].flags |= COV_FLAG_TOGGLE_TO_0;
+            cover_put_flags(data, pair[0], COV_FLAG_TOGGLE_TO_1);
+            cover_put_flags(data, pair[1], COV_FLAG_TOGGLE_TO_0);
 
-            for (int j = 0; j < 2; j++)
-               pair[j].hier = ident_sprintf("%s%s.%s", istr(pair[j].hier),
-                                            tb_get(tb), binstr[j]);
+            for (int j = 0; j < 2; j++) {
+               ident_t hier = cover_get_ident(data, pair[j], COV_ATTR_HIER);
+               cover_put_ident(data, pair[j], COV_ATTR_HIER,
+                               ident_sprintf("%s%s.%s", istr(hier),
+                                             tb_get(tb), binstr[j]));
+            }
          }
       }
       else   // Recurse to lower dimension
-         cover_add_array_toggle_items(data, cs, type, obj, tb_get(tb),
+         cover_add_array_toggle_items(data, cs, type, tb_get(tb),
                                       curr_dim - 1, flags, binp);
    }
 }
 
 static void cover_add_record_toggle_items(cover_data_t *db,
                                           cover_scope_t *cs,
-                                          type_t type, object_t *obj,
+                                          type_t type,
                                           const char *prefix,
                                           cover_flags_t flags,
-                                          cover_bin_t **binp,
+                                          cover_obj_t **binp,
                                           unsigned *field_idx)
 {
    LOCAL_TEXT_BUF tb = tb_new();
@@ -344,13 +389,12 @@ static void cover_add_record_toggle_items(cover_data_t *db,
    for (int i = 0; i < nfields; i++) {
       tree_t f = type_field(type, i);
       type_t ftype = tree_type(f);
-      object_t *fobj = tree_to_object(f);
 
       tb_trim(tb, base);
       tb_istr(tb, tree_ident(f));
 
       if (type_is_record(ftype)) {
-         cover_add_record_toggle_items(db, cs, ftype, fobj,
+         cover_add_record_toggle_items(db, cs, ftype,
                                        tb_get(tb), flags, binp, field_idx);
          continue;
       }
@@ -364,28 +408,34 @@ static void cover_add_record_toggle_items(cover_data_t *db,
       else if (type_is_scalar(ftype)) {
          assert(count == 1);
 
-         cover_bin_t *pair = *binp;
+         cover_obj_t *pair = *binp;
          *binp += 2;
 
-         pair[0].flags |= COV_FLAG_TOGGLE_TO_1;
-         pair[1].flags |= COV_FLAG_TOGGLE_TO_0;
+         cover_put_flags(db, pair[0], COV_FLAG_TOGGLE_TO_1);
+         cover_put_flags(db, pair[1], COV_FLAG_TOGGLE_TO_0);
 
          for (int i = 0; i < 2; i++) {
+            cover_flags_t flags = cover_get_flags(db, pair[i]);
+            ident_t hier = cover_get_ident(db, pair[i], COV_ATTR_HIER);
+
             char suffix[64];
             checked_sprintf(suffix, sizeof(suffix), "%s.%s", tb_get(tb),
-                            cover_bmask_to_bin_str(pair[i].flags));
-            pair[i].hier = ident_prefix(pair[i].hier, ident_new(suffix), '\0');
-            pair[i].field_idx = fidx;
+                            cover_bmask_to_bin_str(flags));
+
+            cover_put_ident(db, pair[i], COV_ATTR_HIER,
+                            ident_prefix(hier, ident_new(suffix), '\0'));
+
+            cover_put_u32(db, pair[i], COV_ATTR_FIELD_IDX, fidx);
          }
       }
       else if (type_is_array(ftype)) {
-         cover_bin_t *set = *binp;
+         cover_obj_t *set = *binp;
          const int ndims = dimension_of(ftype);
-         cover_add_array_toggle_items(db, cs, ftype, fobj, tb_get(tb), ndims,
+         cover_add_array_toggle_items(db, cs, ftype, tb_get(tb), ndims,
                                       flags, binp);
 
          for (int i = 0; i < count * 2; i++)
-            set[i].field_idx = fidx;
+            cover_put_u32(db, set[i], COV_ATTR_FIELD_IDX, fidx);
       }
       else
          should_not_reach_here();
@@ -414,12 +464,15 @@ static cover_item_t *cover_add_toggle_items(cover_data_t *data,
    if (type_is_record(type)) {
       cover_item_t *set = cover_add_item(data, cs, obj, COV_ITEM_TOGGLE,
                                          flags, nelems * 2);
-      cover_bin_t *bins = cover_get_bins(data, set);
-      cover_bin_t *p = bins;
+
+      cover_obj_t *bins LOCAL = xmalloc_array(nelems * 2, sizeof(cover_obj_t));
+      cover_rel(data, set, COV_REL_BINS, 0, bins, nelems * 2);
+
+      cover_obj_t *p = bins;
       unsigned field_idx = 0;
-      cover_add_record_toggle_items(data, cs, type, obj, "", flags, &p,
-                                    &field_idx);
+      cover_add_record_toggle_items(data, cs, type, "", flags, &p, &field_idx);
       assert(p == bins + nelems * 2);
+
       return set;
    }
 
@@ -432,14 +485,21 @@ static cover_item_t *cover_add_toggle_items(cover_data_t *data,
    if (type_is_scalar(type)) {
       cover_item_t *pair = cover_add_item(data, cs, obj, COV_ITEM_TOGGLE,
                                           flags, 2);
-      cover_bin_t *bins = cover_get_bins(data, pair);
 
-      bins[0].flags |= COV_FLAG_TOGGLE_TO_1;
-      bins[1].flags |= COV_FLAG_TOGGLE_TO_0;
+      cover_obj_t bins[2];
+      cover_rel(data, pair, COV_REL_BINS, 0, bins, 2);
+
+      static const cover_flags_t flags[2] = {
+         COV_FLAG_TOGGLE_TO_1, COV_FLAG_TOGGLE_TO_0
+      };
 
       for (int i = 0; i < 2; i++) {
-         ident_t suffix = ident_new(cover_bmask_to_bin_str(bins[i].flags));
-         bins[i].hier = ident_prefix(bins[i].hier, suffix, '.');
+         cover_put_flags(data, bins[i], flags[i]);
+
+         ident_t suffix = ident_new(cover_bmask_to_bin_str(flags[i]));
+         ident_t prefix = cover_get_ident(data, bins[i], COV_ATTR_HIER);
+         cover_put_ident(data, bins[i], COV_ATTR_HIER,
+                         ident_prefix(prefix, suffix, '.'));
       }
 
       return pair;
@@ -447,9 +507,13 @@ static cover_item_t *cover_add_toggle_items(cover_data_t *data,
    else {
       cover_item_t *set = cover_add_item(data, cs, obj, COV_ITEM_TOGGLE,
                                          flags, nelems * 2);
-      cover_bin_t *bins = cover_get_bins(data, set), *p = bins;
+
+      cover_obj_t *bins LOCAL = xmalloc_array(nelems * 2, sizeof(cover_obj_t));
+      cover_rel(data, set, COV_REL_BINS, 0, bins, nelems * 2);
+
+      cover_obj_t *p = bins;
       const int ndims = dimension_of(type);
-      cover_add_array_toggle_items(data, cs, type, obj, "", ndims, flags, &p);
+      cover_add_array_toggle_items(data, cs, type, "", ndims, flags, &p);
       assert(p == bins + nelems * 2);
 
       return set;
@@ -469,23 +533,33 @@ static cover_item_t *cover_add_branch_items_for(cover_data_t *data,
    if (tree_kind(b) == T_CHOICE) {  // Case choice
       cover_item_t *item = cover_add_item(data, cs, obj, COV_ITEM_BRANCH,
                                           COV_FLAG_CHOICE, 1);
-      cover_bin_t *bins = cover_get_bins(data, item);
 
-      ident_t suffix = ident_new(cover_bmask_to_bin_str(bins[0].flags));
-      bins[0].hier = ident_prefix(bins[0].hier, suffix, '.');
+      cover_obj_t bin0 = cover_at(data, item, COV_REL_BINS, 0);
+
+      ident_t suffix = ident_new(cover_bmask_to_bin_str(COV_FLAG_CHOICE));
+      ident_t prefix = cover_get_ident(data, bin0, COV_ATTR_HIER);
+      cover_put_ident(data, bin0, COV_ATTR_HIER,
+                      ident_prefix(prefix, suffix, '.'));
 
       return item;
    }
    else {    // If-else
       cover_item_t *pair = cover_add_item(data, cs, obj, COV_ITEM_BRANCH, 0, 2);
-      cover_bin_t *bins = cover_get_bins(data, pair);
 
-      bins[0].flags |= COV_FLAG_TRUE;
-      bins[1].flags |= COV_FLAG_FALSE;
+      static const cover_flags_t bin_flags[] = {
+         COV_FLAG_TRUE, COV_FLAG_FALSE
+      };
+
+      cover_obj_t bins[2];
+      cover_rel(data, pair, COV_REL_BINS, 0, bins, 2);
 
       for (int i = 0; i < 2; i++) {
-         ident_t suffix = ident_new(cover_bmask_to_bin_str(bins[i].flags));
-         bins[i].hier = ident_prefix(bins[i].hier, suffix, '.');
+         cover_put_flags(data, bins[i], bin_flags[i]);
+
+         ident_t suffix = ident_new(cover_bmask_to_bin_str(bin_flags[i]));
+         ident_t prefix = cover_get_ident(data, bins[i], COV_ATTR_HIER);
+         cover_put_ident(data, bins[i], COV_ATTR_HIER,
+                         ident_prefix(prefix, suffix, '.'));
       }
 
       return pair;
@@ -527,15 +601,17 @@ static cover_item_t *cover_add_state_items_for(cover_data_t *data,
    assert(type_is_enum(base));
    ident_t itype = type_ident(type);
 
-   cover_bin_t *bins = cover_get_bins(data, set);
+   cover_obj_t *bins LOCAL = xmalloc_array(high - low + 1, sizeof(cover_obj_t));
+   cover_rel(data, set, COV_REL_BINS, 0, bins, high - low + 1);
 
    for (int64_t i = low; i <= high; i++) {
       ident_t literal = tree_ident(type_enum_literal(base, i));
       ident_t suffix = ident_prefix(ident_new("BIN_STATE"), literal, '.');
 
       // For FSM State coverage, "func_name" stores name of the FSM Enum type
-      cover_bin_t *bin = &(bins[i - low]);
-      bin->hier = ident_prefix(bin->hier, suffix, '.');
+      ident_t prefix = cover_get_ident(data, bins[i - low], COV_ATTR_HIER);
+      cover_put_ident(data, bins[i - low], COV_ATTR_HIER,
+                      ident_prefix(prefix, suffix, '.'));
    }
 
    set->func_name = ident_rfrom(itype, '.');
@@ -547,52 +623,6 @@ static cover_item_t *cover_add_state_items_for(cover_data_t *data,
 ///////////////////////////////////////////////////////////////////////////////
 // Expression coverage item emit
 ///////////////////////////////////////////////////////////////////////////////
-
-static cover_item_t *cover_add_expression_xor_items(cover_data_t *data,
-                                                    cover_scope_t *cs,
-                                                    object_t *obj,
-                                                    uint32_t flags)
-{
-   cover_item_t *set = cover_add_item(data, cs, obj, COV_ITEM_EXPRESSION,
-                                      flags, 4);
-   cover_bin_t *bins = cover_get_bins(data, set);
-   bins[0].flags |= COV_FLAG_00;
-   bins[1].flags |= COV_FLAG_01;
-   bins[2].flags |= COV_FLAG_10;
-   bins[3].flags |= COV_FLAG_11;
-
-   return set;
-}
-
-static cover_item_t *cover_add_expression_and_items(cover_data_t *data,
-                                                    cover_scope_t *cs,
-                                                    object_t *obj,
-                                                    uint32_t flags)
-{
-   cover_item_t *set = cover_add_item(data, cs, obj, COV_ITEM_EXPRESSION,
-                                      flags, 3);
-   cover_bin_t *bins = cover_get_bins(data, set);
-   bins[0].flags |= COV_FLAG_01;
-   bins[1].flags |= COV_FLAG_10;
-   bins[2].flags |= COV_FLAG_11;
-
-   return set;
-}
-
-static cover_item_t *cover_add_expression_or_items(cover_data_t *data,
-                                                   cover_scope_t *cs,
-                                                   object_t *obj,
-                                                   uint32_t flags)
-{
-   cover_item_t *set = cover_add_item(data, cs, obj, COV_ITEM_EXPRESSION,
-                                      flags, 3);
-   cover_bin_t *bins = cover_get_bins(data, set);
-   bins[0].flags |= COV_FLAG_00;
-   bins[1].flags |= COV_FLAG_01;
-   bins[2].flags |= COV_FLAG_10;
-
-   return set;
-}
 
 static cover_item_t *cover_add_expression_items(cover_data_t *data,
                                                 cover_scope_t *cs,
@@ -606,7 +636,8 @@ static cover_item_t *cover_add_expression_items(cover_data_t *data,
 
    cover_flags_t flags = 0;
    cover_item_t *set;
-   cover_bin_t *bins;
+   cover_obj_t bins[4];
+   int nbins;
 
    switch (tree_subkind(tree_ref(t))) {
    case S_SCALAR_EQ:
@@ -617,9 +648,10 @@ static cover_item_t *cover_add_expression_items(cover_data_t *data,
    case S_SCALAR_GE:
    case S_SCALAR_NOT:
       set = cover_add_item(data, cs, obj, COV_ITEM_EXPRESSION, 0, 2);
-      bins = cover_get_bins(data, set);
-      bins[0].flags |= COV_FLAG_FALSE;
-      bins[1].flags |= COV_FLAG_TRUE;
+      nbins = cover_rel(data, set, COV_REL_BINS, 0, bins, ARRAY_LEN(bins));
+
+      cover_put_flags(data, bins[0], COV_FLAG_FALSE);
+      cover_put_flags(data, bins[1], COV_FLAG_TRUE);
       break;
 
    case S_IEEE_XOR:
@@ -628,8 +660,13 @@ static cover_item_t *cover_add_expression_items(cover_data_t *data,
       // Fall-through
    case S_SCALAR_XOR:
    case S_SCALAR_XNOR:
-      set = cover_add_expression_xor_items(data, cs, obj, flags);
-      bins = cover_get_bins(data, set);
+      set = cover_add_item(data, cs, obj, COV_ITEM_EXPRESSION, flags, 4);
+      nbins = cover_rel(data, set, COV_REL_BINS, 0, bins, ARRAY_LEN(bins));
+
+      cover_put_flags(data, bins[0], COV_FLAG_00);
+      cover_put_flags(data, bins[1], COV_FLAG_01);
+      cover_put_flags(data, bins[2], COV_FLAG_10);
+      cover_put_flags(data, bins[3], COV_FLAG_11);
       break;
 
    case S_IEEE_OR:
@@ -638,8 +675,12 @@ static cover_item_t *cover_add_expression_items(cover_data_t *data,
       // Fall-through
    case S_SCALAR_OR:
    case S_SCALAR_NOR:
-      set = cover_add_expression_or_items(data, cs, obj, flags);
-      bins = cover_get_bins(data, set);
+      set = cover_add_item(data, cs, obj, COV_ITEM_EXPRESSION, flags, 3);
+      nbins = cover_rel(data, set, COV_REL_BINS, 0, bins, ARRAY_LEN(bins));
+
+      cover_put_flags(data, bins[0], COV_FLAG_00);
+      cover_put_flags(data, bins[1], COV_FLAG_01);
+      cover_put_flags(data, bins[2], COV_FLAG_10);
       break;
 
    case S_IEEE_AND:
@@ -648,8 +689,12 @@ static cover_item_t *cover_add_expression_items(cover_data_t *data,
       // Fall-through
    case S_SCALAR_AND:
    case S_SCALAR_NAND:
-      set = cover_add_expression_and_items(data, cs, obj, flags);
-      bins = cover_get_bins(data, set);
+      set = cover_add_item(data, cs, obj, COV_ITEM_EXPRESSION, flags, 3);
+      nbins = cover_rel(data, set, COV_REL_BINS, 0, bins, ARRAY_LEN(bins));
+
+      cover_put_flags(data, bins[0], COV_FLAG_01);
+      cover_put_flags(data, bins[1], COV_FLAG_10);
+      cover_put_flags(data, bins[2], COV_FLAG_11);
       break;
 
    case S_IEEE_MISC:
@@ -663,7 +708,7 @@ static cover_item_t *cover_add_expression_items(cover_data_t *data,
 
    ident_t func_name = tree_ident(t);
    loc_t loc_lhs = LOC_INVALID, loc_rhs = LOC_INVALID;
-   if (bins[0].flags & COVER_FLAGS_LHS_RHS_BINS) {
+   if (cover_get_flags(data, bins[0]) & COVER_FLAGS_LHS_RHS_BINS) {
       loc_lhs = *tree_loc(tree_param(t, 0));
       loc_rhs = *tree_loc(tree_param(t, 1));
    }
@@ -672,9 +717,12 @@ static cover_item_t *cover_add_expression_items(cover_data_t *data,
    set->loc_rhs = loc_rhs;
    set->func_name = func_name;
 
-   for (int i = 0; i < set->nbins; i++) {
-      ident_t suffix = ident_new(cover_bmask_to_bin_str(bins[i].flags));
-      bins[i].hier = ident_prefix(bins[i].hier, suffix, '.');
+   for (int i = 0; i < nbins; i++) {
+      cover_flags_t flags = cover_get_flags(data, bins[i]);
+      ident_t suffix = ident_new(cover_bmask_to_bin_str(flags));
+      ident_t prefix = cover_get_ident(data, bins[i], COV_ATTR_HIER);
+      cover_put_ident(data, bins[i], COV_ATTR_HIER,
+                      ident_prefix(prefix, suffix, '.'));
    }
 
    return set;
@@ -725,8 +773,9 @@ cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cs,
    }
 }
 
-void cover_add_ranges(cover_data_t *db, cover_bin_t *bin, unsigned count)
+void cover_add_ranges(cover_data_t *db, cover_obj_t obj, unsigned count)
 {
+   cover_bin_t *bin = cover_bin_data(db, obj);
    assert(cover_is_null(bin->first_range));
 
    bin->first_range = cover_alloc_ranges(db, count);
@@ -737,35 +786,22 @@ void cover_add_ranges(cover_data_t *db, cover_bin_t *bin, unsigned count)
 // Coverage data write/read to covdb, covdb merging and coverage scope handling
 ///////////////////////////////////////////////////////////////////////////////
 
-void cover_merge_bin(const cover_item_t *item, cover_bin_t *bin, int32_t data)
+void cover_merge_bin(cover_data_t *db, cover_obj_t obj, int32_t data)
 {
-   switch (item->kind) {
-   case COV_ITEM_STMT:
-   case COV_ITEM_FUNCTIONAL:
-   case COV_ITEM_BRANCH:
-   case COV_ITEM_STATE:
-   case COV_ITEM_EXPRESSION:
-      bin->data = saturate_add(bin->data, data);
-      break;
+   cover_bin_t *bin = cover_bin_data(db, obj);
 
-   // Highest bit of run-time data for COV_ITEM_TOGGLE is used to track
-   // unreachability due to being constant driven. If multiple designs
-   // like this are merged, the resulting value would underflow and this
-   // information would be lost. Similarly, if different designs were
-   // merged, where one was unreachable due to being constant driven and
-   // the other was driven. So, If the unreachability is detected, enforce
-   // its propagation further to the merged database
-   case COV_ITEM_TOGGLE:
+   const bool is_toggle_bin =
+      !!(bin->flags & (COV_FLAG_TOGGLE_TO_0 | COV_FLAG_TOGGLE_TO_1));
 
+   if (is_toggle_bin) {
+      // Highest bit tracks unreachability#
       if ((bin->data & COV_FLAG_UNREACHABLE) || (data & COV_FLAG_UNREACHABLE))
          bin->data = COV_FLAG_UNREACHABLE;
       else
          bin->data = saturate_add(bin->data, data);
-      break;
-
-   default:
-      break;
    }
+   else
+      bin->data = saturate_add(bin->data, data);
 }
 
 static void cover_update_counts(cover_data_t *db, cover_scope_t *s)
@@ -773,10 +809,10 @@ static void cover_update_counts(cover_data_t *db, cover_scope_t *s)
    if (s->block != NULL && s->block->data != NULL) {
       for (int i = 0; i < s->items.count; i++) {
          cover_item_t *item = s->items.items[i];
-         cover_bin_t *bins = cover_get_bins(db, item);
          for (int j = 0; j < item->nbins; j++) {
-            cover_bin_t *bin = &(bins[j]);
-            cover_merge_bin(item, bin, s->block->data[bin->tag]);
+            cover_obj_t bin = cover_at(db, item, COV_REL_BINS, j);
+            uint32_t tag = cover_get_tag(db, bin);
+            cover_merge_bin(db, bin, s->block->data[tag]);
          }
       }
    }
@@ -863,22 +899,25 @@ static void cover_debug_dump(cover_data_t *db, cover_scope_t *s, int indent)
 
    for (int i = 0; i < s->items.count; i++) {
       cover_item_t *item = s->items.items[i];
-      cover_bin_t *bins = cover_get_bins(db, item);
 
       for (int j = 0; j < item->nbins; j++) {
-         const cover_bin_t *bin = &(bins[j]);
+         cover_obj_t bin = cover_at(db, item, COV_REL_BINS, j);
+
+         uint32_t tag = cover_get_u32(db, bin, COV_ATTR_TAG, -1);
+         uint32_t data = cover_get_u32(db, bin, COV_ATTR_DATA, -1);
+         ident_t hier = cover_get_ident(db, bin, COV_ATTR_HIER);
+
          if (loc_invalid_p(&item->loc))
             printf("%*s%d: %s %s <invalid> => %x\n", indent + 2, "",
-                   bin->tag, cover_item_kind_str(item->kind),
-                   istr(bin->hier), bin->data);
+                   tag, cover_item_kind_str(item->kind), istr(hier), data);
          else {
             const char *path = loc_file_str(&item->loc), *basename;
             if ((basename = strrchr(path, '/')))
                path = basename + 1;
 
-            printf("%*s%d: %s %s %s:%d => %x\n", indent + 2, "", bin->tag,
-                   cover_item_kind_str(item->kind), istr(bin->hier),
-                   path, item->loc.first_line, bin->data);
+            printf("%*s%d: %s %s %s:%d => %x\n", indent + 2, "", tag,
+                   cover_item_kind_str(item->kind), istr(hier),
+                   path, item->loc.first_line, data);
          }
       }
    }
@@ -1101,7 +1140,7 @@ static cover_item_t *cover_read_item(cover_data_t *db, fbuf_t *f,
 
    item->first_bin = cover_alloc_bins(db, nbins);
 
-   cover_bin_t *bins = cover_get_bins(db, item);
+   cover_bin_t *bins = db->bins.items + item->first_bin.id;
    for (int i = 0; i < nbins; i++) {
       cover_bin_t *bin = &(bins[i]);
       bin->tag = fbuf_get_uint(f);
@@ -1234,22 +1273,36 @@ static bool cover_merge_items(cover_data_t *dst_db, const cover_data_t *src_db,
    mask_init(&missed, src->nbins);
    mask_setall(&missed);
 
-   cover_bin_t *sbins = cover_get_bins(src_db, src);
-   cover_bin_t *dbins = cover_get_bins(dst_db, dst);
-
    for (int i = 0; i < src->nbins; i++) {
+      cover_obj_t sbin = cover_at(src_db, src, COV_REL_BINS, i);
+      cover_flags_t src_flags = cover_get_flags(src_db, sbin);
+      ident_t src_hier = cover_get_ident(src_db, sbin, COV_ATTR_HIER);
+
       // Try the same index first assuming the scopes are identical
-      if (i < dst->nbins && dbins[i].flags == sbins[i].flags
-          && dbins[i].hier == sbins[i].hier) {
-         cover_merge_bin(dst, &(dbins[i]), sbins[i].data);
-         mask_clear(&missed, i);
-         continue;
+      cover_obj_t dbin_i = cover_at(dst_db, dst, COV_REL_BINS, i);
+      if (!cover_is_null(dbin_i)) {
+         cover_flags_t dst_flags = cover_get_flags(dst_db, dbin_i);
+         ident_t dst_hier = cover_get_ident(dst_db, dbin_i, COV_ATTR_HIER);
+
+         if (dst_flags == src_flags && dst_hier == src_hier) {
+            uint32_t src_data = cover_get_u32(src_db, sbin, COV_ATTR_DATA, 0);
+            cover_merge_bin(dst_db, dbin_i, src_data);
+            mask_clear(&missed, i);
+            continue;
+         }
       }
 
       for (int j = 0; j < dst->nbins; j++) {
-         if (i != j && dbins[j].flags == sbins[i].flags
-             && dbins[j].hier == sbins[i].hier) {
-            cover_merge_bin(dst, &(dbins[j]), sbins[i].data);
+         if (i == j)
+            continue;   // Checked above
+
+         cover_obj_t dbin = cover_at(dst_db, dst, COV_REL_BINS, j);
+         cover_flags_t dst_flags = cover_get_flags(dst_db, dbin);
+         ident_t dst_hier = cover_get_ident(dst_db, dbin, COV_ATTR_HIER);
+
+         if (dst_flags == src_flags && dst_hier == src_hier) {
+            uint32_t src_data = cover_get_u32(src_db, sbin, COV_ATTR_DATA, 0);
+            cover_merge_bin(dst_db, dbin, src_data);
             mask_clear(&missed, i);
             break;
          }
@@ -1269,8 +1322,8 @@ static bool cover_merge_items(cover_data_t *dst_db, const cover_data_t *src_db,
    cover_obj_t new_first = cover_alloc_bins(dst_db, new_count);
 
    // Allocation may have moved the table
-   dbins = cover_get_bins(dst_db, dst);
-   sbins = cover_get_bins(src_db, src);
+   cover_bin_t *sbins = cover_get_bins(src_db, src);
+   cover_bin_t *dbins = cover_get_bins(dst_db, dst);
 
    cover_bin_t *nbins = dst_db->bins.items + new_first.id;
    memcpy(nbins, dbins, dst->nbins * sizeof(cover_bin_t));
@@ -1452,28 +1505,6 @@ cover_item_t *cover_get_item(cover_scope_t *s, cover_item_kind_t kind, int nth)
    return NULL;
 }
 
-cover_bin_t *cover_get_bins(const cover_data_t *db, const cover_item_t *item)
-{
-   if (cover_is_null(item->first_bin))
-      return NULL;
-
-   assert(item->first_bin.tag == COVER_TAG_BIN);
-   assert(item->first_bin.id < db->bins.count);
-
-   return db->bins.items + item->first_bin.id;
-}
-
-cover_range_t *cover_get_ranges(const cover_data_t *db, const cover_bin_t *bin)
-{
-   if (cover_is_null(bin->first_range))
-      return NULL;
-
-   assert(bin->first_range.tag == COVER_TAG_RANGE);
-   assert(bin->first_range.id < db->ranges.count);
-
-   return db->ranges.items + bin->first_range.id;
-}
-
 void cover_bmask_to_bin_list(uint32_t bmask, text_buf_t *tb)
 {
    bool empty = true;
@@ -1562,4 +1593,232 @@ bool cover_bin_unreachable(cover_data_t *data, cover_item_kind_t kind,
       return true;
 
    return false;
+}
+
+size_t cover_count(const cover_data_t *db, const cover_item_t *item,
+                   cover_rel_t rel)
+{
+   return cover_rel(db, item, rel, 0, NULL, 0);
+}
+
+size_t cover_count2(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel)
+{
+   return cover_rel2(db, obj, rel, 0, NULL, 0);
+}
+
+static size_t cover_rel_contig(unsigned rel_count, cover_obj_t rel_first,
+                               unsigned first, cover_obj_t *out, size_t max)
+{
+   if (first >= rel_count)
+      return 0;
+
+   const size_t count = rel_count - first;
+
+   for (int i = 0; i < MIN(count, max); i++) {
+      out[i].tag = rel_first.tag;
+      out[i].id  = rel_first.id + first + i;
+   }
+
+   return count;
+}
+
+size_t cover_rel(const cover_data_t *db, const cover_item_t *item,
+                 cover_rel_t rel, unsigned first, cover_obj_t *out, size_t max)
+{
+   switch (rel) {
+   case COV_REL_BINS:
+      return cover_rel_contig(item->nbins, item->first_bin, first, out, max);
+   default:
+      return 0;
+   }
+}
+
+size_t cover_rel2(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel,
+                  unsigned first, cover_obj_t *out, size_t max)
+{
+   switch (obj.tag) {
+   case COVER_TAG_BIN:
+      {
+         const cover_bin_t *bin = cover_bin_data_const(db, obj);
+         switch (rel) {
+         case COV_REL_RANGES:
+            return cover_rel_contig(bin->n_ranges, bin->first_range,
+                                    first, out, max);
+         default:
+            return 0;
+         }
+      }
+   default:
+      return 0;
+   }
+}
+
+cover_obj_t cover_at(const cover_data_t *db, const cover_item_t *item,
+                     cover_rel_t rel, unsigned index)
+{
+   cover_obj_t obj[1];
+   if (cover_rel(db, item, rel, index, obj, 1) == 0)
+      return COVER_NULL_OBJ;
+   else
+      return obj[0];
+}
+
+cover_obj_t cover_at2(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel,
+                      unsigned index)
+{
+   cover_obj_t result[1];
+   if (cover_rel2(db, obj, rel, index, result, 1) == 0)
+      return COVER_NULL_OBJ;
+   else
+      return result[0];
+}
+
+uint32_t cover_get_u32(const cover_data_t *db, cover_obj_t obj,
+                       cover_attr_t attr, uint32_t def)
+{
+   switch (obj.tag) {
+   case COVER_TAG_BIN:
+      {
+         const cover_bin_t *bin = cover_bin_data_const(db, obj);
+         switch (attr) {
+         case COV_ATTR_TAG:       return bin->tag;
+         case COV_ATTR_FLAGS:     return bin->flags;
+         case COV_ATTR_FIELD_IDX: return bin->field_idx;
+         case COV_ATTR_DATA:      return bin->data;
+         default:                 return def;
+         }
+      }
+   default:
+      return def;
+   }
+}
+
+int64_t cover_get_i64(const cover_data_t *db, cover_obj_t obj,
+                      cover_attr_t attr, int64_t def)
+{
+   switch (obj.tag) {
+   case COVER_TAG_RANGE:
+      {
+         const cover_range_t *r = cover_range_data_const(db, obj);
+         switch (attr) {
+         case COV_ATTR_MAX: return r->max;
+         case COV_ATTR_MIN: return r->min;
+         default:           return def;
+         }
+      }
+   default:
+      return def;
+   }
+}
+
+ident_t cover_get_ident(const cover_data_t *db, cover_obj_t obj,
+                        cover_attr_t attr)
+{
+   switch (obj.tag) {
+   case COVER_TAG_BIN:
+      {
+         const cover_bin_t *bin = cover_bin_data_const(db, obj);
+         switch (attr) {
+         case COV_ATTR_HIER: return bin->hier;
+         default:            return NULL;
+         }
+      }
+   default:
+      return NULL;
+   }
+}
+
+loc_t cover_get_loc(const cover_data_t *db, cover_obj_t obj, cover_attr_t attr)
+{
+   switch (obj.tag) {
+   default:
+      should_not_reach_here();
+   }
+}
+
+cover_flags_t cover_get_flags(const cover_data_t *db, cover_obj_t obj)
+{
+   return cover_get_u32(db, obj, COV_ATTR_FLAGS, 0);
+}
+
+uint32_t cover_get_tag(const cover_data_t *db, cover_obj_t obj)
+{
+   return cover_get_u32(db, obj, COV_ATTR_TAG, -1);
+}
+
+void cover_put_u32(cover_data_t *db, cover_obj_t obj, cover_attr_t attr,
+                   uint32_t value)
+{
+   switch (obj.tag) {
+   case COVER_TAG_BIN:
+      {
+         cover_bin_t *bin = cover_bin_data(db, obj);
+         switch (attr) {
+         case COV_ATTR_FLAGS:
+            bin->flags = value;
+            return;
+         case COV_ATTR_FIELD_IDX:
+            bin->field_idx = value;
+            return;
+         default:
+            should_not_reach_here();
+         }
+      }
+   default:
+      should_not_reach_here();
+   }
+}
+
+void cover_put_i64(cover_data_t *db, cover_obj_t obj, cover_attr_t attr,
+                   int64_t value)
+{
+   switch (obj.tag) {
+   case COVER_TAG_RANGE:
+      {
+         cover_range_t *r = cover_range_data(db, obj);
+         switch (attr) {
+         case COV_ATTR_MAX:
+            r->max = value;
+            return;
+         case COV_ATTR_MIN:
+            r->min = value;
+            return;
+         default:
+            should_not_reach_here();
+         }
+      }
+   default:
+      should_not_reach_here();
+   }
+}
+
+void cover_put_ident(cover_data_t *db, cover_obj_t obj, cover_attr_t attr,
+                     ident_t value)
+{
+   switch (obj.tag) {
+   case COVER_TAG_BIN:
+      {
+         cover_bin_t *bin = cover_bin_data(db, obj);
+         switch (attr) {
+         case COV_ATTR_HIER:
+            bin->hier = value;
+            return;
+         default:
+            should_not_reach_here();
+         }
+      }
+   default:
+      should_not_reach_here();
+   }
+}
+
+void cover_put_flags(cover_data_t *db, cover_obj_t obj, cover_flags_t flags)
+{
+   switch (obj.tag) {
+   case COVER_TAG_BIN:
+      cover_bin_data(db, obj)->flags |= flags;
+      break;
+   default:
+      should_not_reach_here();
+   }
 }

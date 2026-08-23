@@ -118,23 +118,31 @@ static void cobertura_export_scope(cobertura_report_t *report,
 
    for (int i = 0; i < s->items.count; i++) {
       cover_item_t *item = s->items.items[i];
-      cover_bin_t *bins = cover_get_bins(db, item);
       cobertura_line_t *l = cobertura_get_line(class, &(item->loc));
 
-      for (int j = 0; j < item->nbins; j++) {
-         const cover_bin_t *bin = &(bins[j]);
-         switch (item->kind) {
-         case COV_ITEM_STMT:
-            l->hits += bin->data;
-            break;
-         case COV_ITEM_BRANCH:
-            l->branch = true;
-            if (bin->data > 0)
-               l->bflags |= bin->flags;
-            break;
-         default:
-            break;
+      switch (item->kind) {
+      case COV_ITEM_STMT:
+         {
+            cover_obj_t bin = cover_at(db, item, COV_REL_BINS, 0);
+            l->hits += cover_get_u32(db, bin, COV_ATTR_DATA, 0);
          }
+         break;
+      case COV_ITEM_BRANCH:
+         {
+            l->branch = true;
+
+            cover_obj_t bins[2];
+            int nbins = cover_rel(db, item, COV_REL_BINS, 0, bins, 2);
+
+            for (int j = 0; j < nbins; j++) {
+               uint32_t data = cover_get_u32(db, bins[j], COV_ATTR_DATA, 0);
+               if (data > 0)
+                  l->bflags |= cover_get_u32(db, bins[j], COV_ATTR_FLAGS, 0);
+            }
+         }
+         break;
+      default:
+         break;
       }
    }
 
@@ -274,34 +282,38 @@ void cover_export_cobertura(cover_data_t *data, FILE *f, const char *relative)
 static void dump_item_xml(cover_data_t *db, cover_item_t *item, int indent,
                           FILE *f)
 {
-   cover_bin_t *bins = cover_get_bins(db, item);
+   const int nbins = cover_count(db, item, COV_REL_BINS);
 
-   for (int i = 0; i < item->nbins; i++) {
-      const cover_bin_t *bin = &(bins[i]);
+   for (int i = 0; i < nbins; i++) {
+      cover_obj_t bin = cover_at(db, item, COV_REL_BINS, i);
+
+      ident_t hier = cover_get_ident(db, bin, COV_ATTR_HIER);
+      uint32_t data = cover_get_u32(db, bin, COV_ATTR_DATA, 0);
+
       switch (item->kind) {
       case COV_ITEM_STMT:
          fprintf(f, "%*s<statement hier=\"%s\" data=\"%d\"/>\n", indent + 2, "",
-                 istr(bin->hier), bin->data);
+                 istr(hier), data);
          break;
       case COV_ITEM_BRANCH:
          fprintf(f, "%*s<branch hier=\"%s\" data=\"%d\"/>\n", indent + 2, "",
-                 istr(bin->hier), bin->data);
+                 istr(hier), data);
          break;
       case COV_ITEM_EXPRESSION:
          fprintf(f, "%*s<expression hier=\"%s\" data=\"%d\"/>\n", indent + 2,
-                 "", istr(bin->hier), bin->data);
+                 "", istr(hier), data);
          break;
       case COV_ITEM_TOGGLE:
          fprintf(f, "%*s<toggle hier=\"%s\" data=\"%d\"/>\n", indent + 2, "",
-                 istr(bin->hier), bin->data);
+                 istr(hier), data);
          break;
       case COV_ITEM_FUNCTIONAL:
          fprintf(f, "%*s<functional hier=\"%s\" data=\"%d\"/>\n", indent + 2,
-                 "", istr(bin->hier), bin->data);
+                 "", istr(hier), data);
          break;
       case COV_ITEM_STATE:
          fprintf(f, "%*s<state hier=\"%s\" data=\"%d\"/>\n", indent + 2,
-                 "", istr(bin->hier), bin->data);
+                 "", istr(hier), data);
          break;
       }
    }

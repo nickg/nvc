@@ -99,9 +99,9 @@ typedef struct {
 } last_time_params_t;
 
 typedef struct {
-   cover_bin_t *next;
-   cover_bin_t *last;
-   unsigned     field_idx;
+   cover_item_t *item;
+   unsigned      next;
+   unsigned      field_idx;
 } field_toggle_params_t;
 
 static vcode_reg_t lower_expr(lower_unit_t *lu, tree_t expr, expr_ctx_t ctx);
@@ -1667,17 +1667,20 @@ static void lower_branch_coverage(lower_unit_t *lu, tree_t b, int nth,
    if (item == NULL)
       return;
 
-   cover_bin_t *bins = cover_get_bins(lu->cover, item);
+   cover_obj_t bins[2];
+   int nbins = cover_rel(lu->cover, item, COV_REL_BINS, 0, bins, 2);
 
    vcode_block_t blocks[2] = { true_bb, false_bb };
 
-   for (int i = 0; i < item->nbins; i++) {
+   for (int i = 0; i < nbins; i++) {
       assert(blocks[i] != VCODE_INVALID_BLOCK);
 
       vcode_select_block(blocks[i]);
 
+      uint32_t tag = cover_get_u32(lu->cover, bins[i], COV_ATTR_TAG, -1);
+
       vcode_reg_t counters = lower_cover_counters(lu);
-      emit_cover_branch(counters, bins[i].tag);
+      emit_cover_branch(counters, tag);
    }
 }
 
@@ -1692,10 +1695,11 @@ static void lower_stmt_coverage(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
    if (item == NULL)
       return;
 
-   cover_bin_t *bins = cover_get_bins(lu->cover, item);
+   cover_obj_t bin = cover_at(lu->cover, item, COV_REL_BINS, 0);
+   uint32_t tag = cover_get_u32(lu->cover, bin, COV_ATTR_TAG, -1);
 
    vcode_reg_t counters = lower_cover_counters(lu);
-   emit_cover_stmt(counters, bins[0].tag);
+   emit_cover_stmt(counters, tag);
 }
 
 static void lower_toggle_coverage_cb(lower_unit_t *lu, tree_t field,
@@ -1707,22 +1711,30 @@ static void lower_toggle_coverage_cb(lower_unit_t *lu, tree_t field,
 
    type_t ftype = tree_type(field);
 
-   if (params->next == params->last)
-      return;
-   else if (!type_is_homogeneous(ftype))
+   if (!type_is_homogeneous(ftype))
       lower_for_each_field(lu, ftype, field_ptr, locus,
                            lower_toggle_coverage_cb, ctx);
    else {
-      const unsigned fidx = params->field_idx++;
-      if (params->next->field_idx == fidx) {
-         vcode_reg_t nets_reg = emit_load_indirect(field_ptr);
-         vcode_reg_t count_reg = lower_type_width(lu, ftype, nets_reg);
-         emit_cover_toggle(nets_reg, count_reg, params->next->tag);
+      cover_obj_t next_bin = cover_at(lu->cover, params->item, COV_REL_BINS,
+                                      params->next);
+      if (cover_is_null(next_bin))
+         return;
 
-         do {
-            params->next++;
-         } while (params->next < params->last
-                  && params->next->field_idx == fidx);
+      const unsigned fidx = params->field_idx++;
+      const unsigned next_fidx = cover_get_u32(lu->cover, next_bin,
+                                               COV_ATTR_FIELD_IDX, -1);
+      assert(next_fidx != -1);
+
+      if (fidx == next_fidx) {
+         vcode_reg_t nets_reg = emit_load_indirect(field_ptr);
+
+         const int width = type_width(ftype);
+         vcode_reg_t count_reg = emit_const(vtype_offset(), width);
+
+         uint32_t tag = cover_get_u32(lu->cover, next_bin, COV_ATTR_TAG, -1);
+         emit_cover_toggle(nets_reg, count_reg, tag);
+
+         params->next += width * 2;
       }
    }
 }
@@ -1736,24 +1748,22 @@ static void lower_toggle_coverage(lower_unit_t *lu, tree_t decl,
    if (item == NULL)
       return;
 
-   cover_bin_t *bins = cover_get_bins(lu->cover, item);
-
    type_t type = tree_type(decl);
    if (!type_is_homogeneous(type)) {
-      field_toggle_params_t params = {
-         .next = bins,
-         .last = bins + item->nbins,
-         .field_idx = 0,
-      };
+      field_toggle_params_t params = { .item = item };
       vcode_reg_t rec_ptr = emit_index(var, VCODE_INVALID_REG);
       lower_for_each_field(lu, type, rec_ptr, VCODE_INVALID_REG,
                            lower_toggle_coverage_cb, &params);
-      assert(params.next == params.last);
+      assert(params.next == cover_count(lu->cover, item, COV_REL_BINS));
    }
    else {
       vcode_reg_t nets_reg = emit_load(var);
       vcode_reg_t count_reg = lower_type_width(lu, type, nets_reg);
-      emit_cover_toggle(nets_reg, count_reg, bins[0].tag);
+
+      cover_obj_t bin0 = cover_at(lu->cover, item, COV_REL_BINS, 0);
+      uint32_t tag0 = cover_get_u32(lu->cover, bin0, COV_ATTR_TAG, -1);
+
+      emit_cover_toggle(nets_reg, count_reg, tag0);
    }
 }
 
@@ -1771,7 +1781,8 @@ static void lower_state_coverage(lower_unit_t *lu, tree_t decl, gen_stack_t *gs)
 
    vcode_reg_t nets_reg = emit_load(var);
 
-   cover_bin_t *bins = cover_get_bins(lu->cover, item);
+   cover_obj_t bin = cover_at(lu->cover, item, COV_REL_BINS, 0);
+   uint32_t tag = cover_get_u32(lu->cover, bin, COV_ATTR_TAG, -1);
 
    // If a type is sub-type, then lower bound may be non-zero.
    // Then value of lower bound will correspond to first coverage
@@ -1779,10 +1790,10 @@ static void lower_state_coverage(lower_unit_t *lu, tree_t decl, gen_stack_t *gs)
    // subtract lower bound to get correct index of coverage data.
    vcode_reg_t low_reg = emit_const(vtype_int(INT64_MIN, INT64_MAX),
                                     item->metadata);
-   emit_cover_state(nets_reg, low_reg, bins[0].tag);
+   emit_cover_state(nets_reg, low_reg, tag);
 }
 
-static void lower_logic_expr_coverage(lower_unit_t *lu, cover_item_t *first,
+static void lower_logic_expr_coverage(lower_unit_t *lu, cover_item_t *item,
                                       vcode_reg_t lhs, vcode_reg_t rhs)
 {
    if (vcode_unit_kind(lu->vunit) == VCODE_UNIT_PROPERTY)
@@ -1806,15 +1817,19 @@ static void lower_logic_expr_coverage(lower_unit_t *lu, cover_item_t *first,
 
    vcode_reg_t counters = lower_cover_counters(lu);
 
-   cover_bin_t *bins = cover_get_bins(lu->cover, first);
+   cover_obj_t bins[4];
+   int nbins = cover_rel(lu->cover, item, COV_REL_BINS, 0, bins, 4);
 
-   for (int i = 0; i < first->nbins; i++) {
+   for (int i = 0; i < nbins; i++) {
       vcode_block_t next_bb = emit_block();
       vcode_block_t match_bb = emit_block();
 
+      cover_flags_t bin_flags = cover_get_flags(lu->cover, bins[i]);
+      uint32_t tag = cover_get_tag(lu->cover, bins[i]);
+
       // Build logic to check combinations of LHS and RHS
       for (int j = 0; j < ARRAY_LEN(bin_defs); j++) {
-         if (bins[i].flags & bin_defs[j].flag) {
+         if (bin_flags & bin_defs[j].flag) {
             vcode_reg_t cmp_lhs =
                emit_cmp(VCODE_CMP_EQ, lhs, bin_defs[j].lhs_exp);
             vcode_reg_t cmp_rhs =
@@ -1824,13 +1839,12 @@ static void lower_logic_expr_coverage(lower_unit_t *lu, cover_item_t *first,
             emit_cond(test, match_bb, next_bb);
 
             vcode_select_block(match_bb);
-            emit_cover_expr(counters, bins[i].tag);
+            emit_cover_expr(counters, tag);
             emit_jump(next_bb);
 
             vcode_select_block(next_bb);
          }
       }
-
    }
 }
 
@@ -2434,7 +2448,7 @@ static vcode_reg_t lower_fcall(lower_unit_t *lu, tree_t fcall,
    return emit_fcall(name, rtype, rbounds, args.items, args.count);
 }
 
-static vcode_reg_t lower_expr_coverge(lower_unit_t *lu, cover_item_t *first,
+static vcode_reg_t lower_expr_coverge(lower_unit_t *lu, cover_item_t *item,
                                       vcode_reg_t result, vcode_reg_t lhs,
                                       vcode_reg_t rhs, unsigned unrc_msk)
 {
@@ -2443,9 +2457,12 @@ static vcode_reg_t lower_expr_coverge(lower_unit_t *lu, cover_item_t *first,
    vcode_reg_t lhs_n = VCODE_INVALID_REG;
    vcode_reg_t rhs_n = VCODE_INVALID_REG;
 
-   cover_bin_t *bins = cover_get_bins(lu->cover, first);
+   cover_obj_t bins[4];
+   int nbins = cover_rel(lu->cover, item, COV_REL_BINS, 0, bins, 4);
 
-   if (bins[0].flags & COVER_FLAGS_LHS_RHS_BINS) {
+   uint32_t bin0_flags = cover_get_flags(lu->cover, bins[0]);
+
+   if (bin0_flags & COVER_FLAGS_LHS_RHS_BINS) {
       lhs_n = emit_not(lhs);
       rhs_n = emit_not(rhs);
    }
@@ -2463,21 +2480,24 @@ static vcode_reg_t lower_expr_coverge(lower_unit_t *lu, cover_item_t *first,
 
    vcode_reg_t counters = lower_cover_counters(lu);
 
-   for (int i = 0; i < first->nbins; i++) {
+   for (int i = 0; i < nbins; i++) {
       vcode_block_t next_bb = emit_block();
       vcode_block_t match_bb = emit_block();
 
-      if (unrc_msk & bins[i].flags)
-         bins[i].flags |= COV_FLAG_UNREACHABLE;
+      uint32_t bin_flags = cover_get_u32(lu->cover, bins[i], COV_ATTR_FLAGS, 0);
+      uint32_t tag = cover_get_u32(lu->cover, bins[i], COV_ATTR_TAG, -1);
+
+      if (unrc_msk & bin_flags)
+         cover_put_flags(lu->cover, bins[i], COV_FLAG_UNREACHABLE);
 
       // Unary expressions
-      if ((bins[i].flags & COV_FLAG_TRUE) || (bins[i].flags & COV_FLAG_FALSE)) {
-         vcode_reg_t test = (bins[i].flags & COV_FLAG_TRUE)
+      if ((bin_flags & COV_FLAG_TRUE) || (bin_flags & COV_FLAG_FALSE)) {
+         vcode_reg_t test = (bin_flags & COV_FLAG_TRUE)
             ? result : emit_not(result);
          emit_cond(test, match_bb, next_bb);
 
          vcode_select_block(match_bb);
-         emit_cover_expr(counters, bins[i].tag);
+         emit_cover_expr(counters, tag);
          emit_jump(next_bb);
 
          vcode_select_block(next_bb);
@@ -2486,12 +2506,12 @@ static vcode_reg_t lower_expr_coverge(lower_unit_t *lu, cover_item_t *first,
       // Binary expressions
       else {
          for (int j = 0; j < ARRAY_LEN(bin_defs); j++) {
-            if (bins[i].flags & bin_defs[j].flag) {
+            if (bin_flags & bin_defs[j].flag) {
                vcode_reg_t test = emit_and(bin_defs[j].lhs, bin_defs[j].rhs);
                emit_cond(test, match_bb, next_bb);
 
                vcode_select_block(match_bb);
-               emit_cover_expr(counters, bins[i].tag);
+               emit_cover_expr(counters, tag);
                emit_jump(next_bb);
 
                vcode_select_block(next_bb);

@@ -119,17 +119,22 @@ START_TEST(test_toggle1)
    ck_assert_int_eq(vect->items.count, 1);
 
    cover_item_t *vect15 = vect->items.items[0];
-   cover_bin_t *vect15_bins = cover_get_bins(db, vect15);
-   ck_assert_int_eq(vect15->nbins, 32);
-   ck_assert(vect15_bins[0].flags & COV_FLAG_TOGGLE_TO_1);
-   ck_assert(vect15_bins[1].flags & COV_FLAG_TOGGLE_TO_0);
-   ck_assert_int_eq(vect15_bins[0].data, 0);
-   ck_assert_int_eq(vect15_bins[1].data, 0);
+   ck_assert_int_eq(cover_count(db, vect15, COV_REL_BINS), 32);
+
+   cover_obj_t vect15_bins[32];
+   cover_rel(db, vect15, COV_REL_BINS, 0, vect15_bins, 32);
+
+   ck_assert(cover_get_flags(db, vect15_bins[0]) & COV_FLAG_TOGGLE_TO_1);
+   ck_assert(cover_get_flags(db, vect15_bins[1]) & COV_FLAG_TOGGLE_TO_0);
+
+   ck_assert_int_eq(cover_get_u32(db, vect15_bins[0], COV_ATTR_DATA, -1), 0);
+   ck_assert_int_eq(cover_get_u32(db, vect15_bins[1], COV_ATTR_DATA, -1), 0);
 
    cover_rpt_t *rpt = cover_report_new(db, INT_MAX);
 
-   ck_assert_int_eq(vect15_bins[0].data, 0);   // Should not change
-   ck_assert_int_eq(vect15_bins[1].data, 0);
+   // Should not change
+   ck_assert_int_eq(cover_get_u32(db, vect15_bins[0], COV_ATTR_DATA, -1), 0);
+   ck_assert_int_eq(cover_get_u32(db, vect15_bins[1], COV_ATTR_DATA, -1), 0);
 
    const rpt_hier_t *u1_h = rpt_get_hier(rpt, u1);
    ck_assert_int_eq(u1_h->flat_stats.total[COV_ITEM_TOGGLE], 32);
@@ -141,10 +146,10 @@ START_TEST(test_toggle1)
    const rpt_table_t *hits_t0 = hits->items[0];
    ck_assert_int_eq(hits_t0->count, 2);
    ck_assert_int_eq(hits_t0->items[0].data, 1);
-   ck_assert_ident_eq(hits_t0->items[0].bin->hier,
+   ck_assert_ident_eq(cover_get_ident(db, hits_t0->items[0].bin, COV_ATTR_HIER),
                       "WORK.TOGGLE1.VECT(3).BIN_1_TO_0");
    ck_assert_int_eq(hits_t0->items[1].data, 1);
-   ck_assert_ident_eq(hits_t0->items[1].bin->hier,
+   ck_assert_ident_eq(cover_get_ident(db, hits_t0->items[1].bin, COV_ATTR_HIER),
                       "WORK.TOGGLE1.VECT(1).BIN_1_TO_0");
 
    const table_array_t *miss = &(u1_h->detail.miss[COV_ITEM_TOGGLE]);
@@ -153,7 +158,7 @@ START_TEST(test_toggle1)
    const rpt_table_t *miss_t0 = miss->items[0];
    ck_assert_int_eq(miss_t0->count, 30);
    ck_assert_int_eq(miss_t0->items[0].data, 0);
-   ck_assert_ident_eq(miss_t0->items[0].bin->hier,
+   ck_assert_ident_eq(cover_get_ident(db, miss_t0->items[0].bin, COV_ATTR_HIER),
                       "WORK.TOGGLE1.VECT(15).BIN_0_TO_1");
 
    cover_report_free(rpt);
@@ -196,7 +201,8 @@ START_TEST(test_merge1)
    const rpt_table_t *hits_t2 = hits->items[2];
    ck_assert_int_eq(hits_t2->count, 2);
    ck_assert_int_eq(hits_t2->items[0].data, 1);
-   ck_assert_ident_eq(hits_t2->items[0].bin->hier,
+   ck_assert_ident_eq(cover_get_ident(db1, hits_t2->items[0].bin,
+                                      COV_ATTR_HIER),
                       "WORK.MERGE1.TGL(0).BIN_0_TO_1");
 
    const table_array_t *miss = &(u1_h->detail.miss[COV_ITEM_TOGGLE]);
@@ -205,7 +211,8 @@ START_TEST(test_merge1)
    const rpt_table_t *miss_t2 = miss->items[2];
    ck_assert_int_eq(miss_t2->count, 2);
    ck_assert_int_eq(miss_t2->items[0].data, 0);
-   ck_assert_ident_eq(miss_t2->items[0].bin->hier,
+   ck_assert_ident_eq(cover_get_ident(db1, miss_t2->items[0].bin,
+                                      COV_ATTR_HIER),
                       "WORK.MERGE1.TGL(1).BIN_0_TO_1");
 
    cover_scope_t *gen1 = cover_get_scope(db1, ident_new("WORK.MERGE1.GEN_ONE"));
@@ -235,6 +242,8 @@ START_TEST(test_merge2)
 
    cover_merge(db1, db2, MERGE_UNION);
 
+   cover_data_free(db2);
+
    cover_scope_t *u1 = cover_get_scope(db1, ident_new("WORK.MERGE2"));
    ck_assert_ptr_nonnull(u1);
 
@@ -249,7 +258,9 @@ START_TEST(test_merge2)
 
    const rpt_table_t *hits_t0 = hits->items[0];
    ck_assert_int_eq(hits_t0->count, 4);
-   ck_assert_ident_eq(hits_t0->items[0].bin->hier, "WORK.MERGE2.TGL(1).BIN_0_TO_1");
+   ck_assert_ident_eq(cover_get_ident(db1, hits_t0->items[0].bin,
+                                      COV_ATTR_HIER),
+                      "WORK.MERGE2.TGL(1).BIN_0_TO_1");
 
    const table_array_t *miss = &(u1_h->detail.miss[COV_ITEM_TOGGLE]);
    ck_assert_int_eq(miss->count, 1);
@@ -257,11 +268,12 @@ START_TEST(test_merge2)
    const rpt_table_t *miss_t0 = miss->items[0];
    ck_assert_int_eq(miss_t0->count, 2);
    ck_assert_int_eq(miss_t0->items[0].data, 0);
-   ck_assert_ident_eq(miss_t0->items[0].bin->hier, "WORK.MERGE2.TGL(2).BIN_0_TO_1");
+   ck_assert_ident_eq(cover_get_ident(db1, miss_t0->items[0].bin,
+                                      COV_ATTR_HIER),
+                      "WORK.MERGE2.TGL(2).BIN_0_TO_1");
 
    cover_report_free(rpt);
    cover_data_free(db1);
-   cover_data_free(db2);
 
    fail_if_errors();
 }
@@ -283,17 +295,20 @@ START_TEST(test_toggle2)
    ck_assert_int_eq(s1->items.count, 1);
 
    cover_item_t *s1_toggle = s1->items.items[0];
-   cover_bin_t *s1_bins = cover_get_bins(db, s1_toggle);
-   ck_assert_int_eq(s1_toggle->nbins, 10);
-   ck_assert(s1_bins[0].flags & COV_FLAG_TOGGLE_TO_1);
-   ck_assert(s1_bins[1].flags & COV_FLAG_TOGGLE_TO_0);
-   ck_assert_int_eq(s1_bins[0].data, 1);
-   ck_assert_int_eq(s1_bins[1].data, 0);
-   ck_assert_ident_eq(s1_bins[0].hier,
+   ck_assert_int_eq(cover_count(db, s1_toggle, COV_REL_BINS), 10);
+
+   cover_obj_t s1_bins[10];
+   cover_rel(db, s1_toggle, COV_REL_BINS, 0, s1_bins, 10);
+
+   ck_assert(cover_get_flags(db, s1_bins[0]) & COV_FLAG_TOGGLE_TO_1);
+   ck_assert(cover_get_flags(db, s1_bins[1]) & COV_FLAG_TOGGLE_TO_0);
+   ck_assert_int_eq(cover_get_u32(db, s1_bins[0], COV_ATTR_DATA, -1), 1);
+   ck_assert_int_eq(cover_get_u32(db, s1_bins[1], COV_ATTR_DATA, -1), 0);
+   ck_assert_ident_eq(cover_get_ident(db, s1_bins[0], COV_ATTR_HIER),
                       "WORK.TOGGLE2.S1.A.BIN_0_TO_1");
-   ck_assert_ident_eq(s1_bins[2].hier,
+   ck_assert_ident_eq(cover_get_ident(db, s1_bins[2], COV_ATTR_HIER),
                       "WORK.TOGGLE2.S1.C(3).BIN_0_TO_1");
-   ck_assert_int_eq(s1_bins[2].data, 0);
+   ck_assert_int_eq(cover_get_u32(db, s1_bins[1], COV_ATTR_DATA, -1), 0);
 
    cover_rpt_t *rpt = cover_report_new(db, INT_MAX);
 
@@ -307,9 +322,10 @@ START_TEST(test_toggle2)
    const rpt_table_t *hits_t0 = hits->items[0];
    ck_assert_int_eq(hits_t0->count, 4);
    ck_assert_int_eq(hits_t0->items[0].data, 1);
-   ck_assert_ident_eq(hits_t0->items[0].bin->hier, "WORK.TOGGLE2.S1.A.BIN_0_TO_1");
+   ck_assert_ident_eq(cover_get_ident(db, hits_t0->items[0].bin, COV_ATTR_HIER),
+                      "WORK.TOGGLE2.S1.A.BIN_0_TO_1");
    ck_assert_int_eq(hits_t0->items[1].data, 1);
-   ck_assert_ident_eq(hits_t0->items[1].bin->hier,
+   ck_assert_ident_eq(cover_get_ident(db, hits_t0->items[1].bin, COV_ATTR_HIER),
                       "WORK.TOGGLE2.S1.C(2).BIN_0_TO_1");
 
    const table_array_t *miss = &(u1_h->detail.miss[COV_ITEM_TOGGLE]);
@@ -318,7 +334,8 @@ START_TEST(test_toggle2)
    const rpt_table_t *miss_t0 = miss->items[0];
    ck_assert_int_eq(miss_t0->count, 6);
    ck_assert_int_eq(miss_t0->items[0].data, 0);
-   ck_assert_ident_eq(miss_t0->items[0].bin->hier, "WORK.TOGGLE2.S1.A.BIN_1_TO_0");
+   ck_assert_ident_eq(cover_get_ident(db, miss_t0->items[0].bin, COV_ATTR_HIER),
+                      "WORK.TOGGLE2.S1.A.BIN_1_TO_0");
 
    cover_report_free(rpt);
    cover_data_free(db);
@@ -389,8 +406,9 @@ START_TEST(test_issue1431)
    ck_assert_int_eq(transfer->children.count, 1);
 
    cover_item_t *item = transfer->children.items[0]->items.items[0];
-   cover_bin_t *bins = cover_get_bins(db, item);
-   ck_assert_int_eq(bins[0].data, 2);
+
+   cover_obj_t bin0 = cover_at(db, item, COV_REL_BINS, 0);
+   ck_assert_int_eq(cover_get_u32(db, bin0, COV_ATTR_DATA, -1), 2);
 
    cover_data_free(db);
 }

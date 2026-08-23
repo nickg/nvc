@@ -66,7 +66,9 @@ static bool rpt_is_hit(const rpt_item_t *ri)
 
 static bool rpt_is_excluded(cover_rpt_t *rpt, const rpt_item_t *ri)
 {
-   if (ri->bin->flags & COV_FLAG_EXCLUDED)
+   cover_flags_t flags = cover_get_flags(rpt->data, ri->bin);
+
+   if (flags & COV_FLAG_EXCLUDED)
       return true;
 
    if (rpt->data->mask & COVER_MASK_EXCLUDE_UNREACHABLE) {
@@ -75,7 +77,7 @@ static bool rpt_is_excluded(cover_rpt_t *rpt, const rpt_item_t *ri)
          return true;
 
       if (ri->item->kind == COV_ITEM_EXPRESSION
-          && (ri->bin->flags & COV_FLAG_UNREACHABLE))
+          && (flags & COV_FLAG_UNREACHABLE))
          return true;
    }
 
@@ -98,17 +100,22 @@ static rpt_table_t *rpt_table_new(cover_rpt_t *rpt, const rpt_line_t *line,
 
 static void rpt_get_detail(cover_rpt_t *rpt, rpt_detail_t *detail,
                            rpt_stats_t *stats, const cover_item_t *item,
-                           const cover_bin_t *bins, const int32_t *data,
+                           const cover_obj_t *bins, const int32_t *data,
                            int count, const rpt_line_t *line)
 {
    int nhit = 0, nmiss = 0, nexcl = 0;
 
    for (int i = 0; i < count; i++) {
-      const rpt_item_t ri = {
+      rpt_item_t ri = {
          .item = item,
-         .bin  = &(bins[i]),
-         .data = data != NULL ? data[i] : bins[i].data,
+         .bin  = bins[i],
       };
+
+      if (data == NULL)
+         ri.data = cover_get_u32(rpt->data, bins[i], COV_ATTR_DATA, 0);
+      else
+         ri.data = data[i];
+
       stats->total[item->kind]++;
 
       if (rpt_is_hit(&ri)) {
@@ -128,11 +135,16 @@ static void rpt_get_detail(cover_rpt_t *rpt, rpt_detail_t *detail,
    rpt_table_t *excl = rpt_table_new(rpt, line, nexcl);
 
    for (int i = 0, hpos = 0, mpos = 0, epos = 0; i < count; i++) {
-      const rpt_item_t ref = {
+      rpt_item_t ref = {
          .item = item,
-         .bin  = &(bins[i]),
-         .data = data != NULL ? data[i] : bins[i].data,
+         .bin  = bins[i],
       };
+
+      if (data == NULL)
+         ref.data = cover_get_u32(rpt->data, bins[i], COV_ATTR_DATA, 0);
+      else
+         ref.data = data[i];
+
       if (rpt_is_hit(&ref))
          hit->items[hpos++] = ref;
       else if (rpt_is_excluded(rpt, &ref))
@@ -192,12 +204,18 @@ static void rpt_merge_file_items(cover_rpt_t *rpt, rpt_file_t *f,
    // TODO: This has O(n^2). May be issue for large designs ?
    for (int i = 0; i < s->items.count; i++) {
       cover_item_t *scope_item = AGET(s->items, i);
-      cover_bin_t *scope_bins = cover_get_bins(rpt->data, scope_item);
-      bool found = false;
 
+      cover_obj_t scope_bin0 = cover_at(rpt->data, scope_item, COV_REL_BINS, 0);
+      cover_flags_t scope_flags = cover_get_flags(rpt->data, scope_bin0);
+      uint32_t data = cover_get_u32(rpt->data, scope_bin0, COV_ATTR_DATA, 0);
+
+      bool found = false;
       for (int j = 0; j < f->items.count; j++) {
          rpt_item_t *file_item = AREF(f->items, j);
-         cover_bin_t *file_bins = cover_get_bins(rpt->data, file_item->item);
+
+         cover_obj_t file_bin0 = cover_at(rpt->data, file_item->item,
+                                          COV_REL_BINS, 0);
+         cover_flags_t file_flags = cover_get_flags(rpt->data, file_bin0);
 
          // We must take into account:
          //    - kind   - different kind items can be at the same loc
@@ -207,10 +225,10 @@ static void rpt_merge_file_items(cover_rpt_t *rpt, rpt_file_t *f,
             (file_item->item->kind == scope_item->kind)
             && file_item->item->loc.first_line == scope_item->loc.first_line
             && file_item->item->loc.first_column == scope_item->loc.first_column
-            && (file_bins[0].flags == scope_bins[0].flags);
+            && (file_flags == scope_flags);
 
          if (found) {
-            rpt_merge_data(file_item, scope_bins[0].data);
+            rpt_merge_data(file_item, data);
             break;
          }
       }
@@ -218,8 +236,8 @@ static void rpt_merge_file_items(cover_rpt_t *rpt, rpt_file_t *f,
       if (!found) {
          const rpt_item_t new = {
             .item = scope_item,
-            .bin  = scope_bins,
-            .data = scope_bins[0].data,
+            .bin  = scope_bin0,
+            .data = data,
          };
          APUSH(f->items, new);
       }
@@ -317,10 +335,22 @@ static void rpt_visit_sub_scope(cover_rpt_t *rpt, rpt_hier_t *h,
          assert(item->loc.file_ref == s->loc.file_ref);
 
          const rpt_line_t *line = rpt_get_line(f_src, &item->loc);
-         if (line != NULL) {
-            cover_bin_t *bins = cover_get_bins(rpt->data, item);
-            rpt_get_detail(rpt, &h->detail, &h->flat_stats, item, bins, NULL,
-                           item->nbins, line);
+         if (line == NULL)
+            continue;
+
+         cover_obj_t small[10];
+         const int nbins = cover_rel(rpt->data, item, COV_REL_BINS, 0, small,
+                                     ARRAY_LEN(small));
+
+         if (nbins <= ARRAY_LEN(small))
+            rpt_get_detail(rpt, &h->detail, &h->flat_stats, item, small, NULL,
+                           nbins, line);
+         else {
+            cover_obj_t *ext LOCAL = xmalloc_array(nbins, sizeof(cover_obj_t));
+            cover_rel(rpt->data, item, COV_REL_BINS, 0, ext, nbins);
+
+            rpt_get_detail(rpt, &h->detail, &h->flat_stats, item, ext, NULL,
+                           nbins, line);
          }
       }
    }
@@ -348,9 +378,12 @@ static void rpt_gen_file_details(cover_rpt_t *rpt, rpt_file_t *f)
       const rpt_item_t *ri = &(f->items.items[i]);
 
       const rpt_line_t *line = rpt_get_line(f, &ri->item->loc);
-      if (line != NULL)
-         rpt_get_detail(rpt, &f->detail, &f->stats, ri->item, ri->bin,
-                        &ri->data, 1, line);
+      if (line == NULL)
+         continue;
+
+      cover_obj_t bins[1] = { ri->bin };
+      rpt_get_detail(rpt, &f->detail, &f->stats, ri->item,
+                     bins, &ri->data, 1, line);
    }
 }
 

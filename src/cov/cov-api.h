@@ -99,6 +99,23 @@ typedef enum {
 #define NUM_COVER_KINDS (COV_ITEM_FUNCTIONAL + 1)
 
 typedef enum {
+   COV_REL_BINS,
+   COV_REL_ITEMS,
+   COV_REL_CHILDREN,
+   COV_REL_RANGES,
+} cover_rel_t;
+
+typedef enum {
+   COV_ATTR_FLAGS,
+   COV_ATTR_TAG,
+   COV_ATTR_FIELD_IDX,
+   COV_ATTR_HIER,
+   COV_ATTR_DATA,
+   COV_ATTR_MAX,
+   COV_ATTR_MIN,
+} cover_attr_t;
+
+typedef enum {
    COV_SRC_IF_CONDITION,
    COV_SRC_CASE_CHOICE,
    COV_SRC_LOOP_CONTROL,
@@ -120,16 +137,6 @@ typedef struct {
    int64_t min;
    int64_t max;
 } cover_range_t;
-
-typedef struct {
-   ident_t     hier;
-   cover_obj_t first_range;
-   int32_t     tag;
-   int32_t     data;
-   uint32_t    flags;
-   uint32_t    n_ranges;
-   uint32_t    field_idx;
-} cover_bin_t;
 
 typedef struct _cover_item {
    // Type of coverage
@@ -239,11 +246,41 @@ void cover_merge(cover_data_t *dst, const cover_data_t *src, merge_mode_t mode);
 
 int32_t *cover_get_counters(cover_data_t *db, ident_t name);
 cover_scope_t *cover_get_scope(cover_data_t *db, ident_t name);
-cover_bin_t *cover_get_bins(const cover_data_t *db, const cover_item_t *item);
-cover_range_t *cover_get_ranges(const cover_data_t *db, const cover_bin_t *bin);
 
 cover_scope_t *cover_get_child(cover_scope_t *s, ident_t name);
 cover_item_t *cover_get_item(cover_scope_t *s, cover_item_kind_t kind, int nth);
+
+size_t cover_count(const cover_data_t *db, const cover_item_t *item,
+                   cover_rel_t rel);
+size_t cover_count2(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel);
+size_t cover_rel(const cover_data_t *db, const cover_item_t *item,
+                 cover_rel_t rel, unsigned first, cover_obj_t *out, size_t max);
+size_t cover_rel2(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel,
+                  unsigned first, cover_obj_t *out, size_t max);
+cover_obj_t cover_at(const cover_data_t *db, const cover_item_t *item,
+                     cover_rel_t rel, unsigned index);
+cover_obj_t cover_at2(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel,
+                      unsigned index);
+
+uint32_t cover_get_u32(const cover_data_t *db, cover_obj_t obj,
+                       cover_attr_t attr, uint32_t def);
+int64_t cover_get_i64(const cover_data_t *db, cover_obj_t obj,
+                      cover_attr_t attr, int64_t def);
+ident_t cover_get_ident(const cover_data_t *db, cover_obj_t obj,
+                        cover_attr_t attr);
+loc_t cover_get_loc(const cover_data_t *db, cover_obj_t obj, cover_attr_t attr);
+
+cover_flags_t cover_get_flags(const cover_data_t *db, cover_obj_t obj);
+uint32_t cover_get_tag(const cover_data_t *db, cover_obj_t obj);
+
+void cover_put_u32(cover_data_t *db, cover_obj_t obj, cover_attr_t attr,
+                   uint32_t value);
+void cover_put_i64(cover_data_t *db, cover_obj_t obj, cover_attr_t attr,
+                   int64_t value);
+void cover_put_ident(cover_data_t *db, cover_obj_t obj, cover_attr_t attr,
+                     ident_t value);
+
+void cover_put_flags(cover_data_t *db, cover_obj_t obj, cover_flags_t flags);
 
 //
 // Spec and exclude file handling
@@ -279,7 +316,7 @@ cover_scope_t *cover_create_user_scope(cover_data_t *db, cover_scope_t *parent,
                                        loc_t loc, ident_t name);
 cover_item_t *cover_add_items_for(cover_data_t *data, cover_scope_t *cscope,
                                   object_t *obj, cover_item_kind_t kind);
-void cover_add_ranges(cover_data_t *db, cover_bin_t *bin, unsigned count);
+void cover_add_ranges(cover_data_t *db, cover_obj_t obj, unsigned count);
 
 bool cover_compatible_spec(cover_data_t *db, const cover_scope_t *a,
                            const cover_scope_t *b);

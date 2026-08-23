@@ -189,11 +189,9 @@ static void excl_trie_print(excl_trie_t *et, int indent)
 
 static void cover_exclude_items(cover_data_t *db, cover_item_t *item)
 {
-   cover_bin_t *bins = cover_get_bins(db, item);
-
    for (int i = 0; i < item->nbins; i++) {
-      cover_bin_t *bin = &(bins[i]);
-      ident_t hier = bin->hier;
+      cover_obj_t bin = cover_at(db, item, COV_REL_BINS, i);
+      ident_t hier = cover_get_ident(db, bin, COV_ATTR_HIER);
 
       for (int j = 0; j < db->ef->n_excl_cmds; j++) {
          cover_excl_cmd_t *excl = &(db->ef->excl[j]);
@@ -202,15 +200,17 @@ static void cover_exclude_items(cover_data_t *db, cover_item_t *item)
          if (ident_glob(hier, excl_hier, strlen(excl_hier))) {
             excl->found = true;
 
+            uint32_t data = cover_get_u32(db, bin, COV_ATTR_DATA, 0);
+
             const char *kind_str = cover_item_kind_str(item->kind);
-            if (bin->data >= item->atleast) {
+            if (data >= item->atleast) {
                warn_at(&excl->loc, "%s: '%s' is already covered, "
                                    "it will be reported as covered.",
                                    kind_str, istr(hier));
             }
             else {
                note_at(&excl->loc, "excluding %s: '%s'", kind_str, istr(hier));
-               bin->flags |= COV_FLAG_EXCLUDED;
+               cover_put_flags(db, bin, COV_FLAG_EXCLUDED);
             }
          }
       }
@@ -348,32 +348,35 @@ static void cover_fold_scopes(cover_data_t *db, cover_scope_t *tgt_scope,
    // Process items
    for (int i = 0; i < src_scope->items.count; i++) {
       cover_item_t *src = AGET(src_scope->items, i);
-      cover_bin_t *sbins = cover_get_bins(db, src);
 
       for (int j = 0; j < tgt_scope->items.count; j++) {
          cover_item_t *tgt = AGET(tgt_scope->items, j);
          if (tgt->kind != src->kind)
             continue;
 
-         cover_bin_t *tbins = cover_get_bins(db, tgt);
-
          for (int k = 0; k < src->nbins; k++) {
-            const cover_bin_t *sbin = &(sbins[k]);
+            cover_obj_t sbin = cover_at(db, src, COV_REL_BINS, k);
+            ident_t src_hier = cover_get_ident(db, sbin, COV_ATTR_HIER);
+            cover_flags_t src_flags = cover_get_flags(db, sbin);
+
             ident_t src_suffix_hier = NULL;
-            if (ident_len(sbin->hier) > src_prefix_len)
-               src_suffix_hier =
-                  ident_new(istr(sbin->hier) + src_prefix_len);
+            if (ident_len(src_hier) > src_prefix_len)
+               src_suffix_hier = ident_new(istr(src_hier) + src_prefix_len);
 
             for (int l = 0; l < tgt->nbins; l++) {
-               cover_bin_t *tbin = &(tbins[l]);
+               cover_obj_t tbin = cover_at(db, tgt, COV_REL_BINS, l);
+               ident_t tgt_hier = cover_get_ident(db, tbin, COV_ATTR_HIER);
+               cover_flags_t tgt_flags = cover_get_flags(db, tbin);
+
                ident_t tgt_suffix_hier = NULL;
-               if (ident_len(tbin->hier) > tgt_prefix_len)
+               if (ident_len(tgt_hier) > tgt_prefix_len)
                   tgt_suffix_hier =
-                     ident_new(istr(tbin->hier) + tgt_prefix_len);
+                     ident_new(istr(tgt_hier) + tgt_prefix_len);
 
                if (tgt_suffix_hier == src_suffix_hier
-                   && tbin->flags == sbin->flags) {
-                  cover_merge_bin(tgt, tbin, sbin->data);
+                   && tgt_flags == src_flags) {
+                  uint32_t src_data = cover_get_u32(db, sbin, COV_ATTR_DATA, 0);
+                  cover_merge_bin(db, tbin, src_data);
                   break;
                }
             }

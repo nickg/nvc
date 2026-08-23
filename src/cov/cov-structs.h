@@ -43,7 +43,7 @@ typedef struct {
 
 typedef struct {
    const cover_item_t *item;
-   const cover_bin_t  *bin;
+   cover_obj_t         bin;
    int32_t             data;
 } rpt_item_t;
 

@@ -51,6 +51,16 @@ typedef struct _cover_ef {
 } cover_ef_t;
 
 typedef struct {
+   ident_t     hier;
+   cover_obj_t first_range;
+   int32_t     tag;
+   int32_t     data;
+   uint32_t    flags;
+   uint32_t    n_ranges;
+   uint32_t    field_idx;
+} cover_bin_t;
+
+typedef struct {
    unsigned     count;
    unsigned     limit;
    cover_bin_t *items;
@@ -122,6 +132,6 @@ void cover_bmask_to_bin_list(uint32_t bmask, text_buf_t *tb);
 uint32_t cover_bin_str_to_bmask(const char *bin);
 const char *cover_item_kind_str(cover_item_kind_t kind);
 const char *cover_bmask_to_bin_str(uint32_t bmask);
-void cover_merge_bin(const cover_item_t *item, cover_bin_t *bin, int32_t data);
+void cover_merge_bin(cover_data_t *db, cover_obj_t obj, int32_t data);
 
 #endif   // _COV_DATA_H
