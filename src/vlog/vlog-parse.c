@@ -288,7 +288,7 @@ static bool scan_block_item_declaration(void)
    if (scan_type_declaration())
       return true;
 
-   return scan(tLOCALPARAM);
+   return scan(tLOCALPARAM, tPARAMETER);
 }
 
 static bool scan_tf_item_declaration(void)
@@ -296,7 +296,7 @@ static bool scan_tf_item_declaration(void)
    if (scan_type_declaration())
       return true;
 
-   return scan(tINPUT, tOUTPUT, tLOCALPARAM);
+   return scan(tINPUT, tOUTPUT, tLOCALPARAM, tPARAMETER);
 }
 
 static ident_t p_identifier(void)
@@ -4254,6 +4254,9 @@ static void p_task_body_declaration(vlog_node_t task)
 
    vlog_symtab_push(symtab, task);
 
+   const vlog_kind_t old_param_kind = param_kind;
+   param_kind = V_LOCALPARAM;
+
    if (optional(tLPAREN)) {
       if (peek() != tRPAREN)
          p_tf_port_list(task);
@@ -4295,6 +4298,7 @@ static void p_task_body_declaration(vlog_node_t task)
    }
 
    vlog_symtab_pop(symtab);
+   param_kind = old_param_kind;
 }
 
 static void p_lifetime(void)
@@ -4385,6 +4389,9 @@ static void p_function_body_declaration(vlog_node_t func)
 
    vlog_symtab_push(symtab, func);
 
+   const vlog_kind_t old_param_kind = param_kind;
+   param_kind = V_LOCALPARAM;
+
    if (optional(tLPAREN)) {
       if (peek() != tRPAREN)
          p_tf_port_list(func);
@@ -4426,6 +4433,7 @@ static void p_function_body_declaration(vlog_node_t func)
    }
 
    vlog_symtab_pop(symtab);
+   param_kind = old_param_kind;
 }
 
 static vlog_node_t p_function_declaration(void)
@@ -4766,6 +4774,10 @@ static void p_block_item_declaration(vlog_node_t parent)
       break;
    case tLOCALPARAM:
       p_local_parameter_declaration(parent);
+      consume(tSEMI);
+      break;
+   case tPARAMETER:
+      p_parameter_declaration(parent);
       consume(tSEMI);
       break;
    default:

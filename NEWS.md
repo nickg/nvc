@@ -9,7 +9,7 @@
 - Fixed several cases where `--preserve-case` would cause incorrect
   behaviour (#1641).
 - Added support for System Verilog sized casts (#1640).
-- Several other minor bugs were resolved (#1638, #1636, #1579).
+- Several other minor bugs were resolved (#1638, #1636, #1579, #1647).
 
 ## Version 1.22.1 - 2026-08-01
 - Waveform dumping now dumps multiple top units instead of only the first
