@@ -781,15 +781,14 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
             type_t etype = tree_type(eg);
             if (!type_eq(ctype, etype)) {
                diag_t *d = diag_new(DIAG_ERROR, tree_loc(inst));
-               diag_printf(d, "generic %s in component %s has type %s which is "
-                           "incompatible with type %s in entity %s",
-                           istr(tree_ident(match)), istr(tree_ident(comp)),
-                           type_pp2(ctype, etype), type_pp2(etype, ctype),
-                           istr(tree_ident(entity)));
-               diag_hint(d, tree_loc(match), "declaration of generic %s in "
-                         "component", istr(tree_ident(match)));
-               diag_hint(d, tree_loc(eg), "declaration of generic %s in entity",
-                         istr(tree_ident(eg)));
+               diag_printf(d, "generic %pI in component %pI has type %pT "
+                           "which is incompatible with type %pT in entity %pI",
+                           tree_ident(match), tree_ident(comp), ctype, etype,
+                           tree_ident(entity));
+               diag_hint(d, tree_loc(match), "declaration of generic %pI in "
+                         "component", tree_ident(match));
+               diag_hint(d, tree_loc(eg), "declaration of generic %pI in "
+                         "entity", tree_ident(eg));
                diag_emit(d);
                return NULL;
             }
@@ -811,12 +810,11 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
       }
       else {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(inst));
-         diag_printf(d, "generic %s in entity %s without a default value "
-                     "has no corresponding generic in component %s",
-                     istr(tree_ident(eg)),  istr(tree_ident(entity)),
-                     istr(tree_ident(comp)));
-         diag_hint(d, tree_loc(eg), "declaration of generic %s in entity",
-                   istr(tree_ident(eg)));
+         diag_printf(d, "generic %pI in entity %pI without a default value "
+                     "has no corresponding generic in component %pI",
+                     tree_ident(eg), tree_ident(entity), tree_ident(comp));
+         diag_hint(d, tree_loc(eg), "declaration of generic %pI in entity",
+                   tree_ident(eg));
          diag_emit(d);
          return NULL;
       }
@@ -868,15 +866,14 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
          type_t etype = tree_type(ep);
          if (!type_eq(ctype, etype)) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(inst));
-            diag_printf(d, "port %s in component %s has type %s which is "
-                        "incompatible with type %s in entity %s",
-                        istr(tree_ident(match)), istr(tree_ident(comp)),
-                        type_pp2(ctype, etype), type_pp2(etype, ctype),
-                        istr(tree_ident(entity)));
-            diag_hint(d, tree_loc(match), "declaration of port %s in component",
-                      istr(tree_ident(match)));
-            diag_hint(d, tree_loc(ep), "declaration of port %s in entity",
-                      istr(tree_ident(ep)));
+            diag_printf(d, "port %pI in component %pI has type %pT which "
+                        "is incompatible with type %pT in entity %pI",
+                        tree_ident(match), tree_ident(comp), ctype, etype,
+                        tree_ident(entity));
+            diag_hint(d, tree_loc(match), "declaration of port %pI in "
+                      "component", tree_ident(match));
+            diag_hint(d, tree_loc(ep), "declaration of port %pI in entity",
+                      tree_ident(ep));
             diag_emit(d);
             return NULL;
          }

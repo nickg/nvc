@@ -732,8 +732,12 @@ START_TEST(test_conv)
       { 32, "conversion only allowed between closely related types" },
       { 33, "type of value B does not match type of target A" },
       { 35, "conversion only allowed between closely related types" },
+      {  0, "element type INTEGER does not match E" },
       { 42, "conversion only allowed between closely related types" },
+      {  0, "first index type of K is E which is not closely related to "
+         "the first index type of A" },
       { 43, "conversion only allowed between closely related types" },
+      {  0, "A has 1 dimension but A2 has 2" },
       { 44, "unexpected , while parsing type conversion" },
       { 44, "conversion only allowed between closely related types" },
       { -1, NULL }
@@ -3442,6 +3446,8 @@ START_TEST(test_lcs2016_75)
 
    const error_t expect[] = {
       { 38, "conversion only allowed between closely related types" },
+      {  0, "field Z in record type T_REC3 has no matching element in "
+         "type T_REC1" },
       { -1, NULL }
    };
    expect_errors(expect);

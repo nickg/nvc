@@ -2883,10 +2883,9 @@ static bool sem_check_closely_related(type_t from, type_t to, tree_t where)
 
       // Types must have same dimensionality
       if (from_dims != to_dims) {
-         reason = xasprintf("%s has %d dimension%s but %s has %d",
-                            type_pp2(from, to), from_dims,
-                            from_dims == 1 ? "" : "s",
-                            type_pp2(to, from), to_dims);
+         reason = nvc_asprintf("%pT has %d dimension%s but %pT has %d",
+                               from, from_dims, from_dims == 1 ? "" : "s",
+                               to, to_dims);
          goto not_closely_related;
       }
 
@@ -2896,11 +2895,10 @@ static bool sem_check_closely_related(type_t from, type_t to, tree_t where)
          type_t to_index = index_type_of(to, i);
 
          if (!sem_check_closely_related(from_index, to_index, NULL)) {
-            reason = xasprintf("%s index type of %s is %s which is not closely "
-                               "related to the %s index type of %s",
-                               ordinal_str(i + 1), type_pp2(from, to),
-                               type_pp(from_index), ordinal_str(i + 1),
-                               type_pp2(to, from));
+            reason = nvc_asprintf("%s index type of %pT is %pT which is not "
+                                  "closely related to the %s index type of %pT",
+                                  ordinal_str(i + 1), from, from_index,
+                                  ordinal_str(i + 1), to);
             goto not_closely_related;
          }
       }
@@ -2911,16 +2909,16 @@ static bool sem_check_closely_related(type_t from, type_t to, tree_t where)
       if (standard() >= STD_08) {
          // Element types must be closely related
          if (!sem_check_closely_related(from_e, to_e, NULL)) {
-            reason = xasprintf("element type %s is not closely related to %s",
-                               type_pp2(from_e, to_e), type_pp2(to_e, from_e));
+            reason = nvc_asprintf("element type %pT is not closely related "
+                                  "to %pT", from_e, to_e);
             goto not_closely_related;
          }
       }
       else {
          // Element types must be the same
          if (!type_eq(from_e, to_e)) {
-            reason = xasprintf("element type %s does not match %s",
-                               type_pp2(from_e, to_e), type_pp2(to_e, from_e));
+            reason = nvc_asprintf("element type %pT does not match %pT",
+                                  from_e, to_e);
             goto not_closely_related;
          }
       }
@@ -2954,9 +2952,9 @@ static bool sem_check_closely_related(type_t from, type_t to, tree_t where)
          if (from_f != NULL)
             continue;
 
-         reason = xasprintf("field %s in record type %s has no matching "
-                            "element in type %s", istr(tree_ident(to_f)),
-                            type_pp2(to, from), type_pp2(from, to));
+         reason = nvc_asprintf("field %pI in record type %pT has no matching "
+                               "element in type %pT", tree_ident(to_f),
+                               to, from);
          goto not_closely_related;
       }
 

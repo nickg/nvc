@@ -244,13 +244,11 @@ static void bind_external_name(tree_t name, jit_handle_t scope,
 
    if (!type_eq(type, expect)) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
-      diag_printf(d, "type of %s %s is not %s",
-                  class_str(tree_class(name)), istr(tree_ident(where)),
-                  type_pp2(expect, type));
-      diag_hint(d, tree_loc(name), "external name with type %s",
-                type_pp2(expect, type));
-      diag_hint(d, tree_loc(where), "declaration of %s with type %s",
-                istr(tree_ident(where)), type_pp2(type, expect));
+      diag_printf(d, "type of %s %pI is %pT but external name has %pT",
+                  class_str(tree_class(name)), tree_ident(where), type, expect);
+      diag_hint(d, tree_loc(name), "external name with type %pT", expect);
+      diag_hint(d, tree_loc(where), "declaration of %pI with type %pT",
+                tree_ident(where), type);
       diag_emit(d);
       jit_abort_with_status(1);
    }

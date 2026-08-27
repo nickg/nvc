@@ -160,13 +160,77 @@ static int format_type(ostream_t *os, printf_state_t *state, printf_arg_t *arg)
    // Print a fully qualified name if there is another type in the
    // argument list with the same simple name
 
-   for (int i = 0; i < state->nargs; i++) {
-      const printf_arg_t *other = &(state->args[i]);
-      if (other != arg && other->fn == format_type)
-         return ostream_puts(os, type_pp2(type, other->value.p));
+   int count = 0;
+
+   for (const printf_arg_t *it = state->args;
+        it != state->args + state->nargs; it++) {
+      if (it != arg && it->fn == format_type)
+         count++;
    }
 
-   return ostream_puts(os, type_pp(type));
+   if (count == 0)
+      return ostream_puts(os, type_pp(type));
+
+   type_t *others LOCAL = xmalloc_array(count, sizeof(type_t));
+
+   int pos = 0;
+   for (const printf_arg_t *it = state->args;
+        it != state->args + state->nargs; it++) {
+      if (it != arg && it->fn == format_type)
+         others[pos++] = it->value.p;
+   }
+   assert(pos == count);
+
+   switch (type_kind(type)) {
+   case T_SIGNATURE:
+      {
+         int nchars = 0;
+
+         if (type_has_ident(type)) {
+            nchars += ostream_puts(os, istr(type_ident(type)));
+            nchars += ostream_putc(os, ' ');
+         }
+
+         nchars += ostream_putc(os, '[');
+
+         const int nparams = type_params(type);
+         for (int i = 0; i < nparams; i++) {
+            nchars += ostream_puts(os, i == 0 ? "" : ", ");
+            nchars += ostream_puts(os, type_pp(type_param(type, i)));
+         }
+
+         if (type_has_result(type)) {
+            nchars += ostream_puts(os, nparams > 0 ? " " : "");
+            nchars += ostream_puts(os, "return ");
+            nchars += ostream_puts(os, type_pp(type_result(type)));
+         }
+
+         return nchars + ostream_putc(os, ']');
+      }
+   case T_GENERIC:
+      if (!type_has_ident(type))
+         return ostream_puts(os, "(an anonymous type)");
+      // Fall-through
+   default:
+      {
+         const char *full1 = istr(type_ident(type));
+         const char *dot1  = strrchr(full1, '.');
+         const char *tail1 = dot1 ? dot1 + 1 : full1;
+
+         for (int i = 0; i < count; i++) {
+            if (type_has_ident(others[i])) {
+               const char *full2 = istr(type_ident(others[i]));
+               const char *dot2  = strrchr(full2, '.');
+               const char *tail2 = dot2 ? dot2 + 1 : full2;
+
+               if (strcmp(tail1, tail2) == 0)
+                  return ostream_puts(os, full1);
+            }
+         }
+
+         return ostream_puts(os, tail1);
+      }
+   }
 }
 
 static int format_class(ostream_t *os, printf_state_t *state, printf_arg_t *arg)
@@ -595,10 +659,13 @@ ostream_t *nvc_stderr(void)
    return &os;
 }
 
-char *color_asprintf(const char *fmt, ...)
+char *nvc_asprintf(const char *fmt, ...)
 {
    LOCAL_TEXT_BUF tb = tb_new();
-   ostream_t os = { tb_ostream_write, tb, CHARSET_ISO88591, OS_COLOR };
+   ostream_t os = { tb_ostream_write, tb, CHARSET_ISO88591 };
+
+   if (color_terminal())
+      os.flags |= OS_COLOR;
 
    va_list ap;
    va_start(ap, fmt);

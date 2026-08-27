@@ -572,7 +572,7 @@ void type_signature(type_t t, text_buf_t *tb)
    tb_printf(tb, "]");
 }
 
-const char *type_pp2(type_t t, type_t other)
+const char *type_pp(type_t t)
 {
    assert(t != NULL);
 
@@ -607,27 +607,9 @@ const char *type_pp2(type_t t, type_t other)
       {
          const char *full1 = istr(type_ident(t));
          const char *dot1  = strrchr(full1, '.');
-         const char *tail1 = dot1 ? dot1 + 1 : full1;
-
-         if (other == NULL)
-            return tail1;
-
-         item_t *item = lookup_item(&type_object, other, I_IDENT);
-         if (item->ident == NULL)
-            return tail1;
-
-         const char *full2 = istr(item->ident);
-         const char *dot2  = strrchr(full2, '.');
-         const char *tail2 = dot2 ? dot2 + 1 : full2;
-
-         return strcmp(tail1, tail2) ? tail1 : full1;
+         return dot1 ? dot1 + 1 : full1;
       }
    }
-}
-
-const char *type_pp(type_t t)
-{
-   return type_pp2(t, NULL);
 }
 
 type_kind_t type_base_kind(type_t t)

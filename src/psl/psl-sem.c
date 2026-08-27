@@ -491,8 +491,7 @@ static void psl_check_union(psl_node_t p, nametab_t *tab)
    if (!type_eq(ltype, rtype)) {
       diag_t *d = diag_new(DIAG_ERROR, psl_loc(p));
       diag_printf(d, "PSL union operands must be the same type");
-      diag_hint(d, psl_loc(p), "have %s and %s", type_pp2(ltype, rtype),
-                type_pp2(rtype, ltype));
+      diag_hint(d, psl_loc(p), "have %pT and %pT", ltype, rtype);
       diag_emit(d);
    }
 }

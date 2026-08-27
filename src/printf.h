@@ -47,6 +47,8 @@ int nvc_printf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
 int nvc_fprintf(ostream_t *os, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
+char *nvc_asprintf(const char *fmt, ...)
+   __attribute__((format(printf, 1, 2)));
 
 int ostream_write(ostream_t *os, const char *buf, size_t len);
 int ostream_putc(ostream_t *os, char ch);
@@ -56,7 +58,5 @@ void stdio_ostream_write(const char *buf, size_t len, void *ctx);
 
 ostream_t *nvc_stdout(void);
 ostream_t *nvc_stderr(void);
-
-char *color_asprintf(const char *fmt, ...);
 
 #endif  // _PRINTF_H

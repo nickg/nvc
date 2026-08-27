@@ -854,9 +854,9 @@ tcl_shell_t *shell_new(tree_t top, jit_t *jit, rt_model_t *m)
 {
    tcl_shell_t *sh = xcalloc(sizeof(tcl_shell_t));
 #ifdef RL_VERSION_MAJOR
-   sh->prompt  = color_asprintf("\001$+cyan$\002%%\001$$\002 ");
+   sh->prompt  = nvc_asprintf("\001$+cyan$\002%%\001$$\002 ");
 #else
-   sh->prompt  = color_asprintf("$+cyan$%%$$ ");
+   sh->prompt  = nvc_asprintf("$+cyan$%%$$ ");
 #endif
    sh->interp  = Tcl_CreateInterp();
    sh->top     = top;
