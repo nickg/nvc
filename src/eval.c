@@ -57,8 +57,8 @@ static tree_t eval_value_to_tree(jit_scalar_t value, type_t type,
    if (type_is_enum(type)) {
       type_t base = type_base_recur(type);
       if ((unsigned)value.integer >= type_enum_literals(base))
-         fatal_at(loc, "enum position %"PRIi64" out of range for type %s",
-                  value.integer, type_pp(base));
+         fatal_at(loc, "enum position %"PRIi64" out of range for type %pT",
+                  value.integer, base);
 
       tree_t lit = type_enum_literal(base, value.integer);
 
@@ -83,8 +83,7 @@ static tree_t eval_value_to_tree(jit_scalar_t value, type_t type,
       tree_set_ident(tree, tree_ident(type_unit(type_base_recur(type), 0)));
    }
    else
-      fatal_trace("cannot convert 0x%"PRIx64" to %s", value.integer,
-                  type_pp(type));
+      fatal_trace("cannot convert 0x%"PRIx64" to %pT", value.integer, type);
 
    tree_set_type(tree, type);
    tree_set_loc(tree, loc);

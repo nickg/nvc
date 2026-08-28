@@ -3475,8 +3475,7 @@ static int vhpi_to_string(c_typeDecl *td, int64_t scalar, int num_elems,
       }
 
    default:
-      vhpi_error(vhpiError, NULL, "cannot format %s as string",
-                 type_pp(td->type));
+      vhpi_error(vhpiError, NULL, "cannot format %pT as string", td->type);
       return -1;
    }
 }

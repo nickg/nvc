@@ -500,7 +500,7 @@ static void dump_type(type_t type)
 {
    if (is_anonymous_subtype(type)) {
       // Anonymous subtype
-      print_syntax("%s", type_pp(type));
+      print_syntax("%pT", type);
       if (type_ident(type) == type_ident(type_base(type))) {
          if (type_has_constraint(type))
             dump_constraint(type_constraint(type));
@@ -510,7 +510,7 @@ static void dump_type(type_t type)
    else if (type_is_none(type))
       print_syntax("/* error */");
    else
-      print_syntax("%s", type_pp(type));
+      print_syntax("%pT", type);
 }
 
 static void dump_arguments(tree_t t, int indent, const char *trailer)
@@ -760,7 +760,7 @@ static void dump_subtype_decl(tree_t t, int indent)
       dump_expr(type_resolution(type));
       print_syntax(" ");
    }
-   print_syntax("%s", type_pp(type_base(type)));
+   print_syntax("%pT", type_base(type));
 
    if (type_has_constraint(type))
       dump_constraint(type_constraint(type));
@@ -921,7 +921,7 @@ static void dump_decl(tree_t t, int indent)
 
    case T_FUNC_DECL:
       if (tree_flags(t) & TREE_F_PREDEFINED)
-         print_syntax("-- predefined %s\n", type_pp(tree_type(t)));
+         print_syntax("-- predefined %pT\n", tree_type(t));
       else {
          print_syntax("#function %s", istr(tree_ident(t)));
          dump_generics(t, indent + 2, "");
@@ -958,7 +958,7 @@ static void dump_decl(tree_t t, int indent)
 
    case T_PROC_DECL:
       if (tree_flags(t) & TREE_F_PREDEFINED)
-         print_syntax("-- predefined %s\n", type_pp(tree_type(t)));
+         print_syntax("-- predefined %pT\n", tree_type(t));
       else {
          print_syntax("#procedure %s", istr(tree_ident(t)));
          dump_generics(t, indent + 2, tree_ports(t) > 0 ? "\n" : "");

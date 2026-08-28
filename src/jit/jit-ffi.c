@@ -396,8 +396,8 @@ static ffi_type *ghdl_ffi_result_type(type_t type)
       break;
    }
 
-   jit_msg(NULL, DIAG_FATAL, "cannot return type %s using GHDL "
-           "VHPIDIRECT calling convention", type_pp(type));
+   jit_msg(NULL, DIAG_FATAL, "cannot return type %pT using GHDL "
+           "VHPIDIRECT calling convention", type);
    return &ffi_type_void;
 }
 
@@ -456,8 +456,8 @@ static void ghdl_ffi_add_arg(ghdl_ffi_t *gffi, ffi_type **types, tree_t p)
       break;
    }
 
-   jit_msg(NULL, DIAG_FATAL, "cannot pass type %s using GHDL "
-           "VHPIDIRECT calling convention", type_pp(type));
+   jit_msg(NULL, DIAG_FATAL, "cannot pass type %pT using GHDL "
+           "VHPIDIRECT calling convention", type);
 }
 
 static void *ffi_prepare_ghdl(tree_t decl, const char *symbol)
@@ -505,7 +505,7 @@ static void *ffi_prepare_ghdl(tree_t decl, const char *symbol)
 
    if (ffi_prep_cif(&(gffi->cif), FFI_DEFAULT_ABI, gffi->nforeign,
                     ret, types) != FFI_OK)
-      fatal("ffi_prep_cif failed for %s", type_pp(type));
+      fatal("ffi_prep_cif failed for %pT", type);
 
    return gffi;
 }

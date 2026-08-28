@@ -2052,8 +2052,8 @@ static type_t apply_index_attribute(tree_t aref)
 
       const int64_t ival = tree_ival(p);
       if (ival < 1 || ival > ndims) {
-         parse_error(tree_loc(p), "'INDEX parameter for type %s must be "
-                     "between 1 and %d", type_pp(type), ndims);
+         parse_error(tree_loc(p), "'INDEX parameter for type %pT must be "
+                     "between 1 and %d", type, ndims);
          return type_new(T_NONE);
       }
 
@@ -2605,8 +2605,8 @@ static void package_body_deferred_instantiation(tree_t pack, tree_t container)
       tree_t body = find_subprogram_body(ref);
       if (body == NULL) {
          diag_t *d = diag_new(DIAG_ERROR, CURRENT_LOC);
-         diag_printf(d, "subprogram %s cannot be instantiated until its "
-                     "body has been analysed", type_pp(tree_type(decl)));
+         diag_printf(d, "subprogram %pT cannot be instantiated until its "
+                     "body has been analysed", tree_type(decl));
          diag_hint(d, tree_loc(decl), "subprogram instantiation in package "
                    "declarative part");
          diag_hint(d, NULL, "the instantiated subprogram body occurs at "
@@ -4056,7 +4056,7 @@ static void p_array_constraint(type_t type, type_t base)
 
       if (!type_is_array(type) && !type_is_none(type))
          parse_error(CURRENT_LOC, "open array constraint cannot be used "
-                     "with non-array type %s", type_pp(type));
+                     "with non-array type %pT", type);
    }
    else {
       tree_t c = p_index_constraint(base);

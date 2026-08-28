@@ -48,12 +48,10 @@ void print_signature(type_t type, text_buf_t *tb)
    // parameters or not but the example output does not include spaces
    const int nparams = type_params(type);
    for (int i = 0; i < nparams; i++)
-      tb_printf(tb, "%s%s", (i == 0 ? "" : ","),
-                type_pp(type_param(type, i)));
+      tb_printf(tb, "%s%pT", (i == 0 ? "" : ","), type_param(type, i));
 
    if (type_has_result(type))
-      tb_printf(tb, "%sreturn %s", nparams > 0 ? " " : "",
-                type_pp(type_result(type)));
+      tb_printf(tb, "%sreturn %pT", nparams > 0 ? " " : "", type_result(type));
 
    tb_printf(tb, "]");
 }

@@ -179,14 +179,14 @@ const type_info_t *type_info(vhdl_gen_t *g, type_t type)
       break;
 
    default:
-      fatal_trace("cannot lower type kind %s", type_kind_str(type_kind(type)));
+      fatal_trace("cannot lower type kind %pK", type);
    }
 
 #ifdef DEBUG
    LOCAL_TEXT_BUF tb = tb_new();
    if (is_anonymous_subtype(type))
       tb_cat(tb, "Anonymous subtype ");
-   tb_printf(tb, "%s %s", type_pp(type), type_kind_str(ti->kind));
+   tb_printf(tb, "%pT %s", type, type_kind_str(ti->kind));
 
    if (ti->kind == T_ARRAY) {
       tb_printf(tb, " ndims:%d udims:%d", ti->ndims, ti->udims);

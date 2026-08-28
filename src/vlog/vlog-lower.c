@@ -4017,7 +4017,7 @@ static mir_type_t vlog_lower_vhdl_type(mir_unit_t *mu, type_t type)
    else if (type_eq(type, verilog_type(VERILOG_LOGIC)))
       return mir_int_type(mu, 0, 3);
 
-   fatal_trace("cannot lower VHDL type %s", type_pp(type));
+   fatal_trace("cannot lower VHDL type %pT", type);
 }
 
 static void vlog_lower_converter(mir_unit_t *mu, tree_t cf)

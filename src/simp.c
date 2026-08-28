@@ -1476,18 +1476,16 @@ static tree_t simp_literal(tree_t t)
          if (dval != 0) {
             const double result = round(dval * base);
             if (result < (double)INT64_MIN || result > (double)INT64_MAX)
-               error_at(tree_loc(t), "physical literal %g %s exceeds "
-                        "range of type %s", dval, istr(tree_ident(decl)),
-                        type_pp(type));
+               error_at(tree_loc(t), "physical literal %g %pI exceeds "
+                        "range of type %pT", dval, tree_ident(decl), type);
             else
                tree_set_ival(t, (int64_t)result);
          }
          else {
             int64_t ival = tree_ival(t), result;
             if (__builtin_mul_overflow(ival, base, &result))
-               error_at(tree_loc(t), "physical literal %"PRIi64" %s exceeds "
-                        "range of type %s", ival, istr(tree_ident(decl)),
-                        type_pp(type));
+               error_at(tree_loc(t), "physical literal %"PRIi64" %pI exceeds "
+                        "range of type %pT", ival, tree_ident(decl), type);
             else
                tree_set_ival(t, result);
          }

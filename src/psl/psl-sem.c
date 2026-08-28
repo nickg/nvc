@@ -182,7 +182,7 @@ static void psl_check_boolean(psl_node_t p, nametab_t *tab)
 
    if (!ok)
       error_at(tree_loc(value), "expression must be a PSL Boolean but "
-               "have type %s", type_pp(type));
+               "have type %pT", type);
 }
 
 static void psl_check_number(psl_node_t p, nametab_t *tab)
@@ -200,7 +200,7 @@ static void psl_check_number(psl_node_t p, nametab_t *tab)
 
    if (!type_eq(type, std_int)) {
       error_at(tree_loc(value), "expression must be a PSL Number but have "
-               "type %s", type_pp(type));
+               "type %pT", type);
       return;
    }
 
@@ -223,7 +223,7 @@ static void psl_check_bit(psl_node_t p, nametab_t *tab)
 
    if (!type_eq(type, std_ulogic) && !type_eq(type, std_bit))
       error_at(tree_loc(value), "expression must be a PSL Bit but have "
-               "type %s", type_pp(type));
+               "type %pT", type);
 }
 
 static void psl_check_any(psl_node_t p, nametab_t *tab)

@@ -441,7 +441,7 @@ static vcode_reg_t lower_array_len(lower_unit_t *lu, type_t type, int dim,
 
       int64_t low, high;
       if (!folded_bounds(r, &low, &high))
-         fatal_trace("type %s bounds not constant", type_pp(type));
+         fatal_trace("type %pT bounds not constant", type);
 
       return emit_const(vtype_offset(), MAX(high - low + 1, 0));
    }
@@ -2886,8 +2886,8 @@ static vcode_reg_t lower_link_var(lower_unit_t *lu, tree_t decl)
    }
    else {
       vcode_dump();
-      fatal_trace("invalid container kind %s for %s",
-                  tree_kind_str(tree_kind(container)), istr(tree_ident(decl)));
+      fatal_trace("invalid container kind %pK for %pI", container,
+                  tree_ident(decl));
    }
 
    return emit_link_var(context, tree_ident(decl), lower_var_type(decl));
@@ -2979,7 +2979,7 @@ static vcode_reg_t lower_port_ref(lower_unit_t *lu, tree_t decl)
    vcode_var_t var = lower_search_vcode_obj(decl, lu, &hops);
    if (var == VCODE_INVALID_VAR) {
       vcode_dump();
-      fatal_trace("missing variable for port %s", istr(tree_ident(decl)));
+      fatal_trace("missing variable for port %pI", tree_ident(decl));
    }
 
    if (hops == 0 && vtype_is_scalar(vcode_var_type(var)))
@@ -3033,8 +3033,7 @@ static vcode_reg_t lower_param_ref(lower_unit_t *lu, tree_t decl)
       }
       else if (is_invalid) {
          vcode_dump();
-         fatal_trace("missing register for parameter %s",
-                     istr(tree_ident(decl)));
+         fatal_trace("missing register for parameter %pI", tree_ident(decl));
       }
 
       return reg;
@@ -3063,8 +3062,8 @@ static vcode_reg_t lower_generic_ref(lower_unit_t *lu, tree_t decl,
       }
       else {
          vcode_dump();
-         fatal_trace("missing variable for generic %s in %s",
-                     istr(tree_ident(decl)), istr(tree_ident(unit)));
+         fatal_trace("missing variable for generic %pI in %pI",
+                     tree_ident(decl), tree_ident(unit));
       }
    }
    else if (var & INSTANCE_BIT) {
@@ -4521,7 +4520,7 @@ static vcode_reg_t lower_aggregate(lower_unit_t *lu, tree_t expr,
    else if (type_is_array(type))
       return lower_array_aggregate(lu, expr, hint);
    else
-      fatal_trace("invalid type %s in lower_aggregate", type_pp(type));
+      fatal_trace("invalid type %pT in lower_aggregate", type);
 }
 
 static vcode_reg_t lower_record_ref(lower_unit_t *lu, tree_t expr,
@@ -5345,8 +5344,8 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
       return lower_reflect_attr(lu, expr);
 
    default:
-      fatal_at(tree_loc(expr), "cannot lower attribute %s (%d)",
-               istr(tree_ident(expr)), predef);
+      fatal_at(tree_loc(expr), "cannot lower attribute %pI (%d)",
+               tree_ident(expr), predef);
    }
 }
 
@@ -5518,8 +5517,7 @@ static vcode_reg_t lower_nested_default_value(lower_unit_t *lu, type_t type)
    else if (type_is_access(type))
       return emit_null(lower_type(type));
 
-   fatal_trace("cannot handle type %s in lower_nested_default_value",
-               type_pp(type));
+   fatal_trace("cannot handle type %pT in lower_nested_default_value", type);
 }
 
 static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
@@ -5665,8 +5663,7 @@ static vcode_reg_t lower_default_value(lower_unit_t *lu, type_t type,
    else if (type_is_access(type))
       return emit_null(lower_type(type));
    else
-      fatal_trace("cannot handle type %s in lower_default_value",
-                  type_pp(type));
+      fatal_trace("cannot handle type %pT in lower_default_value", type);
 }
 
 static void lower_report(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
@@ -8345,7 +8342,7 @@ static void lower_sub_signals(lower_unit_t *lu, type_t type, type_t var_type,
       emit_pop_scope();
    }
    else
-      fatal_trace("unhandled type %s in lower_sub_signals", type_pp(type));
+      fatal_trace("unhandled type %pT in lower_sub_signals", type);
 }
 
 static void lower_signal_decl(lower_unit_t *lu, tree_t decl, gen_stack_t *gs)
@@ -9474,7 +9471,7 @@ static void lower_value_helper(lower_unit_t *lu, object_t *obj)
       lower_array_value_helper(lu, type, decl, preg);
       break;
    default:
-      fatal_trace("cannot lower value helper for type %s", type_pp(type));
+      fatal_trace("cannot lower value helper for type %pT", type);
    }
 }
 
@@ -9650,8 +9647,7 @@ static void lower_copy_helper(lower_unit_t *lu, object_t *obj)
          else if (type_is_record(ftype))
             lower_copy_record(lu, ftype, dst_ptr, src_ptr, plocus);
          else
-            fatal_trace("unhandled field type %s in lower_copy_helper",
-                        type_pp(ftype));
+            fatal_trace("unhandled field type %pT in lower_copy_helper", ftype);
       }
    }
    else {
@@ -9787,7 +9783,7 @@ static void lower_new_helper(lower_unit_t *lu, object_t *obj)
       else if (type_is_record(ftype))
          lower_new_record(lu, ftype, dst_ptr, src_ptr);
       else
-         fatal_trace("unhandled type %s in lower_new_helper", type_pp(ftype));
+         fatal_trace("unhandled type %pT in lower_new_helper", ftype);
    }
 
    emit_return(VCODE_INVALID_REG);
@@ -9883,7 +9879,7 @@ static void lower_type_bounds_var(lower_unit_t *lu, type_t type)
       lower_put_vcode_obj(type, var, lu);
    }
    else
-      fatal_trace("unexpected type %s in lower_type_bounds", type_pp(type));
+      fatal_trace("unexpected type %pT in lower_type_bounds", type);
 }
 
 static void lower_foreign_stub(lower_unit_t *lu, object_t *obj)
@@ -10527,7 +10523,7 @@ static void lower_predef(lower_unit_t *lu, object_t *obj)
       lower_foreign_predef(lu, decl, "__nvc_file_position");
       break;
    default:
-      fatal_trace("cannot lower predefined function %s", type_pp(type));
+      fatal_trace("cannot lower predefined function %pT", type);
    }
 }
 
@@ -12002,7 +11998,7 @@ static vcode_reg_t lower_constrain_port(lower_unit_t *lu, tree_t port, int pos,
          // TODO: this should be an assert and a proper error generated
          //       during sem/elab
          fatal_at(tree_loc(name), "invalid formal name for unconstrained "
-                 "port %s", istr(tree_ident(port)));
+                 "port %pI", tree_ident(port));
       }
    }
 

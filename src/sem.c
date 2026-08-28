@@ -836,8 +836,7 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
          }
 
          if (sem_has_access(f))
-            sem_error(t, "type %s has a subelement with an access type",
-                      type_pp(f));
+            sem_error(t, "type %pT has a subelement with an access type", f);
 
          type_t base_f = type_base_recur(f);
          if (type_is_array(base_f) && dimension_of(base_f) > 1)
@@ -1197,21 +1196,21 @@ static bool sem_check_param_decl(tree_t t, nametab_t *tab)
          return false;
 
       if (type_kind(view_type) != T_VIEW)
-         sem_error(name, "name in mode view indication of parameter %s does "
-                   "not denote a mode view", istr(tree_ident(t)));
+         sem_error(name, "name in mode view indication of parameter %pI does "
+                   "not denote a mode view", tree_ident(t));
 
       type_t elem_type = type;
       if (mode == PORT_ARRAY_VIEW) {
          if (!type_is_array(type))
-            sem_error(t, "parameter %s with array mode view indication has "
-                      "non-array type %s", istr(tree_ident(t)), type_pp(type));
+            sem_error(t, "parameter %pI with array mode view indication has "
+                      "non-array type %pT", tree_ident(t), type);
 
          elem_type = type_elem(type);
       }
 
       if (!type_eq(elem_type, type_designated(view_type)))
-         sem_error(t, "subtype %s is not compatible with mode "
-                   "view %s", type_pp(elem_type), type_pp(view_type));
+         sem_error(t, "subtype %pT is not compatible with mode "
+                   "view %pT", elem_type, view_type);
    }
    else if (tree_has_value(t)) {
       tree_t value = tree_value(t);
@@ -1219,9 +1218,8 @@ static bool sem_check_param_decl(tree_t t, nametab_t *tab)
          return false;
 
       if (!sem_check_type(value, type, tab))
-         sem_error(value, "type of default value %s does not match type "
-                   "of declaration %s", type_pp(tree_type(value)),
-                   type_pp(type));
+         sem_error(value, "type of default value %pT does not match type "
+                   "of declaration %pT", tree_type(value), type);
 
       switch (class) {
       case C_SIGNAL:
@@ -1281,31 +1279,29 @@ static bool sem_check_port_decl(tree_t t, nametab_t *tab)
       }
 
       if (mode != PORT_INOUT)
-         sem_error(t, "formal variable port %s must have mode INOUT",
-                   istr(tree_ident(t)));
+         sem_error(t, "formal variable port %pI must have mode INOUT",
+                   tree_ident(t));
 
       if (!type_is_protected(type))
-         sem_error(t, "formal variable port %s must have protected type",
-                   istr(tree_ident(t)));
+         sem_error(t, "formal variable port %pI must have protected type",
+                   tree_ident(t));
    }
    else if (class != C_SIGNAL)
-      sem_error(t, "invalid object class %s for port %s",
-                class_str(class), istr(tree_ident(t)));
+      sem_error(t, "invalid object class %s for port %pI",
+                class_str(class), tree_ident(t));
 
    if (type_is_access(type))
-      sem_error(t, "port %s cannot be declared with access type %s",
-                istr(tree_ident(t)), type_pp(type));
+      sem_error(t, "port %pI cannot be declared with access type %pT",
+                tree_ident(t), type);
 
    if (sem_has_access(type))
-      sem_error(t, "port %s cannot be declared with type %s which has a "
-                "subelement of access type", istr(tree_ident(t)),
-                type_pp(type));
+      sem_error(t, "port %pI cannot be declared with type %pT which has a "
+                "subelement of access type", tree_ident(t), type);
 
    if (class != C_VARIABLE && type_is_protected(type)) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-      diag_printf(d, "port %s with class %s cannot be declared with "
-                  "protected type %s", istr(tree_ident(t)),
-                  class_str(class), type_pp(type));
+      diag_printf(d, "port %pI with class %s cannot be declared with "
+                  "protected type %pT", tree_ident(t), class_str(class), type);
       diag_hint(d, NULL, "ports with variable class can be of protected "
                 "type in VHDL-2019");
       diag_hint(d, NULL, "pass $bold$--std=2019$$ to enable this "
@@ -1315,8 +1311,8 @@ static bool sem_check_port_decl(tree_t t, nametab_t *tab)
    }
 
    if (type_is_file(type))
-      sem_error(t, "port %s cannot be declared with file type %s",
-                istr(tree_ident(t)), type_pp(type));
+      sem_error(t, "port %pI cannot be declared with file type %pT",
+                tree_ident(t), type);
 
    if (mode == PORT_RECORD_VIEW || mode == PORT_ARRAY_VIEW) {
       tree_t name = tree_value(t);
@@ -1326,21 +1322,21 @@ static bool sem_check_port_decl(tree_t t, nametab_t *tab)
          return false;
 
       if (type_kind(view_type) != T_VIEW)
-         sem_error(name, "name in mode view indication of port %s does not "
-                   "denote a mode view", istr(tree_ident(t)));
+         sem_error(name, "name in mode view indication of port %pI does not "
+                   "denote a mode view", tree_ident(t));
 
       type_t elem_type = type;
       if (mode == PORT_ARRAY_VIEW) {
          if (!type_is_array(type))
-            sem_error(t, "port %s with array mode view indication has "
-                      "non-array type %s", istr(tree_ident(t)), type_pp(type));
+            sem_error(t, "port %pI with array mode view indication has "
+                      "non-array type %pT", tree_ident(t), type);
 
          elem_type = type_elem(type);
       }
 
       if (!type_eq(elem_type, type_designated(view_type)))
-         sem_error(t, "subtype %s is not compatible with mode "
-                   "view %s", type_pp(elem_type), type_pp(view_type));
+         sem_error(t, "subtype %pT is not compatible with mode "
+                   "view %pT", elem_type, view_type);
    }
    else if (tree_has_value(t)) {
       tree_t value = tree_value(t);
@@ -1351,9 +1347,8 @@ static bool sem_check_port_decl(tree_t t, nametab_t *tab)
          sem_error(t, "port with mode LINKAGE cannot have a default value");
 
       if (!sem_check_type(value, type, tab))
-         sem_error(value, "type of default value %s does not match type "
-                   "of declaration %s", type_pp(tree_type(value)),
-                   type_pp(type));
+         sem_error(value, "type of default value %pT does not match type "
+                   "of declaration %pT", tree_type(value), type);
    }
 
    return true;
@@ -1452,9 +1447,8 @@ static bool sem_check_generic_decl(tree_t t, nametab_t *tab)
          return false;
 
       if (!sem_check_type(value, type, tab))
-         sem_error(value, "type of default value %s does not match type "
-                   "of declaration %s", type_pp(tree_type(value)),
-                   type_pp(type));
+         sem_error(value, "type of default value %pT does not match type "
+                   "of declaration %pT", tree_type(value), type);
    }
 
    if (tree_flags(t) & TREE_F_LOCALLY_STATIC) {
@@ -1598,13 +1592,13 @@ static void sem_missing_body_cb(tree_t t, tree_t parent, nametab_t *tab)
       default: break;
       }
 
-      diag_printf(d, "%s", type_pp(type));
+      diag_printf(d, "%pT", type);
       diag_suppress(d, type_has_error(type));
 
       diag_hint(d, tree_loc(parent), "body not found in %s",
                 istr(tree_ident(parent)));
 
-      diag_hint(d, tree_loc(t), "%s declared here", type_pp(type));
+      diag_hint(d, tree_loc(t), "%pT declared here", type);
 
       diag_emit(d);
    }
@@ -1683,12 +1677,11 @@ static bool sem_check_protected_method(tree_t t, nametab_t *tab)
                         "an access type or a composite type containing an "
                         "access type");
             if (type_is_access(type))
-               diag_hint(d, tree_loc(p), "type of %s is %s which is an "
-                         "access type", istr(tree_ident(p)), type_pp(type));
+               diag_hint(d, tree_loc(p), "type of %pI is %pT which is an "
+                         "access type", tree_ident(p), type);
             else
-               diag_hint(d, tree_loc(p), "type of %s is %s which has an "
-                         "access type as a subelement",
-                         istr(tree_ident(p)), type_pp(type));
+               diag_hint(d, tree_loc(p), "type of %pI is %pT which has an "
+                         "access type as a subelement", tree_ident(p), type);
             diag_lrm(d, STD_08, "5.6.2");
             diag_emit(d);
          }
@@ -1696,10 +1689,10 @@ static bool sem_check_protected_method(tree_t t, nametab_t *tab)
       else if (type_is_file(type)) {
          diag_t *d = pedantic_diag(tree_loc(p));
          if (d != NULL) {
-            diag_printf(d, "parameters of protected type methods cannot be of "
-                        "a file type");
-            diag_hint(d, tree_loc(p), "type of %s is %s which is a file type",
-                      istr(tree_ident(p)), type_pp(type));
+            diag_printf(d, "parameters of protected type methods cannot be "
+                        "of a file type");
+            diag_hint(d, tree_loc(p), "type of %pI is %pT which is a file "
+                      "type", tree_ident(p), type);
             diag_lrm(d, STD_08, "5.6.2");
             diag_emit(d);
          }
@@ -1819,12 +1812,12 @@ static bool sem_compare_interfaces(tree_t decl, tree_t body, int nth,
    // Do not use type_eq here as subtype must exactly match
    if (!type_strict_eq(btype, dtype)) {
      diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
-     diag_printf(d, "subtype of %s %s does not match type %s in "
-                 "specification", what, istr(bname), type_pp(dtype));
-     diag_hint(d, tree_loc(dport), "%s %s declared with type %s",
-               what, istr(dname), type_pp(dtype));
-     diag_hint(d, tree_loc(bport), "%s %s declared with type %s ",
-               what, istr(bname), type_pp(btype));
+     diag_printf(d, "subtype of %s %pI does not match type %pT in "
+                 "specification", what, bname, dtype);
+     diag_hint(d, tree_loc(dport), "%s %pI declared with type %pT",
+               what, dname, dtype);
+     diag_hint(d, tree_loc(bport), "%s %pI declared with type %pT ",
+               what, bname, btype);
      diag_emit(d);
      return false;
    }
@@ -1834,14 +1827,14 @@ static bool sem_compare_interfaces(tree_t decl, tree_t body, int nth,
 
    if (dmode != bmode) {
      diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
-     diag_printf(d, "%s %s of subprogram body %s with mode %s does not "
-                 "match mode %s in specification", what, istr(dname),
-                 istr(tree_ident(body)), port_mode_str(bmode),
+     diag_printf(d, "%s %pI of subprogram body %pI with mode %s does not "
+                 "match mode %s in specification", what, dname,
+                 tree_ident(body), port_mode_str(bmode),
                  port_mode_str(dmode));
-     diag_hint(d, tree_loc(dport), "%s %s declared with mode %s",
-               what, istr(dname), port_mode_str(dmode));
-     diag_hint(d, tree_loc(bport), "%s %s declared with mode %s",
-               what, istr(bname), port_mode_str(bmode));
+     diag_hint(d, tree_loc(dport), "%s %pI declared with mode %s",
+               what, dname, port_mode_str(dmode));
+     diag_hint(d, tree_loc(bport), "%s %pI declared with mode %s",
+               what, bname, port_mode_str(bmode));
      diag_emit(d);
      return false;
    }
@@ -1857,13 +1850,13 @@ static bool sem_compare_interfaces(tree_t decl, tree_t body, int nth,
          const char *bmode_str =
             bmode_explicit ? port_mode_str(bmode) : "default";
 
-         diag_printf(d, "mode indication of subprogram %s %s %s was %s in "
-                     "specification but %s in body", istr(tree_ident(body)),
-                     what, istr(dname), dmode_str, bmode_str);
-         diag_hint(d, tree_loc(dport), "%s %s declared with %s mode in "
-                   "specification", what, istr(dname), dmode_str);
-         diag_hint(d, tree_loc(bport), "%s %s declared with %s mode in body",
-                   what, istr(bname), bmode_str);
+         diag_printf(d, "mode indication of subprogram %pI %s %pI was %s in "
+                     "specification but %s in body", tree_ident(body),
+                     what, dname, dmode_str, bmode_str);
+         diag_hint(d, tree_loc(dport), "%s %pI declared with %s mode in "
+                   "specification", what, dname, dmode_str);
+         diag_hint(d, tree_loc(bport), "%s %pI declared with %s mode in body",
+                   what, bname, bmode_str);
          diag_lrm(d, STD_08, "4.10");
          diag_emit(d);
          return false;
@@ -1875,14 +1868,13 @@ static bool sem_compare_interfaces(tree_t decl, tree_t body, int nth,
 
    if (dclass != bclass) {
      diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
-     diag_printf(d, "class %s of subprogram body %s %s %s does not "
+     diag_printf(d, "class %s of subprogram body %pI %s %pI does not "
                  "match class %s in specification", class_str(bclass),
-                 istr(tree_ident(body)), what, istr(dname), class_str(dclass));
-     diag_hint(d, tree_loc(dport), "%s %s declared with class %s in "
-               "subprogram specification", what, istr(dname),
-               class_str(dclass));
-     diag_hint(d, tree_loc(bport), "%s %s declared with class %s in "
-               "subprogram body", what, istr(bname), class_str(bclass));
+                 tree_ident(body), what, dname, class_str(dclass));
+     diag_hint(d, tree_loc(dport), "%s %pI declared with class %s in "
+               "subprogram specification", what, dname, class_str(dclass));
+     diag_hint(d, tree_loc(bport), "%s %pI declared with class %s in "
+               "subprogram body", what, bname, class_str(bclass));
      diag_emit(d);
      return false;
    }
@@ -1898,13 +1890,13 @@ static bool sem_compare_interfaces(tree_t decl, tree_t body, int nth,
          const char *bclass_str =
             bclass_explicit ? class_str(bclass) : "default";
 
-         diag_printf(d, "class of subprogram %s %s %s was %s in specification "
-                     "but %s in body", istr(tree_ident(body)),
-                     what, istr(dname), dclass_str, bclass_str);
-         diag_hint(d, tree_loc(dport), "%s %s declared with %s class in "
-                   "specification", what, istr(dname), dclass_str);
-         diag_hint(d, tree_loc(bport), "%s %s declared with %s class in body",
-                   what, istr(bname), bclass_str);
+         diag_printf(d, "class of subprogram %pI %s %pI was %s in "
+                     "specification but %s in body", tree_ident(body),
+                     what, dname, dclass_str, bclass_str);
+         diag_hint(d, tree_loc(dport), "%s %pI declared with %s class in "
+                   "specification", what, dname, dclass_str);
+         diag_hint(d, tree_loc(bport), "%s %pI declared with %s class in body",
+                   what, bname, bclass_str);
          diag_lrm(d, STD_08, "4.10");
          diag_emit(d);
          return false;
@@ -1965,8 +1957,8 @@ static bool sem_compare_interfaces(tree_t decl, tree_t body, int nth,
    }
 
    diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
-   diag_printf(d, "default value of %s %s in subprogram body %s does not "
-               "match declaration", what, istr(dname), istr(tree_ident(body)));
+   diag_printf(d, "default value of %s %pI in subprogram body %pI does not "
+               "match declaration", what, dname, tree_ident(body));
    diag_hint(d, tree_loc(dport), "parameter was originally declared here");
    diag_hint(d, tree_loc(bport), "body has different default value");
    diag_emit(d);
@@ -2029,13 +2021,11 @@ static bool sem_check_conforming(tree_t decl, tree_t body)
 
       if (!type_strict_eq(dresult, bresult)) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(body));
-         diag_printf(d, "return type of function body %s does not match type "
-                     "%s in specification", istr(tree_ident(body)),
-                     type_pp(dresult));
-         diag_hint(d, tree_loc(decl), "specification has return type %s",
-                   type_pp(dresult));
-         diag_hint(d, tree_loc(body), "body has return type %s ",
-                   type_pp(bresult));
+         diag_printf(d, "return type of function body %pI does not match type "
+                     "%pT in specification", tree_ident(body), dresult);
+         diag_hint(d, tree_loc(decl), "specification has return type %pT",
+                   dresult);
+         diag_hint(d, tree_loc(body), "body has return type %pT", bresult);
          diag_emit(d);
          ok = false;
       }
@@ -2336,9 +2326,8 @@ static bool sem_check_aggregate_target_element(tree_t target, int nth)
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
          diag_printf(d, "range choice expression must have same type "
                      "as aggregate");
-         diag_hint(d, tree_loc(value), "expression type is %s but "
-                   "aggregate is %s", type_pp(tree_type(value)),
-                   type_pp(tree_type(target)));
+         diag_hint(d, tree_loc(value), "expression type is %pT but "
+                   "aggregate is %pT", tree_type(value), tree_type(target));
          diag_lrm(d, STD_08, "10.6.2");
          diag_emit(d);
          return false;
@@ -2359,8 +2348,8 @@ static bool sem_check_aggregate_target_element(tree_t target, int nth)
       tree_t cmp = tree_value(tree_assoc(target, j));
       if (same_tree(value, cmp)) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(cmp));
-         diag_printf(d, "%s %s is identifed more than once in "
-                     "aggregate target", class_str(class_of(cmp)),
+         diag_printf(d, "%pC %s is identifed more than once in "
+                     "aggregate target", cmp,
                      tree_kind(cmp) == T_REF ?
                      istr(tree_ident(cmp)) : "subelement");
          diag_hint(d, tree_loc(value), "first seen here");
@@ -2381,7 +2370,7 @@ static bool sem_check_variable_target(tree_t target)
       type_t type = tree_type(target);
       if (!type_is_composite(type))
          sem_error(target, "aggregate target of variable assignment has "
-                   "non-composite type %s", type_pp(tree_type(target)));
+                   "non-composite type %pT", tree_type(target));
 
       const int nassocs = tree_assocs(target);
       for (int i = 0; i < nassocs; i++) {
@@ -2568,7 +2557,7 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab, bool guarded)
       type_t type = tree_type(target);
       if (!type_is_composite(type))
          sem_error(target, "aggregate target of signal assignment has "
-                   "non-composite type %s", type_pp(type));
+                   "non-composite type %pT", type);
 
       bool has_guarded = false, has_unguarded = false;
       const int nassocs = tree_assocs(target);
@@ -2626,10 +2615,9 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab, bool guarded)
                // in a procedure not contained within a process then the
                // target must be a formal parameter
                diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
-               diag_printf(d, "signal %s is not a formal parameter and "
-                           "subprogram %s is not contained within a process "
-                           "statement", istr(tree_ident(decl)),
-                           type_pp(tree_type(sub)));
+               diag_printf(d, "signal %pI is not a formal parameter and "
+                           "subprogram %pT is not contained within a process "
+                           "statement", tree_ident(decl), tree_type(sub));
                diag_lrm(d, STD_08, "10.5.2.2");
                diag_emit(d);
                return false;
@@ -2726,8 +2714,8 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab, bool guarded)
             tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
             if (sub != NULL && find_enclosing(tab, S_PROCESS) == NULL)
                sem_error(target, "cannot create driver for external name as "
-                         "subprogram %s is not contained within a process "
-                         "statement", type_pp(tree_type(sub)));
+                         "subprogram %pT is not contained within a process "
+                         "statement", tree_type(sub));
          }
          break;
 
@@ -2735,11 +2723,10 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab, bool guarded)
       case T_CONST_DECL:
          {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
-            diag_printf(d, "%s %s is not a valid target of signal assignment",
-                        class_str(class_of(decl)), istr(tree_ident(decl)));
+            diag_printf(d, "%pC %pI is not a valid target of signal assignment",
+                        decl, tree_ident(decl));
             diag_hint(d, tree_loc(target), "target of signal assignment");
-            diag_hint(d, tree_loc(decl), "declared as %s",
-                      class_str(class_of(decl)));
+            diag_hint(d, tree_loc(decl), "declared as %pC", decl);
             diag_emit(d);
             return false;
          }
@@ -2757,9 +2744,9 @@ static bool sem_check_reject(tree_t t, nametab_t *tab)
    if (!sem_check(t, tab))
       return false;
 
-   if (!type_eq(tree_type(t), std_type(NULL, STD_TIME)))
-      sem_error(t, "reject interval must have type TIME but have %s",
-                type_pp(tree_type(t)));
+   type_t type = tree_type(t);
+   if (!type_eq(type, std_type(NULL, STD_TIME)))
+      sem_error(t, "reject interval must have type TIME but have %pT", type);
 
    return true;
 }
@@ -2788,8 +2775,8 @@ static bool sem_check_guard(tree_t t, nametab_t *tab)
    assert(tree_kind(t) == T_GUARD);
 
    if (!sem_check_type(t, std_type(NULL, STD_BOOLEAN), tab))
-      sem_error(t, "guard signal must have BOOLEAN type but found %s",
-                type_pp(tree_type(t)));
+      sem_error(t, "guard signal must have BOOLEAN type but found %pT",
+                tree_type(t));
 
    tree_t decl = tree_ref(t);
    switch (tree_kind(decl)) {
@@ -2804,8 +2791,7 @@ static bool sem_check_guard(tree_t t, nametab_t *tab)
       {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
          diag_printf(d, "assignment guard must be a signal");
-         diag_hint(d, tree_loc(decl), "%s is a %s", istr(tree_ident(decl)),
-                   class_str(class_of(decl)));
+         diag_hint(d, tree_loc(decl), "%pI is a %pC", tree_ident(decl), decl);
          diag_hint(d, tree_loc(t), "guarded statement");
          diag_emit(d);
          return false;
@@ -3532,8 +3518,8 @@ static bool sem_check_report(tree_t t, nametab_t *tab)
 
    type_t std_string = std_type(NULL, STD_STRING);
    if (!sem_check_type(message, std_string, tab))
-      sem_error(message, "type of message be %s but is %s",
-                type_pp(std_string), type_pp(tree_type(message)));
+      sem_error(message, "type of message be %pT but is %pT",
+                std_string, tree_type(message));
 
    if (tree_has_severity(t)) {
       tree_t severity = tree_severity(t);
@@ -3542,8 +3528,8 @@ static bool sem_check_report(tree_t t, nametab_t *tab)
 
       type_t std_severity = std_type(NULL, STD_SEVERITY_LEVEL);
       if (!sem_check_type(severity, std_severity, tab))
-         sem_error(severity, "type of severity must be %s but is %s",
-                   type_pp(std_severity), type_pp(tree_type(severity)));
+         sem_error(severity, "type of severity must be %pT but is %pT",
+                   std_severity, tree_type(severity));
    }
 
    return true;
@@ -3573,8 +3559,8 @@ static bool sem_check_string_literal(tree_t t)
       }
 
       if (!valid)
-         sem_error(t, "invalid character %s in string literal of type %s",
-                   istr(ch_i), type_pp(type));
+         sem_error(t, "invalid character %pI in string literal of type %pT",
+                   ch_i, type);
    }
 
    return true;
@@ -3604,9 +3590,9 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
       tree_t a0 = tree_value(tree_assoc(t, 0));
       const tree_kind_t a0_kind = tree_kind(a0);
       if (a0_kind != T_AGGREGATE && a0_kind != T_STRING)
-         sem_error(a0, "second dimension of %d dimensional array type %s must "
-                   "be specified by a sub-aggregate, string, or bit-string "
-                   "literal", ndims, type_pp(composite_type));
+         sem_error(a0, "second dimension of %d dimensional array type %pT "
+                   "must be specified by a sub-aggregate, string, or "
+                   "bit-string literal", ndims, composite_type);
 
       // The parser will have constructed a type with ndims - 1
       // dimensions.
@@ -3643,9 +3629,9 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
                return false;
 
             if (!sem_check_type(name, index_type, tab))
-               sem_error(name, "type of array aggregate choice %s does not "
-                         "match %s index type %s", type_pp(tree_type(name)),
-                         type_pp(composite_type), type_pp(index_type));
+               sem_error(name, "type of array aggregate choice %pT does not "
+                         "match %pT index type %pT", tree_type(name),
+                         composite_type, index_type);
 
             have_named = true;
          }
@@ -3674,15 +3660,14 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
                 && (akind == A_POS || akind == A_RANGE));
 
          if (allow_slice && !sem_check_type(value, composite_type, tab))
-            sem_error(value, "type of %s association %s does not match "
-                      "aggregate element type %s or the aggregate type "
-                      "itself %s", assoc_kind_str(akind),
-                      type_pp(tree_type(value)), type_pp(elem_type),
-                      type_pp(composite_type));
+            sem_error(value, "type of %s association %pT does not match "
+                      "aggregate element type %pT or the aggregate type "
+                      "itself %pT", assoc_kind_str(akind),
+                      tree_type(value), elem_type, composite_type);
          else if (!allow_slice)
-            sem_error(value, "type of %s association %s does not match "
-                      "aggregate element type %s", assoc_kind_str(akind),
-                      type_pp(tree_type(value)), type_pp(elem_type));
+            sem_error(value, "type of %s association %pT does not match "
+                      "aggregate element type %pT", assoc_kind_str(akind),
+                      tree_type(value), elem_type);
          else
             assert(akind == A_CONCAT || akind == A_SLICE);
       }
@@ -3756,8 +3741,8 @@ static bool sem_check_record_aggregate(tree_t t, nametab_t *tab)
          {
             if (pos >= nfields)
                sem_error(a, "%d positional associations given but record type"
-                         " %s only has %d fields", pos + 1,
-                         type_pp(composite_type), nfields);
+                         " %pT only has %d fields", pos + 1, composite_type,
+                         nfields);
 
             f = pos++;
          }
@@ -4081,10 +4066,8 @@ static bool sem_check_array_ref(tree_t t, nametab_t *tab)
       ok = sem_check(value, tab) && ok;
 
       if (ok && !sem_check_type(value, expect, tab))
-         sem_error(value, "type of index %s does not match type of "
-                   "array dimension %s",
-                   type_pp(tree_type(value)),
-                   type_pp(expect));
+         sem_error(value, "type of index %pT does not match type of "
+                   "array dimension %pT", tree_type(value), expect);
    }
 
    return ok;
@@ -4106,8 +4089,7 @@ static bool sem_check_array_slice(tree_t t, nametab_t *tab)
    else if (!sem_check_incomplete(t, array_type))
       return false;
    else if (!type_is_array(array_type))
-      sem_error(t, "type of slice prefix %s is not an array",
-                type_pp(array_type));
+      sem_error(t, "type of slice prefix %pT is not an array", array_type);
 
    tree_t r = tree_range(t, 0);
    if (!sem_check_discrete_range(r, index_type_of(array_type, 0), tab))
@@ -4178,9 +4160,9 @@ static bool sem_check_attr_param(tree_t t, type_t expect, int min, int max,
 {
    const int nparams = tree_params(t);
    if (nparams == 0 && min > 0)
-      sem_error(t, "attribute %s requires a parameter", istr(tree_ident(t)));
+      sem_error(t, "attribute %pI requires a parameter", tree_ident(t));
    else if (nparams > max)
-      sem_error(t, "too many parameters for attribute %s", istr(tree_ident(t)));
+      sem_error(t, "too many parameters for attribute %pI", tree_ident(t));
    else if (nparams == 1) {
       tree_t dim = tree_value(tree_param(t, 0));
       if (!sem_check(dim, tab))
@@ -4188,9 +4170,8 @@ static bool sem_check_attr_param(tree_t t, type_t expect, int min, int max,
 
       tree_t value = tree_value(tree_param(t, 0));
       if (!sem_check_type(value, expect, tab))
-         sem_error(t, "expected type %s for attribute %s parameter but "
-                   "have %s", type_pp(expect), istr(tree_ident(t)),
-                   type_pp(tree_type(value)));
+         sem_error(t, "expected type %pT for attribute %pI parameter but "
+                   "have %pT", expect, tree_ident(t), tree_type(value));
    }
 
    return true;
@@ -4221,23 +4202,22 @@ static bool sem_check_dimension_attr(tree_t t, nametab_t *tab)
          d = diag_new(DIAG_ERROR, tree_loc(dim));
 
       if (d != NULL) {
-         diag_printf(d, "dimension parameter of attribute %s must be a locally "
-                     "static expression of type universal_integer",
-                     istr(tree_ident(t)));
-         diag_hint(d, tree_loc(dim), "expression has type %s",
-                   type_pp(tree_type(dim)));
+         diag_printf(d, "dimension parameter of attribute %pI must be a "
+                     "locally static expression of type universal_integer",
+                     tree_ident(t));
+         diag_hint(d, tree_loc(dim), "expression has type %pT", tree_type(dim));
          diag_emit(d);
          return false;
       }
    }
 
    if (!sem_locally_static(dim))
-      sem_error(dim, "dimension parameter of attribute %s must be a locally "
-                "static expression", istr(tree_ident(t)));
+      sem_error(dim, "dimension parameter of attribute %pT must be a locally "
+                "static expression", tree_ident(t));
 
    if (!type_is_array(tree_type(tree_name(t))))
-      sem_error(t, "prefix of attribute %s with dimension is not an array",
-                istr(tree_ident(t)));
+      sem_error(t, "prefix of attribute %pT with dimension is not an array",
+                tree_ident(t));
 
    return true;
 }
@@ -4363,9 +4343,9 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
          }
          else if (!type_is_array(type)) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
-            diag_printf(d, "object prefix of attribute %s must be an array",
-                        istr(attr));
-            diag_hint(d, tree_loc(name), "prefix has type %s", type_pp(type));
+            diag_printf(d, "object prefix of attribute %pI must be an array",
+                        attr);
+            diag_hint(d, tree_loc(name), "prefix has type %pT", type);
             diag_emit(d);
             return false;
          }
@@ -4481,8 +4461,8 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 
             type_t std_time = std_type(NULL, STD_TIME);
             if (!sem_check_type(value, std_time, tab))
-               sem_error(value, "parameter of attribute %s must have type %s",
-                         istr(attr), type_pp(std_time));
+               sem_error(value, "parameter of attribute %pI must have type %pT",
+                         attr, std_time);
             else if (!sem_globally_static(value))
                sem_error(value, "parameter of attribute %s must be a static "
                          "expression", istr(attr));
@@ -6353,14 +6333,13 @@ static bool sem_check_new(tree_t t, nametab_t *tab)
    const bool has_initial = tree_has_value(value);
 
    if (!has_initial && type_is_unconstrained(type))
-      sem_error(t, "unconstrained array type %s not allowed in allocator "
-                "expression", type_pp(type));
+      sem_error(t, "unconstrained array type %pT not allowed in allocator "
+                "expression", type);
    else if (!sem_check_incomplete(t, type))
       return false;
    else if (type_is_protected(type)) {
       if (has_initial)
-         sem_error(t, "protected type %s cannot have initial value",
-                   type_pp(type));
+         sem_error(t, "protected type %pT cannot have initial value", type);
       else if (standard() >= STD_19)
          tree_set_global_flags(t, TREE_GF_INSTANCE_NAME | TREE_GF_PATH_NAME);
    }
@@ -6368,8 +6347,8 @@ static bool sem_check_new(tree_t t, nametab_t *tab)
    type_t designated = type_designated(access_type);
 
    if (!type_eq(type, designated))
-      sem_error(value, "type of allocator expresion %s does not match "
-                "access type %s", type_pp(type), type_pp(designated));
+      sem_error(value, "type of allocator expresion %pT does not match "
+                "access type %pT", type, designated);
 
    return true;
 }
@@ -6395,7 +6374,7 @@ static bool sem_check_all(tree_t t, nametab_t *tab)
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
       diag_printf(d, "prefix of a selected name with suffix ALL must "
                   "have access type");
-      diag_hint(d, tree_loc(value), "prefix has type %s", type_pp(value_type));
+      diag_hint(d, tree_loc(value), "prefix has type %pT", value_type);
       diag_lrm(d, STD_08, "8.3");
       diag_emit(d);
       return false;

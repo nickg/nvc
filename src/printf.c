@@ -141,11 +141,21 @@ static int format_ident_toupper(ostream_t *os, printf_state_t *state,
    const char *str = istr(id);
    int nchars = 0;
    char chunk[32];
+   char quote = '\0';
 
    for (int i = 0; i < len; i += sizeof(chunk)) {
       const int tocopy = MIN(sizeof(chunk), len - i);
-      for (int j = 0; j < tocopy; j++)
-         chunk[j] = toupper_iso88591(str[i + j]);
+      for (int j = 0; j < tocopy; j++) {
+         if (quote)
+            chunk[j] = str[i + j];
+         else
+            chunk[j] = toupper_iso88591(str[i + j]);
+
+         if (str[i + j] == quote)
+            quote = false;
+         else if (str[i + j] == '\'' || str[i + j] == '\"')
+            quote = str[i + j];
+      }
 
       nchars += ostream_write(os, chunk, tocopy);
    }

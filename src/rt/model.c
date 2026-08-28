@@ -1188,22 +1188,21 @@ static void check_multiple_sources(rt_nexus_t *n, source_kind_t kind)
       for (; is_signal_scope(root->parent); root = root->parent);
 
       d = diag_new(DIAG_FATAL, tree_loc(root->where));
-      diag_printf(d, "element %s of signal %s has multiple sources",
-                  istr(tree_ident(n->signal->where)),
-                  istr(tree_ident(root->where)));
-      diag_hint(d, tree_loc(n->signal->where), "element %s declared here",
-                istr(tree_ident(n->signal->where)));
-      diag_hint(d, tree_loc(root->where), "composite signal %s declared with "
-                "unresolved type %s", istr(tree_ident(root->where)),
-                type_pp(tree_type(root->where)));
+      diag_printf(d, "element %pI of signal %pI has multiple sources",
+                  tree_ident(n->signal->where), tree_ident(root->where));
+      diag_hint(d, tree_loc(n->signal->where), "element %pI declared here",
+                tree_ident(n->signal->where));
+      diag_hint(d, tree_loc(root->where), "composite signal %pI declared with "
+                "unresolved type %pT", tree_ident(root->where),
+                tree_type(root->where));
    }
    else {
       d = diag_new(DIAG_FATAL, tree_loc(n->signal->where));
-      diag_printf(d, "unresolved signal %s has multiple sources",
-                  istr(tree_ident(n->signal->where)));
-      diag_hint(d, tree_loc(n->signal->where), "signal %s declared with "
-                "unresolved type %s", istr(tree_ident(n->signal->where)),
-                type_pp(tree_type(n->signal->where)));
+      diag_printf(d, "unresolved signal %pI has multiple sources",
+                  tree_ident(n->signal->where));
+      diag_hint(d, tree_loc(n->signal->where), "signal %pI declared with "
+                "unresolved type %pT", tree_ident(n->signal->where),
+                tree_type(n->signal->where));
    }
 
    if (n->sources.tag == SOURCE_DRIVER) {

@@ -468,7 +468,7 @@ static jit_scalar_t *get_array_bounds(type_t type, void *ptr)
    return fbounds;
 
  not_const:
-   jit_msg(NULL, DIAG_FATAL, "array %s bounds are not constant", type_pp(type));
+   jit_msg(NULL, DIAG_FATAL, "array %pT bounds are not constant", type);
    return NULL;
 }
 
@@ -690,8 +690,8 @@ static value_mirror *get_value_mirror(void *context, jit_scalar_t value,
       vm->pt.f_protected = pvm;
    }
    else
-      jit_msg(NULL, DIAG_FATAL, "unsupported type %s in prefix of REFLECT "
-              "attribute", type_pp(type));
+      jit_msg(NULL, DIAG_FATAL, "unsupported type %pT in prefix of REFLECT "
+              "attribute", type);
 
    return vm;
 }
@@ -1056,8 +1056,8 @@ static subtype_mirror *get_subtype_mirror(void *context, type_t type,
       sm->pt.f_protected = psm;
    }
    else
-      jit_msg(NULL, DIAG_FATAL, "unsupported type %s in prefix of REFLECT "
-              "attribute", type_pp(type));
+      jit_msg(NULL, DIAG_FATAL, "unsupported type %pT in prefix of REFLECT "
+              "attribute", type);
 
    return sm;
 }

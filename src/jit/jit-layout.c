@@ -55,8 +55,8 @@ static int count_sub_elements(type_t type)
 
 static void print_layout(type_t type, const jit_layout_t *l, bool signal)
 {
-   nvc_printf("$blue$%s%s\n  size:%d align:%d\n",
-              type_pp(type), signal ? "$" : "", l->size, l->align);
+   nvc_printf("$blue$%pT%s\n  size:%d align:%d\n",
+              type, signal ? "$" : "", l->size, l->align);
 
    for (int i = 0; i < l->nparts; i++) {
       static const char *map[] = {
@@ -90,7 +90,7 @@ const jit_layout_t *layout_of(type_t type)
       tree_t r = type_dim(base, 0);
       int64_t low, high;
       if (!folded_bounds(r, &low, &high))
-         fatal_trace("type %s has unknown bounds", type_pp(type));
+         fatal_trace("type %pT has unknown bounds", type);
 
       const int bits = bits_for_range(low, high);
       l->parts[0].offset = 0;
@@ -175,7 +175,7 @@ const jit_layout_t *layout_of(type_t type)
       l->size  = ALIGN_UP(offset, l->align);
    }
    else
-      fatal_trace("cannot get layout for %s", type_pp(type));
+      fatal_trace("cannot get layout for %pT", type);
 
    if (opt_get_int(OPT_LAYOUT_VERBOSE))
       print_layout(type, l, false);

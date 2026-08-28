@@ -1006,22 +1006,17 @@ int type_bit_width(type_t type)
          return bits_for_range(assume_int(tree_left(r)),
                                assume_int(tree_right(r)));
       }
-
    case T_REAL:
        // All real types are doubles at the moment
        return 64;
-
    case T_SUBTYPE:
       return type_bit_width(type_base(type));
-
    case T_ENUM:
       return bits_for_range(0, type_enum_literals(type) - 1);
-
    case T_ARRAY:
       return type_bit_width(type_elem(type));
-
    default:
-      fatal_trace("unhandled type %s in type_bit_width", type_pp(type));
+      fatal_trace("unhandled type %pT in type_bit_width", type);
    }
 }
 

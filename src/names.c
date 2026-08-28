@@ -243,18 +243,18 @@ static void type_set_describe(nametab_t *tab, diag_t *d, const loc_t *loc,
          else if (n > 0)
             tb_cat(tb, ", ");
 
-         tb_cat(tb, type_pp(tt.type));
+         tb_printf(tb, "%pT", tt.type);
          poss++;
       }
       else if (hint != NULL && *hint != '\0')
-         diag_hint(d, NULL, "context contains type %s which is not %s",
-                   type_pp(tt.type), hint);
+         diag_hint(d, NULL, "context contains type %pT which is not %s",
+                   tt.type, hint);
       else
-         diag_hint(d, NULL, "context contains type %s", type_pp(tt.type));
+         diag_hint(d, NULL, "context contains type %pT", tt.type);
 
       if (tt.src != NULL && is_subprogram(tt.src))
-         diag_hint(d, tree_loc(tt.src), "context contains overload %s",
-                   type_pp(tree_type(tt.src)));
+         diag_hint(d, tree_loc(tt.src), "context contains overload %pT",
+                   tree_type(tt.src));
    }
 
    if (poss > 0)
@@ -999,7 +999,7 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
          else if ((dd->kind == T_FUNC_BODY && tkind == T_FUNC_BODY)
                   || (dd->kind == T_PROC_BODY && tkind == T_PROC_BODY)) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
-            diag_printf(d, "duplicate subprogram body %s", type_pp(type));
+            diag_printf(d, "duplicate subprogram body %pT", type);
             diag_hint(d, tree_loc(decl), "duplicate definition here");
             diag_hint(d, tree_loc(dd->tree), "previous definition was here");
             diag_suppress(d, s->suppress || type_has_error(type));
@@ -1018,11 +1018,10 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
          else if (dd->origin == origin) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
             if (type_strict_eq(tree_type(dd->tree), type))
-               diag_printf(d, "%s already declared in this region",
-                           type_pp(type));
+               diag_printf(d, "%pT already declared in this region", type);
             else {
-               diag_printf(d, "homograph of %s already declared in this region",
-                           type_pp(type));
+               diag_printf(d, "homograph of %pT already declared in this "
+                           "region", type);
                diag_hint(d, NULL, "only the base type is considered when "
                          "determining if two overloads have the same parameter "
                          "type profile");
@@ -1190,15 +1189,14 @@ static void missing_record_field_cb(diag_t *d, ident_t name, void *arg)
 {
    type_t type = arg;
 
-   diag_printf(d, "record type %s has no field named %s",
-               type_pp(type), istr(name));
+   diag_printf(d, "record type %pT has no field named %pI", type, name);
 
    ident_t best = NULL;
    int bestd = INT_MAX;
 
    LOCAL_TEXT_BUF tb = tb_new();
    int nfields = type_fields(type), i;
-   tb_printf(tb, "type %s has field%s ", type_pp(type), nfields > 1 ? "s" : "");
+   tb_printf(tb, "type %pT has field%s ", type, nfields > 1 ? "s" : "");
    for (i = 0; i < nfields; i++) {
       ident_t id = tree_ident(type_field(type, i));
       const int d = ident_distance(id, name);
@@ -2074,11 +2072,11 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
             const int nports = tree_ports(t);
             if (nports > 0) {
                LOCAL_TEXT_BUF tb = tb_new();
-               tb_printf(tb, "subprogram %s has argument%s ",
-                         type_pp(tree_type(t)), nports > 1 ? "s" : "");
+               tb_printf(tb, "subprogram %pT has argument%s ",
+                         tree_type(t), nports > 1 ? "s" : "");
                for (int j = 0; j < nports; j++)
-                  tb_printf(tb, "%s%s", j > 0 ? ", " : "",
-                            istr(tree_ident(tree_port(t, j))));
+                  tb_printf(tb, "%s%pI", j > 0 ? ", " : "",
+                            tree_ident(tree_port(t, j)));
                diag_hint(d, tree_loc(t), "%s", tb_get(tb));
             }
          }
@@ -2092,7 +2090,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
          if (tab->top_scope->formal_fn != NULL)
             (*tab->top_scope->formal_fn)(d, name, tab->top_scope->formal_arg);
          else
-            diag_printf(d, "invalid formal name %s", istr(name));
+            diag_printf(d, "invalid formal name %pI", name);
 
          diag_emit(d);
       }
@@ -2197,7 +2195,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 
       type_t type = get_type_or_null(dd->tree);
       if (type != NULL && !is_type_decl(dd->tree))
-         tb_printf(tb, " as %s", type_pp(tree_type(dd->tree)));
+         tb_printf(tb, " as %pT", tree_type(dd->tree));
 
       const bool has_named_origin =
          dd->origin->container != NULL
@@ -2680,11 +2678,11 @@ tree_t resolve_resolution(nametab_t *tab, tree_t rname, type_t type)
          error_at(tree_loc(rname), "sorry, record element resolution is not "
                   "supported yet");
       else if (!type_is_array(type))
-         error_at(tree_loc(rname), "non-composite type %s may not have element "
-                  "resolution indication", type_pp(type));
+         error_at(tree_loc(rname), "non-composite type %pT may not have "
+                  "element resolution indication", type);
       else if (tree_assocs(rname) != 1)
-         error_at(tree_loc(rname), "non-record type %s may not have record "
-                  "element resolution indication", type_pp(type));
+         error_at(tree_loc(rname), "non-record type %pT may not have record "
+                  "element resolution indication", type);
       else {
          tree_t a0 = tree_value(tree_assoc(rname, 0));
          resolve_resolution(tab, a0, type_elem(type));
@@ -3072,8 +3070,8 @@ static void overload_trace_candidates(overload_t *o, const char *phase)
       printf("%s: %s\n", istr(o->name), phase);
       for (unsigned i = 0; i < o->candidates.count; i++) {
          tree_t d = o->candidates.items[i];
-         printf("  %s%s\n", type_pp(tree_type(d)),
-                (tree_flags(d) & TREE_F_PREDEFINED) ? " (predefined)" : "");
+         nvc_printf("  %pT%s\n", tree_type(d),
+                    (tree_flags(d) & TREE_F_PREDEFINED) ? " (predefined)" : "");
       }
    }
 }
@@ -3082,9 +3080,9 @@ static void overload_prune_candidate(overload_t *o, int index)
 {
    if (o->trace) {
       tree_t d = o->candidates.items[index];
-      printf("%s: prune candidate %s%s\n", istr(o->name),
-             type_pp(tree_type(o->candidates.items[index])),
-             (tree_flags(d) & TREE_F_PREDEFINED) ? " (predefined)" : "");
+      nvc_printf("%pI: prune candidate %pT%s\n", o->name,
+                 tree_type(o->candidates.items[index]),
+                 (tree_flags(d) & TREE_F_PREDEFINED) ? " (predefined)" : "");
    }
 
    o->candidates.items[index] = NULL;
@@ -3197,12 +3195,12 @@ static void begin_overload_resolution(overload_t *o)
    overload_trace_candidates(o, "initial candidates");
 
    if (o->trace && o->nametab->top_type_set->members.count > 0) {
-      printf("%s: context ", istr(o->name));
+      nvc_printf("%pI: context ", o->name);
       for (unsigned n = 0; n < o->nametab->top_type_set->members.count; n++) {
          if (n > 0) printf(", ");
-         printf("%s", type_pp(o->nametab->top_type_set->members.items[n].type));
+         nvc_printf("%pT", o->nametab->top_type_set->members.items[n].type);
       }
-      printf("\n");
+      nvc_printf("\n");
    }
 
    o->initial = o->candidates.count;
@@ -3315,35 +3313,34 @@ static void begin_overload_resolution(overload_t *o)
          for (int i = 0; i < o->symbol->ndecls; i++) {
             const decl_t *dd = get_decl(o->symbol, i);
             if ((dd->mask & N_SUBPROGRAM) && dd->visibility == HIDDEN)
-               diag_hint(d, tree_loc(dd->tree), "subprogram %s is hidden",
-                         type_pp(tree_type(dd->tree)));
+               diag_hint(d, tree_loc(dd->tree), "subprogram %pT is hidden",
+                         tree_type(dd->tree));
          }
 
          if (!hinted)
-            diag_hint(d, tree_loc(o->tree), "%s called here", istr(o->name));
+            diag_hint(d, tree_loc(o->tree), "%pI called here", o->name);
       }
 
       type_t ptype = o->prefix ? get_type_or_null(o->prefix) : NULL;
       if (ptype != NULL && type_is_protected(ptype)) {
-         diag_printf(d, "protected type %s has no method named %s",
-                     type_pp(ptype), istr(o->name));
+         diag_printf(d, "protected type %pT has no method named %pI",
+                     ptype, o->name);
 
          scope_t *s = scope_for_type(o->nametab, ptype);
          hint_for_typo(s, d, o->name, N_SUBPROGRAM);
       }
       else if (o->initial > 0) {
-         diag_printf(d, "no applicable subprogram declaration for %s",
-                     istr(o->name));
+         diag_printf(d, "no applicable subprogram declaration for %pI",
+                     o->name);
 
          type_set_describe(o->nametab, d, tree_loc(o->tree),
                            o->nametab->top_type_set->pred, NULL);
 
-         diag_hint(d, NULL, "there are %d visible overloads of %s but none "
-                   "can be called in this context", o->initial, istr(o->name));
+         diag_hint(d, NULL, "there are %d visible overloads of %pI but none "
+                   "can be called in this context", o->initial, o->name);
       }
       else {
-         diag_printf(d, "no visible subprogram declaration for %s",
-                     istr(o->name));
+         diag_printf(d, "no visible subprogram declaration for %pI", o->name);
          hint_for_typo(o->nametab->top_scope, d, o->name, N_SUBPROGRAM);
       }
 
@@ -3528,15 +3525,15 @@ static tree_t finish_overload_resolution(overload_t *o)
       for (unsigned i = 0; i < o->candidates.count; i++) {
          const loc_t *cloc = tree_loc(o->candidates.items[i]);
          if (cloc->file_ref == loc->file_ref)
-            diag_hint(d, cloc, "candidate %s",
-                      type_pp(tree_type(o->candidates.items[i])));
+            diag_hint(d, cloc, "candidate %pT",
+                      tree_type(o->candidates.items[i]));
          else {
             tree_t container = tree_container(o->candidates.items[i]);
             tree_t primary = primary_unit_of(container);
 
-            diag_hint(d, NULL, "candidate %s from %s%s",
-                      type_pp(tree_type(o->candidates.items[i])),
-                      istr(tree_ident(primary)),
+            diag_hint(d, NULL, "candidate %pT from %pI%s",
+                      tree_type(o->candidates.items[i]),
+                      tree_ident(primary),
                       primary != container ? " body" : "");
          }
 
@@ -3558,15 +3555,15 @@ static tree_t finish_overload_resolution(overload_t *o)
       tb_printf(tb, "%s [", istr(o->name));
       qsort(o->params.items, o->params.count, sizeof(tree_t), param_compar);
       for (unsigned i = 0; i < o->params.count; i++)
-         tb_printf(tb, "%s%s", i > 0 ? ", " : "",
-                   type_pp(tree_type(tree_value(o->params.items[i]))));
+         tb_printf(tb, "%s%pT", i > 0 ? ", " : "",
+                   tree_type(tree_value(o->params.items[i])));
 
       type_set_t *ts = o->nametab->top_type_set;
       if (ts != NULL && ts->members.count > 0) {
          tb_printf(tb, "%sreturn ", o->params.count > 0 ? " " : "");
          for (unsigned i = 0; i < ts->members.count; i++)
-            tb_printf(tb, "%s%s", i > 0 ? " | " : "",
-                      type_pp(ts->members.items[i].type));
+            tb_printf(tb, "%s%pT", i > 0 ? " | " : "",
+                      ts->members.items[i].type);
       }
 
       tb_append(tb, ']');
@@ -3853,8 +3850,7 @@ static void overload_next_argument(overload_t *o, tree_t p)
    }
 
    if (o->trace)
-      printf("%s: next argument %s %s\n", istr(o->name),
-             tree_kind_str(tree_kind(value)), type_pp(type));
+      nvc_printf("%pI: next argument %pK %pT\n", o->name, value, type);
 
    const bool is_partial =
       tree_subkind(p) == P_NAMED
@@ -3931,7 +3927,7 @@ static void overload_cancel_argument(overload_t *o, tree_t p)
          printf("%s: restrict to: ", istr(o->name));
          for (unsigned n = 0; n < ts->members.count; n++) {
             if (n > 0) printf(", ");
-            printf("%s", type_pp(ts->members.items[n].type));
+            nvc_printf("%pT", ts->members.items[n].type);
          }
          printf("\n");
       }
@@ -4839,8 +4835,7 @@ static tree_t solve_array_ref(nametab_t *tab, tree_t t)
    else if (type_is_none(base_type))
       elem_type = base_type;
    else {
-      error_at(tree_loc(t), "cannot index non-array type %s",
-               type_pp(base_type));
+      error_at(tree_loc(t), "cannot index non-array type %pT", base_type);
       elem_type = type_new(T_NONE);
    }
 
@@ -4983,7 +4978,7 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
 
          if ((type = index_type_of(prefix_type, dim - 1)) == NULL) {
             error_at(tree_loc(t), "dimension index %"PRIi64" out of range "
-                     "for type %s", dim, type_pp(prefix_type));
+                     "for type %pT", dim, prefix_type);
             type = type_new(T_NONE);
          }
       }
@@ -5536,8 +5531,8 @@ static tree_t solve_all(nametab_t *tab, tree_t t)
       type = type_designated(type);
       if (type_is_incomplete(type)
           && (type = resolve_type(tab, type)) == NULL) {
-         error_at(tree_loc(prefix), "object with incomplete type %s "
-                  "cannot be dereferenced", type_pp(type));
+         error_at(tree_loc(prefix), "object with incomplete type %pT "
+                  "cannot be dereferenced", type);
          type = type_new(T_NONE);
       }
    }
