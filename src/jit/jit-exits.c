@@ -48,7 +48,7 @@ void x_index_fail(int64_t value, int64_t left, int64_t right, int8_t dir,
    LOCAL_TEXT_BUF tb = tb_new();
    tb_cat(tb, "index ");
    to_string(tb, type, value);
-   tb_printf(tb, " outside of %s range ", type_pp(type));
+   tb_printf(tb, " outside of %pT range ", type);
    to_string(tb, type, left);
    tb_cat(tb, dir == RANGE_TO ? " to " : " downto ");
    to_string(tb, type, right);
@@ -139,7 +139,7 @@ void x_length_fail(int64_t left, int64_t right, int32_t dim, tree_t where)
    case T_TYPE_CONV:
    case T_ATTR_REF:
    case T_AGGREGATE:
-      tb_printf(tb, "subtype %s", type_pp(tree_type(where)));
+      tb_printf(tb, "subtype %pT", tree_type(where));
       break;
    default:
       tb_cat(tb, "target");
@@ -171,7 +171,7 @@ void x_range_fail(int64_t value, int64_t left, int64_t right, int8_t dir,
    LOCAL_TEXT_BUF tb = tb_new();
    tb_cat(tb, "value ");
    to_string(tb, type, value);
-   tb_printf(tb, " outside of %s range ", type_pp(type));
+   tb_printf(tb, " outside of %pT range ", type);
    to_string(tb, type, left);
    tb_cat(tb, dir == RANGE_TO ? " to " : " downto ");
    to_string(tb, type, right);
@@ -233,8 +233,8 @@ void x_overflow(int64_t lhs, int64_t rhs, tree_t where)
    }
 
    jit_msg(tree_loc(where), DIAG_FATAL,
-           "result of %s cannot be represented as %s",
-           tb_get(tb), type_pp(tree_type(where)));
+           "result of %s cannot be represented as %pT",
+           tb_get(tb), tree_type(where));
 }
 
 void x_null_deref(tree_t where)

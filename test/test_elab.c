@@ -1455,14 +1455,14 @@ START_TEST(test_mixed1)
    const error_t expect[] = {
       { 23, "missing matching VHDL port declaration for Verilog port 'two' "
         "in component MOD1" },
-      { 37, "port FOUR not found in Verilog module mod1" },
+      { 37, "port FOUR not found in Verilog module 'mod1'" },
       { 48, "cannot connect VHDL signal with type BIT to Verilog output "
         "port 'three'" },
       { 56, "missing matching VHDL generic declaration for Verilog parameter "
         "'g1' with no default value in component MOD1" },
       { 67, "generic G1 should have type INTEGER to match corresponding "
         "Verilog parameter" },
-      { 79, "generic G2 not found in Verilog module mod1" },
+      { 79, "generic G2 not found in Verilog module 'mod1'" },
       { 93, "VHDL port direction IN does not match corresponding Verilog "
         "port 'three' which is declared as output" },
       { -1, NULL }
@@ -1765,10 +1765,10 @@ END_TEST
 START_TEST(test_vlog1)
 {
    const error_t expect[] = {
-      { 12, "name of Verilog module sub1 in library unit WORK.SUB1 does "
-        "not match name SUB1 in module instance u2" },
+      { 12, "name of Verilog module 'sub1' in library unit WORK.SUB1 does "
+        "not match name 'SUB1' in module instance 'u2'" },
       { 13, "missing port connection for 'y'" },
-      { 14, "module bad not found in library WORK" },
+      { 14, "module 'bad' not found in library WORK" },
       { 15, "missing value for parameter p" },
       { 16, "module sub1 has 1 parameter but 2 values given" },
       { 17, "missing port connection for 'x'" },

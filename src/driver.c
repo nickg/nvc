@@ -24,6 +24,7 @@
 #include "mask.h"
 #include "option.h"
 #include "phase.h"
+#include "printf.h"
 #include "tree.h"
 #include "type.h"
 
@@ -451,7 +452,7 @@ void dump_drivers(driver_set_t *ds)
       for (; di; di = di->chain_proc) {
          vhdl_dump(di->prefix, 0);
          if (di->view)
-            printf("<%s>", type_pp(tree_type(di->view)));
+            nvc_printf("<%pT>", tree_type(di->view));
          if (di->tentative)
             printf("?");
          if (di->chain_proc)

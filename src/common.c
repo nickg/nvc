@@ -1014,8 +1014,7 @@ tree_t range_of(type_t type, unsigned dim)
    case T_ENUM:
       return type_dim(type, dim);
    default:
-      fatal_trace("invalid type kind %s for %s in range_of",
-                  type_kind_str(type_kind(type)), type_pp(type));
+      fatal_trace("invalid type kind %pK for %pT in range_of", type, type);
    }
 }
 
