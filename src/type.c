@@ -20,6 +20,7 @@
 #include "util.h"
 #include "common.h"
 #include "object.h"
+#include "printf.h"
 #include "hash.h"
 
 #include <assert.h>
@@ -557,21 +558,6 @@ void type_set_designated(type_t t, type_t d)
    object_write_barrier(&(t->object), &(d->object));
 }
 
-void type_signature(type_t t, text_buf_t *tb)
-{
-   assert(t->object.kind == T_SIGNATURE);
-
-   tb_printf(tb, "[");
-   const int nparams = type_params(t);
-   for (int i = 0; i < nparams; i++)
-      tb_printf(tb, "%s%s", (i == 0 ? "" : ", "),
-                type_pp(type_param(t, i)));
-   type_t r = type_result_or_null(t);
-   if (r != NULL)
-      tb_printf(tb, "%sreturn %s", nparams > 0 ? " " : "", type_pp(r));
-   tb_printf(tb, "]");
-}
-
 const char *type_pp(type_t t)
 {
    assert(t != NULL);
@@ -583,19 +569,13 @@ const char *type_pp(type_t t)
          if (cache == NULL)
             cache = hash_new(64);
 
-         text_buf_t *tb = hash_get(cache, t);
-         if (tb == NULL) {
-            tb = tb_new();
-            hash_put(cache, t, tb);
-
-            if (type_has_ident(t)) {
-               tb_istr(tb, type_ident(t));
-               tb_append(tb, ' ');
-            }
-            type_signature(t, tb);
+         char *str = hash_get(cache, t);
+         if (str == NULL) {
+            str = nvc_asprintf("%pT", t);
+            hash_put(cache, t, str);
          }
 
-         return tb_get(tb);
+         return str;
       }
 
    case T_GENERIC:

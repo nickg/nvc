@@ -123,7 +123,6 @@ tree_t type_resolution(type_t t);
 // Pretty printing
 // XXX: deprecated, use nvc_printf instead
 const char *type_pp(type_t t);
-void type_signature(type_t t, text_buf_t *tb);
 
 // Type predicates that recurse to base of subtypes
 bool type_is_array(type_t t);
