@@ -27,6 +27,7 @@
    } while (0)
 
 ident_t predef_func_name(type_t type, const char *op);
+void print_signature(type_t type, text_buf_t *tb);
 
 bool vhdl_is_short_circuit(subprogram_kind_t kind);
 bool vhdl_is_logical(subprogram_kind_t kind);

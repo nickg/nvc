@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2025  Nick Gasson
+//  Copyright (C) 2025-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -21,6 +21,8 @@
 #include "type.h"
 #include "vhdl/vhdl-util.h"
 
+#include <assert.h>
+
 ident_t predef_func_name(type_t type, const char *op)
 {
    type_t base = type_base_recur(type);
@@ -34,6 +36,26 @@ ident_t predef_func_name(type_t type, const char *op)
    tb_cat(tb, "$predef");
 
    return ident_new(tb_get(tb));
+}
+
+void print_signature(type_t type, text_buf_t *tb)
+{
+   assert(type_kind(type) == T_SIGNATURE);
+
+   tb_printf(tb, "[");
+
+   // The LRM does not specify whether there are spaces between the
+   // parameters or not but the example output does not include spaces
+   const int nparams = type_params(type);
+   for (int i = 0; i < nparams; i++)
+      tb_printf(tb, "%s%s", (i == 0 ? "" : ","),
+                type_pp(type_param(type, i)));
+
+   if (type_has_result(type))
+      tb_printf(tb, "%sreturn %s", nparams > 0 ? " " : "",
+                type_pp(type_result(type)));
+
+   tb_printf(tb, "]");
 }
 
 bool vhdl_is_short_circuit(subprogram_kind_t kind)

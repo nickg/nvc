@@ -92,12 +92,12 @@ architecture A of E is
         variable max: DELAY_LENGTH;            -- max'PATH_NAME = ":e:proc1[natural,integer]:max"
                                                -- max'INSTANCE_NAME = ":e(a):proc1[natural,integer]:max"
     begin
-        assert Proc1'PATH_NAME = ":top:e:proc1[natural, integer]:";
-        assert Proc1'INSTANCE_NAME = ":top(top):e@e(a):proc1[natural, integer]:";
-        assert c'PATH_NAME = ":top:e:proc1[natural, integer]:c";
-        assert c'INSTANCE_NAME = ":top(top):e@e(a):proc1[natural, integer]:c";
-        assert max'PATH_NAME = ":top:e:proc1[natural, integer]:max";
-        assert max'INSTANCE_NAME = ":top(top):e@e(a):proc1[natural, integer]:max";
+        assert Proc1'PATH_NAME = ":top:e:proc1[natural,integer]:";
+        assert Proc1'INSTANCE_NAME = ":top(top):e@e(a):proc1[natural,integer]:";
+        assert c'PATH_NAME = ":top:e:proc1[natural,integer]:c";
+        assert c'INSTANCE_NAME = ":top(top):e@e(a):proc1[natural,integer]:c";
+        assert max'PATH_NAME = ":top:e:proc1[natural,integer]:max";
+        assert max'INSTANCE_NAME = ":top(top):e@e(a):proc1[natural,integer]:max";
         -- max := sp1 * ns;
         -- wait on sp1 for max;
         -- c := sp1;

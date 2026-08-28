@@ -1403,7 +1403,7 @@ static void get_hierarchical_name(text_buf_t *tb, lower_unit_t *lu,
       tb_istr(tb, tree_ident(lu->container));
 
       if (standard() >= STD_02)
-         type_signature(tree_type(lu->container), tb);
+         print_signature(tree_type(lu->container), tb);
 
       tb_append(tb, ':');
       tb_downcase(tb);
@@ -1496,7 +1496,7 @@ static vcode_reg_t lower_name_attr(lower_unit_t *lu, tree_t decl,
                   tb_istr(tb, tree_ident(decl));
 
                   if (standard() >= STD_02)
-                     type_signature(tree_type(decl), tb);
+                     print_signature(tree_type(decl), tb);
 
                   tb_append(tb, ':');
                   tb_downcase(tb);

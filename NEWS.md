@@ -9,6 +9,8 @@
 - Fixed several cases where `--preserve-case` would cause incorrect
   behaviour (#1641).
 - Added support for System Verilog sized casts (#1640).
+- The value of `'instance_name` for subprograms no longer includes
+  spaces between parameters in the signature (#1648).
 - Several other minor bugs were resolved (#1638, #1636, #1579, #1647).
 
 ## Version 1.22.1 - 2026-08-01
