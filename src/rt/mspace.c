@@ -305,7 +305,7 @@ void **mptr_get(mptr_t ptr)
 __attribute__((always_inline))
 static inline bool is_mspace_ptr(mspace_t *m, char *p)
 {
-   return p >= m->space && p < m->space + m->maxsize;
+   return p >= m->space && p < m->space + m->maxsize - OVERRUN_MARGIN;
 }
 
 static void mspace_mark_root(mspace_t *m, intptr_t p, gc_state_t *state)
