@@ -36,8 +36,6 @@
 
 STATIC_ASSERT(OVERRUN_MARGIN % LINE_SIZE == 0);
 
-typedef A(uint64_t) work_list_t;
-
 struct _mptr {
    void       *ptr;
    mptr_t      prev;
@@ -49,7 +47,9 @@ struct _mptr {
 
 typedef struct {
    bit_mask_t        markmask;
-   work_list_t       worklist;
+   uint32_t         *active_words;
+   uint64_t         *pending;
+   uint32_t          nactive;
    struct cpu_state  cpu[MAX_THREADS];
 #if ASAN_ENABLED
    void             *fake_stack[MAX_THREADS];
@@ -318,16 +318,12 @@ static void mspace_mark_root(mspace_t *m, intptr_t p, gc_state_t *state)
       line = mask_scan_backwards(&(m->headmask), line);
       assert(line != -1);
 
-      size_t objlen = 1;
-      if (line + 1 < m->maxlines)
-         objlen += mask_count_clear(&(m->headmask), line + 1);
-      assert(objlen < UINT32_MAX);
+      if (!mask_test_and_set(&(state->markmask), line)) {
+         const uint32_t word = line / 64;
+         if (state->pending[word] == 0)
+            state->active_words[state->nactive++] = word;
 
-      if (!mask_test(&(state->markmask), line)) {
-         mask_set_range(&(state->markmask), line, objlen);
-
-         uint64_t enc = ((uint64_t)line << 32) | objlen;
-         APUSH(state->worklist, enc);
+         state->pending[word] |= UINT64_C(1) << (line % 64);
       }
    }
 }
@@ -359,9 +355,16 @@ static void mspace_gc(mspace_t *m)
    gc_state_t state = {};
    mask_init(&(state.markmask), m->maxlines);
 
+   const int npending = (m->maxlines + 63) / 64;
+   state.pending = xcalloc_array(npending, sizeof(uint64_t));
+   state.active_words = xmalloc_array(npending, sizeof(uint32_t));
+
    SCOPED_LOCK(m->lock);
 
    stop_world(mspace_suspend_cb, &state);
+
+   // Be very careful not to call library functions that could take
+   // locks such as malloc between here and the start_world call below
 
    for (int i = 0; i < MAX_THREADS; i++) {
       if (get_thread(i) == NULL)
@@ -402,10 +405,21 @@ static void mspace_gc(mspace_t *m)
    if (m->handler.mark != NULL)
       (*m->handler.mark)(m, &state, m->handler.context);
 
-   while (state.worklist.count > 0) {
-      const uint64_t enc = APOP(state.worklist);
-      const uint32_t line = enc >> 32;
-      const uint32_t objlen = enc & 0xffffffff;
+   while (state.nactive > 0) {
+      const uint32_t word = state.active_words[state.nactive - 1];
+      const int bit = __builtin_ctzll(state.pending[word]);
+
+      state.pending[word] &= ~(UINT64_C(1) << bit);
+      if (state.pending[word] == 0)
+         state.nactive--;
+
+      const uint32_t line = word * 64 + bit;
+
+      size_t objlen = 1;
+      if (line + 1 < m->maxlines)
+         objlen += mask_count_clear(&(m->headmask), line + 1);
+
+      mask_set_range(&(state.markmask), line, objlen);
 
       for (size_t i = 0; i < objlen; i++) {
          const ptrdiff_t off = (uintptr_t)(line + i) * LINE_SIZE;
@@ -414,6 +428,8 @@ static void mspace_gc(mspace_t *m)
             mspace_mark_root(m, words[j], &state);
       }
    }
+
+   start_world();
 
 #if ASAN_ENABLED
    for (int i = 0; i < m->maxlines; i++) {
@@ -452,8 +468,6 @@ static void mspace_gc(mspace_t *m)
       }
    }
 
-   start_world();
-
    if (opt_get_verbose(OPT_GC_VERBOSE, NULL)) {
       const int ticks = get_timestamp_us() - start_ticks;
       debugf("GC: allocated %zd/%zu; fragmentation %.2g%% [%d us]",
@@ -465,9 +479,8 @@ static void mspace_gc(mspace_t *m)
    }
 
    mask_free(&(state.markmask));
-
-   assert(state.worklist.count == 0);
-   ACLEAR(state.worklist);
+   free(state.active_words);
+   free(state.pending);
 }
 
 void mspace_user_mark(mspace_t *m, void *cookie, const void *ptr, size_t size)
@@ -487,6 +500,8 @@ void *mspace_find(mspace_t *m, void *ptr, size_t *size)
    }
 
    ptrdiff_t line = ((char *)ptr - m->space) / LINE_SIZE;
+
+   SCOPED_LOCK(m->lock);
 
    // Scan backwards to the start of the object
    line = mask_scan_backwards(&(m->headmask), line);

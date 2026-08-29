@@ -211,6 +211,8 @@ END_TEST
 ////////////////////////////////////////////////////////////////////////////////
 // Concurrent GC
 
+static void *volatile gc_ext = NULL;
+
 __attribute__((noinline))
 static void gc_alloc_loop(mspace_t *m)
 {
@@ -225,6 +227,12 @@ static void gc_alloc_loop(mspace_t *m)
       if (nsaved < ARRAY_LEN(saved) && (fast_rand(&rng) % 2 == 0)) {
          saved[nsaved++] = mem;
          *mem = nsaved | (thread_id() << 16);
+      }
+
+      void *ext = atomic_xchg(&gc_ext, NULL);
+      if (ext != NULL) {
+         atomic_store(&gc_ext, malloc(fast_rand(&rng) % 100000));
+         free(ext);
       }
    }
 
@@ -245,8 +253,11 @@ START_TEST(test_gc)
 {
    mspace_t *m = mspace_new(0x100000, NULL);
 
+   gc_ext = malloc(100);
+
    run_test(test_gc_thread, m);
 
+   free(gc_ext);
    mspace_destroy(m);
 }
 END_TEST
