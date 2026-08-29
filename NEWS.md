@@ -13,6 +13,9 @@
   spaces between parameters in the signature (#1648).
 - Fixed a critical bug which could cause garbage collection to deadlock
   with background JIT threads (#1649).
+- Fixed a bug where toggle coverage of a port could be incorrectly
+  excluded as unreachable when `--cover=exclude-unreachable` was used,
+  even though the port was actually driven (#1639).
 - Several other minor bugs were resolved (#1638, #1636, #1579, #1647).
 
 ## Version 1.22.1 - 2026-08-01
