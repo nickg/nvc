@@ -332,12 +332,33 @@ static vhdl_standard_t parse_standard(const char *str)
          "2008, 2019)", str);
 }
 
+static size_t parse_size(const char *str)
+{
+   char *eptr;
+   const ssize_t size = strtoll(str, &eptr, 0);
+
+   if (size <= 0)
+      fatal("invalid size '%s' (must be positive)", str);
+   else if (*eptr == '\0')
+      return size;
+   else if (strcasecmp(eptr, "k") == 0)
+      return size * 1024;
+   else if (strcasecmp(eptr, "m") == 0)
+      return size * 1024 * 1024;
+   else if (strcasecmp(eptr, "g") == 0)
+      return size * 1024 * 1024 * 1024;
+
+   fatal("invalid size '%s' (expected a number with optional k, m, "
+         "or g suffix)", str);
+}
+
 static void usage(void)
 {
    printf("Usage: jitperf [OPTION]... [FILE]...\n"
           "\n"
-          "     --baseline\t\t Save current results as baseline\n"
-          " -f PATTERN\t\t Only run tests matching PATTERN\n"
+          "     --baseline\t\tSave current results as baseline\n"
+          " -f PATTERN\t\tOnly run tests matching PATTERN\n"
+          " -H SIZE\t\tSet the maximum heap size to SIZE bytes\n"
           " -L PATH\t\tAdd PATH to library search paths\n"
           "\n");
 
@@ -376,7 +397,7 @@ int main(int argc, char **argv)
    bool baseline_loaded = false;
    bool write_baseline_file = false;
    int c, index = 0;
-   const char *spec = "L:hf:i";
+   const char *spec = "L:hf:iH:";
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -391,6 +412,9 @@ int main(int argc, char **argv)
       case 'h':
          usage();
          return 0;
+      case 'H':
+         opt_set_size(OPT_HEAP_SIZE, parse_size(optarg));
+         break;
       case 's':
          set_standard(parse_standard(optarg));
          break;
