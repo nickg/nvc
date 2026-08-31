@@ -72,7 +72,7 @@ typedef struct _elab_ctx {
    rt_model_t       *model;
    rt_scope_t       *scope;
    mem_pool_t       *pool;
-   cover_scope_t    *cscope;
+   cover_obj_t       cscope;
    unsigned          depth;
    unsigned          errors;
 } elab_ctx_t;
@@ -102,11 +102,11 @@ typedef struct {
 } mod_cache_t;
 
 typedef struct {
-   vlog_node_t    body;
-   tree_t         block;
-   tree_t         wrap;
-   tree_t         first;
-   cover_scope_t *cscope;
+   vlog_node_t body;
+   tree_t      block;
+   tree_t      wrap;
+   tree_t      first;
+   cover_obj_t cscope;
 } elab_instance_t;
 
 static void elab_vhdl_block(tree_t t, const elab_ctx_t *ctx);
@@ -1505,7 +1505,7 @@ static bool elab_can_clone_instance(elab_instance_t *ei, const elab_ctx_t *ctx)
 {
    if (ei == NULL)
       return false;
-   else if (ei->cscope == NULL && ctx->cscope == NULL)
+   else if (cover_is_null(ei->cscope) && cover_is_null(ctx->cscope))
       return true;
 
    return cover_compatible_spec(ctx->cover, ei->cscope, ctx->cscope);
@@ -2121,7 +2121,7 @@ static void elab_cover_block(elab_ctx_t *ctx, tree_t unit)
       return;
 
    tree_t block = ctx->out;
-   cover_scope_t *parent = ctx->cscope;
+   cover_obj_t parent = ctx->cscope;
 
    if (ctx->parent != NULL && tree_decls(ctx->parent->out) > 0) {
       tree_t hier = tree_decl(ctx->parent->out, 0);

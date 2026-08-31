@@ -290,12 +290,12 @@ START_TEST(test_toggle2)
 
    cover_data_t *db = run_cover(top);
 
-   cover_scope_t *u1 = cover_get_scope(db, ident_new("WORK.TOGGLE2"));
-   ck_assert_ptr_nonnull(u1);
+   cover_obj_t u1 = cover_get_scope(db, ident_new("WORK.TOGGLE2"));
+   ck_assert_int_eq(u1.tag, COVER_TAG_SCOPE);
 
-   cover_scope_t *s1 = u1->children.items[0];
+   cover_obj_t s1 = cover_at(db, u1, COV_REL_CHILDREN, 0);
    ck_assert_ident_eq(s1->name, "S1");
-   ck_assert_int_eq(s1->items.count, 1);
+   ck_assert_int_eq(cover_count(db, s1, COV_REL_ITEMS), 1);
 
    cover_obj_t s1_toggle = s1->items.items[0];
    ck_assert_int_eq(cover_count(db, s1_toggle, COV_REL_BINS), 10);

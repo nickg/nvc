@@ -41,7 +41,7 @@ typedef struct _cover_rpt {
 } cover_rpt_t;
 
 static void rpt_visit_children(cover_rpt_t *rpt, rpt_hier_t *h,
-                               const cover_scope_t *s);
+                               cover_obj_t scope);
 
 static rpt_line_t *rpt_get_line(rpt_file_t *f, const loc_t *loc)
 {
@@ -202,11 +202,13 @@ static void rpt_merge_data(cover_rpt_t *rpt, rpt_item_t *ri, int32_t data)
 }
 
 static void rpt_merge_file_items(cover_rpt_t *rpt, rpt_file_t *f,
-                                 const cover_scope_t *s)
+                                 cover_obj_t scope)
 {
+   const int nitems = cover_count(rpt->data, scope, COV_REL_ITEMS);
+
    // TODO: This has O(n^2). May be issue for large designs ?
-   for (int i = 0; i < s->items.count; i++) {
-      cover_obj_t scope_item = AGET(s->items, i);
+   for (int i = 0; i < nitems; i++) {
+      cover_obj_t scope_item = cover_at(rpt->data, scope, COV_REL_ITEMS, i);
 
       cover_obj_t scope_bin0 = cover_at(rpt->data, scope_item, COV_REL_BINS, 0);
       cover_flags_t scope_flags = cover_get_flags(rpt->data, scope_bin0);
@@ -255,15 +257,17 @@ static void rpt_merge_file_items(cover_rpt_t *rpt, rpt_file_t *f,
    }
 }
 
-static rpt_file_t *rpt_visit_file(cover_rpt_t *rpt, const cover_scope_t *s)
+static rpt_file_t *rpt_visit_file(cover_rpt_t *rpt, cover_obj_t scope)
 {
-   if (loc_invalid_p(&(s->loc)))
+   loc_t loc = cover_get_loc(rpt->data, scope, COV_ATTR_LOC);
+
+   if (loc_invalid_p(&loc))
       return NULL;
 
-   const char *path = loc_file_str(&(s->loc));
+   const char *path = loc_file_str(&loc);
    rpt_file_t *f = shash_get(rpt->files, path);
    if (f != NULL) {
-      rpt_merge_file_items(rpt, f, s);
+      rpt_merge_file_items(rpt, f, scope);
       return f->valid ? f : NULL;
    }
 
@@ -272,7 +276,7 @@ static rpt_file_t *rpt_visit_file(cover_rpt_t *rpt, const cover_scope_t *s)
 
    shash_put(rpt->files, path, f);
 
-   rpt_merge_file_items(rpt, f, s);
+   rpt_merge_file_items(rpt, f, scope);
 
    FILE *fp = fopen(path, "r");
    if (fp == NULL) {
@@ -282,9 +286,9 @@ static rpt_file_t *rpt_visit_file(cover_rpt_t *rpt, const cover_scope_t *s)
    }
 
    if (fp == NULL) {
-      warn_at(&(s->loc), "omitting hierarchy %s from the coverage report as "
+      warn_at(&loc, "omitting hierarchy %pi from the coverage report as "
               "the correpsonding source file could not be found",
-              istr(s->hier));
+              cover_get_ident(rpt->data, scope, COV_ATTR_HIER));
       return NULL;
    }
 
@@ -319,17 +323,21 @@ static rpt_file_t *rpt_visit_file(cover_rpt_t *rpt, const cover_scope_t *s)
    return f;
 }
 
-static rpt_hier_t *rpt_visit_hier(cover_rpt_t *rpt, const cover_scope_t *s)
+static rpt_hier_t *rpt_visit_hier(cover_rpt_t *rpt, cover_obj_t scope)
 {
+   ident_t hier = cover_get_ident(rpt->data, scope, COV_ATTR_HIER);
+
    rpt_hier_t *h = pool_calloc(rpt->pool, sizeof(rpt_hier_t));
-   get_hex_hash(istr(s->hier), h->name_hash);
+   get_hex_hash(istr(hier), h->name_hash);
 
-   rpt_visit_file(rpt, s);
+   rpt_visit_file(rpt, scope);
 
-   assert(hash_get(rpt->hier, s->block) == NULL);
-   hash_put(rpt->hier, s->block, h);
+   cover_block_t *block = cover_get_block(rpt->data, scope);
 
-   rpt_visit_children(rpt, h, s);
+   assert(hash_get(rpt->hier, block) == NULL);
+   hash_put(rpt->hier, block, h);
+
+   rpt_visit_children(rpt, h, scope);
 
    rpt_merge_stats(&h->nested_stats, &h->flat_stats);
 
@@ -337,15 +345,16 @@ static rpt_hier_t *rpt_visit_hier(cover_rpt_t *rpt, const cover_scope_t *s)
 }
 
 static void rpt_visit_sub_scope(cover_rpt_t *rpt, rpt_hier_t *h,
-                                cover_scope_t *s)
+                                cover_obj_t scope)
 {
-   rpt_file_t *f_src = rpt_visit_file(rpt, s);
+   rpt_file_t *f_src = rpt_visit_file(rpt, scope);
    if (f_src != NULL) {
-      for (int i = 0; i < s->items.count; i++) {
-         cover_obj_t item = s->items.items[i];
+      const int nitems = cover_count(rpt->data, scope, COV_REL_ITEMS);
+
+      for (int i = 0; i < nitems; i++) {
+         cover_obj_t item = cover_at(rpt->data, scope, COV_REL_ITEMS, i);
 
          loc_t loc = cover_get_loc(rpt->data, item, COV_ATTR_LOC);
-         assert(loc.file_ref == s->loc.file_ref);
 
          const rpt_line_t *line = rpt_get_line(f_src, &loc);
          if (line == NULL)
@@ -368,21 +377,28 @@ static void rpt_visit_sub_scope(cover_rpt_t *rpt, rpt_hier_t *h,
       }
    }
 
-   rpt_visit_children(rpt, h, s);
+   rpt_visit_children(rpt, h, scope);
 }
 
 static void rpt_visit_children(cover_rpt_t *rpt, rpt_hier_t *h,
-                               const cover_scope_t *s)
+                               cover_obj_t scope)
 {
-   for (int i = 0; i < s->children.count; i++) {
-      cover_scope_t *it = s->children.items[i];
-      if (cover_is_hier(it)) {
-         rpt_hier_t *sub = rpt_visit_hier(rpt, it);
-         rpt_merge_stats(&h->nested_stats, &sub->nested_stats);
+   cover_obj_t batch[32];
+   int pos = 0, total;
+   do {
+      total = cover_rel(rpt->data, scope, COV_REL_CHILDREN, pos, batch,
+                        ARRAY_LEN(batch));
+      pos += ARRAY_LEN(batch);
+
+      for (int j = 0; j < MIN(total, ARRAY_LEN(batch)); j++) {
+         if (cover_is_hier(rpt->data, batch[j])) {
+            rpt_hier_t *sub = rpt_visit_hier(rpt, batch[j]);
+            rpt_merge_stats(&h->nested_stats, &sub->nested_stats);
+         }
+         else
+            rpt_visit_sub_scope(rpt, h, batch[j]);
       }
-      else
-         rpt_visit_sub_scope(rpt, h, it);
-   }
+   } while (total > ARRAY_LEN(batch));
 }
 
 static void rpt_gen_file_details(cover_rpt_t *rpt, rpt_file_t *f)
@@ -402,12 +418,14 @@ static void rpt_gen_file_details(cover_rpt_t *rpt, rpt_file_t *f)
    }
 }
 
-const rpt_file_t *rpt_get_file(cover_rpt_t *rpt, cover_scope_t *s)
+const rpt_file_t *rpt_get_file(cover_rpt_t *rpt, cover_obj_t scope)
 {
-   if (loc_invalid_p(&(s->loc)))
+   loc_t loc = cover_get_loc(rpt->data, scope, COV_ATTR_LOC);
+
+   if (loc_invalid_p(&loc))
       return NULL;
 
-   const char *path = loc_file_str(&(s->loc));
+   const char *path = loc_file_str(&loc);
    rpt_file_t *f = shash_get(rpt->files, path);
    if (f != NULL)
       return f->valid ? f : NULL;
@@ -415,13 +433,15 @@ const rpt_file_t *rpt_get_file(cover_rpt_t *rpt, cover_scope_t *s)
    return NULL;
 }
 
-const rpt_hier_t *rpt_get_hier(cover_rpt_t *rpt, cover_scope_t *s)
+const rpt_hier_t *rpt_get_hier(cover_rpt_t *rpt, cover_obj_t scope)
 {
-   assert(cover_is_hier(s));
+   assert(cover_is_hier(rpt->data, scope));
 
-   rpt_hier_t *h = hash_get(rpt->hier, s->block);
+   cover_block_t *block = cover_get_block(rpt->data, scope);
+
+   rpt_hier_t *h = hash_get(rpt->hier, block);
    if (h == NULL)
-      fatal_trace("no hierarchy report for %s", istr(s->block->name));
+      fatal_trace("no hierarchy report for %s", istr(block->name));
 
    return h;
 }
@@ -456,8 +476,9 @@ cover_rpt_t *cover_report_new(cover_data_t *db, int item_limit)
    rpt->hier       = hash_new(32);
    rpt->item_limit = item_limit;
 
-   for (int i = 0; i < db->root_scope->children.count; i++) {
-      cover_scope_t *child = AGET(db->root_scope->children, i);
+   const int nchildren = cover_count(db, db->root_scope, COV_REL_CHILDREN);
+   for (int i = 0; i < nchildren; i++) {
+      cover_obj_t child = cover_at(db, db->root_scope, COV_REL_CHILDREN, i);
       rpt_visit_hier(rpt, child);
    }
 

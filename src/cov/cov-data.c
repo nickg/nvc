@@ -128,6 +128,21 @@ static cover_range_t *cover_range_data(cover_data_t *db, cover_obj_t obj)
    return db->ranges.items + obj.id;
 }
 
+static const cover_scope_t *cover_scope_data_const(const cover_data_t *db,
+                                                   cover_obj_t obj)
+{
+   assert(obj.tag == COVER_TAG_SCOPE);
+   assert(obj.id < db->scopes.count);
+   return db->scopes.items + obj.id;
+}
+
+static cover_scope_t *cover_scope_data(cover_data_t *db, cover_obj_t obj)
+{
+   assert(obj.tag == COVER_TAG_SCOPE);
+   assert(obj.id < db->scopes.count);
+   return db->scopes.items + obj.id;
+}
+
 static cover_obj_t cover_alloc_bins(cover_data_t *db, unsigned count)
 {
    if (db->bins.count + count > db->bins.limit) {
@@ -171,27 +186,29 @@ void cover_add_ranges(cover_data_t *db, cover_obj_t obj, unsigned count)
    db->ranges.count += count;
 }
 
-cover_obj_t cover_item_new(cover_data_t *db, cover_scope_t *scope,
+cover_obj_t cover_item_new(cover_data_t *db, cover_obj_t scope,
                            cover_item_kind_t kind, int nbins)
 {
-   if (!scope->emit)
+   cover_scope_t *sd = cover_scope_data(db, scope);
+
+   if (!sd->emit)
       return COVER_NULL_OBJ;
 
    // Everything creates scope, so name of current item is already given
    // by scope in hierarchy.
-   ident_t hier = scope->hier;
+   ident_t hier = sd->hier;
 
    // Expression items do not nest scope, expression name must be created
    if (kind == COV_ITEM_EXPRESSION) {
       char buf[16];
-      checked_sprintf(buf, sizeof(buf), "_E%d", scope->expression_label);
+      checked_sprintf(buf, sizeof(buf), "_E%d", sd->expression_label);
       hier = ident_prefix(hier, ident_new(buf), '.');
-      scope->expression_label++;
+      sd->expression_label++;
    }
 
    int64_t metadata = 0;
    if (kind == COV_ITEM_TOGGLE)
-      metadata = scope->sig_pos;
+      metadata = sd->sig_pos;
 
    cover_item_t item = {
       .nbins     = nbins,
@@ -208,7 +225,7 @@ cover_obj_t cover_item_new(cover_data_t *db, cover_scope_t *scope,
    cover_bin_t *bins = db->bins.items + item.first_bin.id;
    for (int i = 0; i < nbins; i++) {
       bins[i] = (cover_bin_t){
-         .tag  = get_next_tag(scope->block),
+         .tag  = get_next_tag(sd->block),
          .hier = hier,
       };
    }
@@ -220,7 +237,7 @@ cover_obj_t cover_item_new(cover_data_t *db, cover_scope_t *scope,
 
    APUSH(db->items, item);
 
-   APUSH(scope->items, obj);
+   APUSH(sd->items, obj);
    return obj;
 }
 
@@ -268,49 +285,45 @@ static void cover_update_counts(cover_data_t *db, cover_scope_t *s)
    }
 
    for (int i = 0; i < s->children.count; i++)
-      cover_update_counts(db, s->children.items[i]);
+      cover_update_counts(db, cover_scope_data(db, s->children.items[i]));
 }
 
 static void cover_write_scope(cover_data_t *db, cover_scope_t *s, fbuf_t *f,
                               ident_wr_ctx_t ident_ctx, loc_wr_ctx_t *loc_ctx)
 {
-   if (s->block != NULL && s == s->block->self) {
+   if (s->block != NULL && s == cover_scope_data(db, s->block->self)) {
       write_u8(CTRL_PUSH_UNIT, f);
 
       ident_write(s->block->name, ident_ctx);
       fbuf_put_uint(f, s->block->next_tag);
+      fbuf_put_uint(f, s->block->self.bits);
    }
    else
       write_u8(CTRL_PUSH_SCOPE, f);
 
-   ident_write(s->name, ident_ctx);
-   ident_write(s->hier, ident_ctx);
-   ident_write(s->block_name, ident_ctx);
-   fbuf_put_uint(f, s->kind);
-   loc_write(&s->loc, loc_ctx);
-
-   fbuf_put_uint(f, s->items.count);
-   for (int i = 0; i < s->items.count; i++) {
-      assert(s->items.items[i].tag == COVER_TAG_ITEM);
-      fbuf_put_uint(f, s->items.items[i].id);
-   }
-
    for (int i = 0; i < s->children.count; i++)
-      cover_write_scope(db, s->children.items[i], f, ident_ctx, loc_ctx);
+      cover_write_scope(db, cover_scope_data(db, s->children.items[i]), f,
+                        ident_ctx, loc_ctx);
 
    write_u8(CTRL_POP_SCOPE, f);
 }
 
 LCOV_EXCL_START
-static void cover_debug_dump(cover_data_t *db, cover_scope_t *s, int indent)
+static void cover_debug_dump(const cover_data_t *db, cover_obj_t scope,
+                             int indent)
 {
-   nvc_printf("%*s$!blue$%s$$", indent, "", istr(s->name));
-   if (s->block_name != NULL)
-      printf(" : %s", istr(s->block_name));
+   ident_t name = cover_get_ident(db, scope, COV_ATTR_NAME);
+   ident_t block_name = cover_get_ident(db, scope, COV_ATTR_BLOCK_NAME);
+
+   nvc_printf("%*s$!blue$%pi$$", indent, "", name);
+   if (block_name != NULL)
+      nvc_printf(" : %pi", block_name);
    nvc_printf("\n");
 
-   for (int i = 0; i < s->items.count; i++) {
-      cover_obj_t item = s->items.items[i];
+   const int nitems = cover_count(db, scope, COV_REL_ITEMS);
+
+   for (int i = 0; i < nitems; i++) {
+      cover_obj_t item = cover_at(db, scope, COV_REL_ITEMS, i);
 
       int nbins = cover_count(db, item, COV_REL_BINS);
       cover_item_kind_t kind = cover_get_kind(db, item);
@@ -338,15 +351,19 @@ static void cover_debug_dump(cover_data_t *db, cover_scope_t *s, int indent)
       }
    }
 
-   for (int i = 0; i < s->children.count; i++)
-      cover_debug_dump(db, s->children.items[i], indent + 2);
+   const int nchildren = cover_count(db, scope, COV_REL_CHILDREN);
+
+   for (int i = 0; i < nchildren; i++) {
+      cover_obj_t child = cover_at(db, scope, COV_REL_CHILDREN, i);
+      cover_debug_dump(db, child, indent + 2);
+   }
 }
 LCOV_EXCL_STOP
 
 void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
 {
    if (dt == COV_DUMP_RUNTIME)
-      cover_update_counts(db, db->root_scope);
+      cover_update_counts(db, cover_scope_data(db, db->root_scope));
 
    if (opt_get_int(OPT_COVER_VERBOSE))
       cover_debug_dump(db, db->root_scope, 0);
@@ -408,7 +425,35 @@ void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
       ident_write(bin->hier, ident_ctx);
    }
 
-   cover_write_scope(db, db->root_scope, f, ident_ctx, loc_wr);
+   fbuf_put_uint(f, db->scopes.count);
+   for (int i = 0; i < db->scopes.count; i++) {
+      const cover_scope_t *s = &(db->scopes.items[i]);
+
+      ident_write(s->name, ident_ctx);
+      ident_write(s->hier, ident_ctx);
+      ident_write(s->block_name, ident_ctx);
+      fbuf_put_uint(f, s->kind);
+      loc_write(&s->loc, loc_wr);
+
+      fbuf_put_uint(f, s->parent.bits);
+
+      fbuf_put_uint(f, s->items.count);
+      for (int i = 0; i < s->items.count; i++) {
+         assert(s->items.items[i].tag == COVER_TAG_ITEM);
+         fbuf_put_uint(f, s->items.items[i].id);
+      }
+
+      fbuf_put_uint(f, s->children.count);
+      for (int i = 0; i < s->children.count; i++) {
+         assert(s->children.items[i].tag == COVER_TAG_SCOPE);
+         fbuf_put_uint(f, s->children.items[i].id);
+      }
+   }
+
+   fbuf_put_uint(f, db->root_scope.bits);
+
+   cover_write_scope(db, cover_scope_data(db, db->root_scope), f,
+                     ident_ctx, loc_wr);
 
    write_u8(CTRL_END_OF_FILE, f);
 
@@ -441,6 +486,7 @@ void cover_data_free(cover_data_t *db)
    free(db->items.items);
    free(db->bins.items);
    free(db->ranges.items);
+   free(db->scopes.items);
    hash_free(db->blocks);
    pool_free(db->pool);
    free(db);
@@ -451,12 +497,11 @@ bool cover_enabled(cover_data_t *data, cover_mask_t mask)
    return data != NULL && (data->mask & mask);
 }
 
-cover_scope_t *cover_create_block(cover_data_t *db, ident_t qual,
-                                  cover_scope_t *parent, tree_t inst,
-                                  tree_t unit)
+cover_obj_t cover_create_block(cover_data_t *db, ident_t qual,
+                               cover_obj_t parent, tree_t inst, tree_t unit)
 {
    if (db == NULL)
-      return NULL;
+      return COVER_NULL_OBJ;
 
    cover_block_t *b = pool_calloc(db->pool, sizeof(cover_block_t));
    b->name = qual;
@@ -464,96 +509,129 @@ cover_scope_t *cover_create_block(cover_data_t *db, ident_t qual,
    assert(hash_get(db->blocks, qual) == NULL);
    hash_put(db->blocks, qual, b);
 
-   if (parent == NULL) {
-      assert(db->root_scope == NULL);
+   if (cover_is_null(parent)) {
+      assert(cover_is_null(db->root_scope));
 
-      parent = db->root_scope = pool_calloc(db->pool, sizeof(cover_scope_t));
-      parent->loc = LOC_INVALID;
-      parent->name = parent->hier = lib_name(lib_work());
+      cover_scope_t root = {
+         .loc = LOC_INVALID,
+         .name = lib_name(lib_work()),
+         .hier = lib_name(lib_work()),
+      };
+
+      db->root_scope.tag = COVER_TAG_SCOPE;
+      db->root_scope.id = 0;
+
+      APUSH(db->scopes, root);
+
+      parent = db->root_scope;
    }
 
    b->self = cover_create_scope(db, parent, inst, tree_ident(inst));
-   b->self->block = b;
-   b->self->block_name = ident_rfrom(tree_ident(unit), '.');
-   b->self->emit = cover_should_emit_scope(db, b->self);
+
+   cover_scope_t *sd = cover_scope_data(db, b->self);
+   sd->block = b;
+   sd->block_name = ident_rfrom(tree_ident(unit), '.');
+   sd->emit = cover_should_emit_scope(db, b->self);
 
    return b->self;
 }
 
-cover_scope_t *cover_create_user_scope(cover_data_t *db, cover_scope_t *parent,
-                                       loc_t loc, ident_t name)
+cover_obj_t cover_create_user_scope(cover_data_t *db, cover_obj_t parent,
+                                    loc_t loc, ident_t name)
 {
    if (db == NULL)
-      return NULL;
+      return COVER_NULL_OBJ;
 
-   assert(parent != NULL);
+   assert(!cover_is_null(parent));
 
-   cover_scope_t *s = pool_calloc(db->pool, sizeof(cover_scope_t));
-   s->name   = name;
-   s->parent = parent;
-   s->loc    = loc;
-   s->hier   = ident_prefix(parent->hier, name, '.');
-   s->emit   = cover_should_emit_scope(db, s);
-   s->kind   = CSCOPE_USER;
+   cover_scope_t *pd = cover_scope_data(db, parent);
 
-   APUSH(parent->children, s);
-   return s;
+   cover_scope_t new = {};
+   new.name   = name;
+   new.parent = parent;
+   new.loc    = loc;
+   new.hier   = ident_prefix(pd->hier, name, '.');
+   new.kind   = CSCOPE_USER;
+
+   cover_obj_t obj = {
+      .tag = COVER_TAG_SCOPE,
+      .id = db->scopes.count,
+   };
+
+   APUSH(pd->children, obj);
+   APUSH(db->scopes, new);
+
+   cover_scope_t *sd = cover_scope_data(db, obj);
+   sd->emit = cover_should_emit_scope(db, obj);
+
+   return obj;
 }
 
-cover_scope_t *cover_create_scope(cover_data_t *db, cover_scope_t *parent,
-                                  tree_t t, ident_t name)
+cover_obj_t cover_create_scope(cover_data_t *db, cover_obj_t parent,
+                               tree_t t, ident_t name)
 {
    if (db == NULL)
-      return NULL;
+      return COVER_NULL_OBJ;
 
-   assert(parent != NULL);
-   assert(db->root_scope != NULL);
+   assert(!cover_is_null(parent));
+   assert(!cover_is_null(db->root_scope));
    assert(!is_design_unit(t));
 
-   cover_scope_t *s = pool_calloc(db->pool, sizeof(cover_scope_t));
+   cover_scope_t *pd = cover_scope_data(db, parent);
+
+   cover_scope_t new = {};
 
    switch (tree_kind(t)) {
    case T_BLOCK:
-      s->kind = CSCOPE_INSTANCE;
+      new.kind = CSCOPE_INSTANCE;
       break;
    case T_PROCESS:
    case T_INERTIAL:
-      s->kind = CSCOPE_PROCESS;
+      new.kind = CSCOPE_PROCESS;
       break;
    case T_PROC_BODY:
    case T_FUNC_BODY:
-      s->kind = CSCOPE_SUBPROG;
+      new.kind = CSCOPE_SUBPROG;
       break;
    case T_PSL_DIRECT:
-      s->kind = CSCOPE_PROPERTY;
+      new.kind = CSCOPE_PROPERTY;
       break;
    case T_PACK_INST:
    case T_PACKAGE:
    case T_PACK_BODY:
-      s->kind = CSCOPE_PACKAGE;
+      new.kind = CSCOPE_PACKAGE;
       break;
    case T_SIGNAL_DECL:
    case T_PORT_DECL:
       // For toggle coverage, remember the position where its name in
       // the hierarchy starts.
-      s->sig_pos = ident_len(parent->hier) + 1;
+      new.sig_pos = ident_len(pd->hier) + 1;
       break;
    default:
       break;
    }
 
-   s->parent = parent;
-   s->block  = parent->block;
-   s->name   = name;
-   s->loc    = *tree_loc(t);
-   s->hier   = ident_prefix(parent->hier, s->name, '.');
-   s->emit   = cover_should_emit_scope(db, s);
+   new.parent = parent;
+   new.block  = pd->block;
+   new.name   = name;
+   new.loc    = *tree_loc(t);
+   new.hier   = ident_prefix(pd->hier, new.name, '.');
 
-   if (s->sig_pos == 0)
-      s->sig_pos = parent->sig_pos;
+   if (new.sig_pos == 0)
+      new.sig_pos = pd->sig_pos;
 
-   APUSH(parent->children, s);
-   return s;
+   cover_obj_t obj = {
+      .tag = COVER_TAG_SCOPE,
+      .id = db->scopes.count,
+   };
+
+   APUSH(pd->children, obj);
+   APUSH(db->scopes, new);
+
+   cover_scope_t *sd = cover_scope_data(db, obj);
+   sd->emit = cover_should_emit_scope(db, obj);
+
+   return obj;
 }
 
 static void cover_read_header(fbuf_t *f, cover_data_t *data)
@@ -572,32 +650,12 @@ static void cover_read_header(fbuf_t *f, cover_data_t *data)
    data->array_limit = fbuf_get_uint(f);
 }
 
-static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
-                                       ident_rd_ctx_t ident_ctx,
-                                       loc_rd_ctx_t *loc_ctx,
-                                       cover_block_t *b,
-                                       cover_scope_t *parent)
+static void cover_read_scope(cover_data_t *db, fbuf_t *f,
+                             ident_rd_ctx_t ident_ctx,
+                             loc_rd_ctx_t *loc_ctx,
+                             cover_block_t *b,
+                             cover_scope_t *parent)
 {
-   cover_scope_t *s = pool_calloc(db->pool, sizeof(cover_scope_t));
-   s->name       = ident_read(ident_ctx);
-   s->hier       = ident_read(ident_ctx);
-   s->block_name = ident_read(ident_ctx);
-   s->kind       = fbuf_get_uint(f);
-   s->block      = b;
-   s->parent     = parent;
-
-   loc_read(&s->loc, loc_ctx);
-
-   const int nitems = fbuf_get_uint(f);
-   for (int i = 0; i < nitems; i++) {
-      cover_obj_t obj = {
-         .tag = COVER_TAG_ITEM,
-         .id = fbuf_get_uint(f),
-      };
-      assert(obj.id < db->items.count);
-      APUSH(s->items, obj);
-   }
-
    for (;;) {
       const uint8_t ctrl = read_u8(f);
       switch (ctrl) {
@@ -609,22 +667,21 @@ static cover_scope_t *cover_read_scope(cover_data_t *db, fbuf_t *f,
             cover_block_t *b = pool_calloc(db->pool, sizeof(cover_block_t));
             b->name = name;
             b->next_tag = fbuf_get_uint(f);
-            b->self = cover_read_scope(db, f, ident_ctx, loc_ctx, b, s);
+            b->self.bits = fbuf_get_uint(f);
+
+            cover_scope_t *self = cover_scope_data(db, b->self);
+            self->block = b;
 
             hash_put(db->blocks, b->name, b);
 
-            APUSH(s->children, b->self);
+            cover_read_scope(db, f, ident_ctx, loc_ctx, b, parent);
          }
          break;
       case CTRL_PUSH_SCOPE:
-         {
-            cover_scope_t *child =
-               cover_read_scope(db, f, ident_ctx, loc_ctx, b, s);
-            APUSH(s->children, child);
-         }
+         cover_read_scope(db, f, ident_ctx, loc_ctx, b, parent);
          break;
       case CTRL_POP_SCOPE:
-         return s;
+         return;
       default:
          fatal_trace("invalid control word %x in cover db", ctrl);
       }
@@ -703,13 +760,49 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
       bin->hier = ident_read(ident_ctx);
    }
 
+   db->scopes.count = db->scopes.limit = fbuf_get_uint(f);
+   db->scopes.items = xcalloc_array(db->scopes.count, sizeof(cover_scope_t));
+
+   for (int i = 0; i < db->scopes.count; i++) {
+      cover_scope_t *s = &(db->scopes.items[i]);
+
+      s->name = ident_read(ident_ctx);
+      s->hier = ident_read(ident_ctx);
+      s->block_name = ident_read(ident_ctx);
+      s->kind = fbuf_get_uint(f);
+      loc_read(&s->loc, loc_rd);
+
+      s->parent.bits = fbuf_get_uint(f);
+
+      s->items.count = s->items.limit = fbuf_get_uint(f);
+      s->items.items = xmalloc_array(s->items.count, sizeof(cover_obj_t));
+
+      for (int j = 0; j < s->items.count; j++) {
+         cover_obj_t obj = { .tag = COVER_TAG_ITEM };
+         obj.id = fbuf_get_uint(f);
+         assert(obj.id < db->items.count);
+         s->items.items[j] = obj;
+      }
+
+      s->children.count = s->children.limit = fbuf_get_uint(f);
+      s->children.items = xmalloc_array(s->children.count, sizeof(cover_obj_t));
+
+      for (int j = 0; j < s->children.count; j++) {
+         cover_obj_t obj = { .tag = COVER_TAG_SCOPE };
+         obj.id = fbuf_get_uint(f);
+         assert(obj.id < db->scopes.count);
+         s->children.items[j] = obj;
+      }
+   }
+
+   db->root_scope.bits = fbuf_get_uint(f);
+
    bool eof = false;
    do {
       const uint8_t ctrl = read_u8(f);
       switch (ctrl) {
       case CTRL_PUSH_SCOPE:
-         db->root_scope =
-            cover_read_scope(db, f, ident_ctx, loc_rd, NULL, NULL);
+         cover_read_scope(db, f, ident_ctx, loc_rd, NULL, NULL);
          break;
       case CTRL_END_OF_FILE:
          eof = true;
@@ -718,6 +811,13 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
          fatal_trace("invalid control word %x in cover db", ctrl);
       }
    } while (!eof);
+
+   for (int i = 0; i < db->scopes.count; i++) {
+     cover_scope_t *s = &db->scopes.items[i];
+
+     if (s->block == NULL && !cover_is_null(s->parent))
+        s->block = cover_scope_data(db, s->parent)->block;
+  }
 
    ident_read_end(ident_ctx);
    loc_read_end(loc_rd);
@@ -828,24 +928,31 @@ static cover_obj_t cover_clone_item(cover_data_t *dst_db,
    return item_obj;
 }
 
-static cover_scope_t *cover_clone_scope(cover_data_t *dst_db,
-                                        const cover_data_t *src_db,
-                                        const cover_scope_t *src,
-                                        cover_scope_t *parent,
-                                        cover_block_t *parent_block)
+static cover_obj_t cover_clone_scope(cover_data_t *dst_db,
+                                     const cover_data_t *src_db,
+                                     cover_obj_t src_scope,
+                                     cover_obj_t parent_scope,
+                                     cover_block_t *parent_block)
 {
-   cover_scope_t *copy = pool_malloc(dst_db->pool, sizeof(cover_scope_t));
-   memcpy(copy, src, sizeof(cover_scope_t));
+   cover_obj_t obj = {
+      .tag = COVER_TAG_SCOPE,
+      .id = dst_db->scopes.count,
+   };
 
-   copy->parent = parent;
+   APUSH(dst_db->scopes, *cover_scope_data_const(src_db, src_scope));
+
+   cover_scope_t *copy = cover_scope_data(dst_db, obj);
+   const cover_scope_t *src = cover_scope_data_const(src_db, src_scope);
+
+   copy->parent = parent_scope;
    copy->items = (cover_array_t)AINIT;
-   copy->children = (scope_array_t)AINIT;
+   copy->children = (cover_array_t)AINIT;
 
    cover_block_t *block = parent_block;
-   if (src->block != NULL && src->block->self == src) {
+   if (src->block != NULL && cover_equals(src->block->self, src_scope)) {
       block = pool_malloc(dst_db->pool, sizeof(cover_block_t));
       memcpy(block, src->block, sizeof(cover_block_t));
-      block->self = copy;
+      block->self = obj;
       block->data = NULL;
       hash_put(dst_db->blocks, block->name, block);
    }
@@ -855,21 +962,27 @@ static cover_scope_t *cover_clone_scope(cover_data_t *dst_db,
       APUSH(copy->items, cover_clone_item(dst_db, src_db, src->items.items[i]));
 
    for (int i = 0; i < src->children.count; i++) {
-      cover_scope_t *child = cover_clone_scope(dst_db, src_db,
-                                               src->children.items[i], copy,
-                                               block);
+      cover_obj_t child = cover_clone_scope(dst_db, src_db,
+                                            src->children.items[i], obj,
+                                            block);
+      copy = cover_scope_data(dst_db, obj);  // May be invalidated
       APUSH(copy->children, child);
    }
 
-   return copy;
+   return obj;
 }
 
 static void cover_merge_scope(cover_data_t *dst_db,
                               const cover_data_t *src_db,
-                              cover_scope_t *dst_s,
-                              const cover_scope_t *src_s,
+                              cover_obj_t dst_scope,
+                              cover_obj_t src_scope,
                               merge_mode_t mode)
 {
+   const cover_scope_t *src_s = cover_scope_data_const(src_db, src_scope);
+   cover_scope_t *dst_s = cover_scope_data(dst_db, dst_scope);
+
+   cover_block_t *parent_block = dst_s->block;
+
    for (int i = 0; i < src_s->items.count; i++) {
       cover_obj_t src = AGET(src_s->items, i);
 
@@ -896,22 +1009,29 @@ static void cover_merge_scope(cover_data_t *dst_db,
       }
    }
 
-   for (int i = 0; i < src_s->children.count; i++) {
-      cover_scope_t *new_c = src_s->children.items[i];
+   const int src_nchildren = cover_count(src_db, src_scope, COV_REL_CHILDREN);
+   const int dst_nchildren = cover_count(src_db, dst_scope, COV_REL_CHILDREN);
+
+   for (int i = 0; i < src_nchildren; i++) {
+      cover_obj_t src_c = cover_at(src_db, src_scope, COV_REL_CHILDREN, i);
+      ident_t src_name = cover_get_ident(src_db, src_c, COV_ATTR_NAME);
+
       bool found = false;
-      for (int j = 0; j < dst_s->children.count; j++) {
-         cover_scope_t *old_c = dst_s->children.items[j];
-         if (new_c->name == old_c->name) {
-            cover_merge_scope(dst_db, src_db, old_c, new_c, mode);
+      for (int j = 0; j < dst_nchildren; j++) {
+         cover_obj_t dst_c = cover_at(dst_db, dst_scope, COV_REL_CHILDREN, j);
+         ident_t dst_name = cover_get_ident(dst_db, dst_c, COV_ATTR_NAME);
+
+         if (dst_name == src_name) {
+            cover_merge_scope(dst_db, src_db, dst_c, src_c, mode);
             found = true;
             break;
          }
       }
 
       if (!found && mode == MERGE_UNION) {
-         cover_scope_t *copy = cover_clone_scope(dst_db, src_db, new_c, dst_s,
-                                                 dst_s->block);
-         APUSH(dst_s->children, copy);
+         cover_obj_t copy = cover_clone_scope(dst_db, src_db, src_c, dst_scope,
+                                              parent_block);
+         cover_append(dst_db, dst_scope, COV_REL_CHILDREN, copy);
       }
    }
 }
@@ -939,41 +1059,46 @@ int32_t *cover_get_counters(cover_data_t *db, ident_t name)
    return b->data;
 }
 
-cover_scope_t *cover_get_scope(cover_data_t *db, ident_t name)
+cover_obj_t cover_get_scope(cover_data_t *db, ident_t name)
 {
    if (db == NULL)
-      return NULL;
+      return COVER_NULL_OBJ;
 
    cover_block_t *b = hash_get(db->blocks, name);
    if (b == NULL)
-      return NULL;
+      return COVER_NULL_OBJ;
 
    return b->self;
 }
 
-cover_scope_t *cover_get_child(cover_scope_t *s, ident_t name)
+cover_obj_t cover_get_child(const cover_data_t *db, cover_obj_t scope,
+                            ident_t name)
 {
-   if (s == NULL)
-      return NULL;
-
-   for (int i = 0; i < s->children.count; i++) {
-      if (s->children.items[i]->name == name)
-         return s->children.items[i];
-   }
-
-   return NULL;
-}
-
-cover_obj_t cover_get_item(cover_data_t *db, cover_scope_t *s,
-                           cover_item_kind_t kind, int nth)
-{
-   if (s == NULL)
+   if (cover_is_null(scope))
       return COVER_NULL_OBJ;
 
-   for (int i = 0; i < s->items.count; i++) {
-      cover_item_t *item = &(db->items.items[s->items.items[i].id]);
+   const cover_scope_t *sd = cover_scope_data_const(db, scope);
+
+   for (int i = 0; i < sd->children.count; i++) {
+      if (cover_get_ident(db, sd->children.items[i], COV_ATTR_NAME) == name)
+         return sd->children.items[i];
+   }
+
+   return COVER_NULL_OBJ;
+}
+
+cover_obj_t cover_get_item(const cover_data_t *db, cover_obj_t scope,
+                           cover_item_kind_t kind, int nth)
+{
+   if (cover_is_null(scope))
+      return COVER_NULL_OBJ;
+
+   const cover_scope_t *sd = cover_scope_data_const(db, scope);
+
+   for (int i = 0; i < sd->items.count; i++) {
+      cover_item_t *item = &(db->items.items[sd->items.items[i].id]);
       if (item->kind == kind && nth-- == 0)
-         return s->items.items[i];
+         return sd->items.items[i];
    }
 
    return COVER_NULL_OBJ;
@@ -1004,9 +1129,9 @@ const char *cover_item_kind_str(cover_item_kind_t kind)
    return item_kind_str[kind];
 }
 
-bool cover_is_hier(cover_scope_t *s)
+bool cover_is_hier(const cover_data_t *db, cover_obj_t scope)
 {
-   switch (s->kind) {
+   switch (cover_scope_data_const(db, scope)->kind) {
    case CSCOPE_INSTANCE:
    case CSCOPE_PACKAGE:
       return true;
@@ -1015,35 +1140,16 @@ bool cover_is_hier(cover_scope_t *s)
    }
 }
 
-bool cover_is_leaf(cover_scope_t *s)
+bool cover_is_leaf(const cover_data_t *db, cover_obj_t scope)
 {
+   const cover_scope_t *s = cover_scope_data_const(db, scope);
+
    for (int i = 0; i < s->children.count; i++) {
-      if (cover_is_hier(s->children.items[i]))
+      if (cover_is_hier(db, s->children.items[i]))
          return false;
    }
 
    return true;
-}
-
-bool cover_bin_unreachable(cover_data_t *data, cover_item_kind_t kind,
-                           const cover_bin_t *bin)
-{
-   if ((data->mask & COVER_MASK_EXCLUDE_UNREACHABLE) == 0)
-      return false;
-
-   // Toggle items remember unreachability in run-time data. Must check
-   // item kind not to get false unreachability on statement items.
-   // Excludes both bins automatically!
-   if (kind == COV_ITEM_TOGGLE
-       && ((bin->data & COV_FLAG_UNREACHABLE) != 0))
-      return true;
-
-   // Expression items remember unreachability as unreachable mask
-   if (kind == COV_ITEM_EXPRESSION
-       && ((bin->flags & COV_FLAG_UNREACHABLE) != 0))
-      return true;
-
-   return false;
 }
 
 size_t cover_count(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel)
@@ -1064,6 +1170,18 @@ static size_t cover_rel_contig(unsigned rel_count, cover_obj_t rel_first,
       out[i].id  = rel_first.id + first + i;
    }
 
+   return count;
+}
+
+static size_t cover_rel_array(const cover_array_t *arr, unsigned first,
+                              cover_obj_t *out, size_t max)
+{
+   if (first >= arr->count)
+      return 0;
+
+   const size_t count = arr->count - first;
+
+   memcpy(out, arr->items + first, MIN(count, max) * sizeof(cover_obj_t));
    return count;
 }
 
@@ -1093,6 +1211,18 @@ size_t cover_rel(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel,
             return 0;
          }
       }
+   case COVER_TAG_SCOPE:
+      {
+         const cover_scope_t *scope = cover_scope_data_const(db, obj);
+         switch (rel) {
+         case COV_REL_ITEMS:
+            return cover_rel_array(&scope->items, first, out, max);
+         case COV_REL_CHILDREN:
+            return cover_rel_array(&scope->children, first, out, max);
+         default:
+            return 0;
+         }
+      }
    default:
       return 0;
    }
@@ -1106,6 +1236,41 @@ cover_obj_t cover_at(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel,
       return COVER_NULL_OBJ;
    else
       return result[0];
+}
+
+void cover_map(cover_data_t *db, cover_obj_t obj, cover_rel_t rel,
+               cover_map_fn_t fn, void *ctx)
+{
+   cover_obj_t batch[32];
+   int pos = 0, total;
+   do {
+      total = cover_rel(db, obj, rel, pos, batch, ARRAY_LEN(batch));
+      pos += ARRAY_LEN(batch);
+
+      for (int j = 0; j < MIN(total, ARRAY_LEN(batch)); j++)
+         (*fn)(db, batch[j], ctx);
+   } while (total > ARRAY_LEN(batch));
+}
+
+void cover_append(cover_data_t *db, cover_obj_t parent, cover_rel_t rel,
+                  cover_obj_t obj)
+{
+   switch (parent.tag) {
+   case COVER_TAG_SCOPE:
+      {
+         cover_scope_t *s = cover_scope_data(db, parent);
+         switch (rel) {
+         case COV_REL_CHILDREN:
+            assert(obj.tag == COVER_TAG_SCOPE);
+            APUSH(s->children, obj);
+            return;
+         default:
+            should_not_reach_here();
+         }
+      }
+   default:
+      should_not_reach_here();
+   }
 }
 
 uint32_t cover_get_u32(const cover_data_t *db, cover_obj_t obj,
@@ -1184,6 +1349,16 @@ ident_t cover_get_ident(const cover_data_t *db, cover_obj_t obj,
          default:                 return NULL;
          }
       }
+   case COVER_TAG_SCOPE:
+      {
+         const cover_scope_t *scope = cover_scope_data_const(db, obj);
+         switch (attr) {
+         case COV_ATTR_NAME:       return scope->name;
+         case COV_ATTR_HIER:       return scope->hier;
+         case COV_ATTR_BLOCK_NAME: return scope->block_name;
+         default:                  return NULL;
+         }
+      }
    default:
       return NULL;
    }
@@ -1202,8 +1377,33 @@ loc_t cover_get_loc(const cover_data_t *db, cover_obj_t obj, cover_attr_t attr)
          default:               return LOC_INVALID;
          }
       }
+   case COVER_TAG_SCOPE:
+      {
+         const cover_scope_t *scope = cover_scope_data_const(db, obj);
+         switch (attr) {
+         case COV_ATTR_LOC: return scope->loc;
+         default:           return LOC_INVALID;
+         }
+      }
    default:
       return LOC_INVALID;
+   }
+}
+
+cover_obj_t cover_get_obj(const cover_data_t *db, cover_obj_t obj,
+                          cover_attr_t attr)
+{
+   switch (obj.tag) {
+   case COVER_TAG_SCOPE:
+      {
+         const cover_scope_t *scope = cover_scope_data_const(db, obj);
+         switch (attr) {
+         case COV_ATTR_PARENT: return scope->parent;
+         default:              return COVER_NULL_OBJ;
+         }
+      }
+   default:
+      return COVER_NULL_OBJ;
    }
 }
 
@@ -1324,6 +1524,23 @@ void cover_put_ident(cover_data_t *db, cover_obj_t obj, cover_attr_t attr,
             should_not_reach_here();
          }
       }
+   case COVER_TAG_SCOPE:
+      {
+         cover_scope_t *scope = cover_scope_data(db, obj);
+         switch (attr) {
+         case COV_ATTR_NAME:
+            scope->name = value;
+            return;
+         case COV_ATTR_HIER:
+            scope->hier = value;
+            return;
+         case COV_ATTR_BLOCK_NAME:
+            scope->block_name = value;
+            return;
+         default:
+            should_not_reach_here();
+         }
+      }
    default:
       should_not_reach_here();
    }
@@ -1364,4 +1581,9 @@ void cover_put_flags(cover_data_t *db, cover_obj_t obj, cover_flags_t flags)
    default:
       should_not_reach_here();
    }
+}
+
+cover_block_t *cover_get_block(cover_data_t *db, cover_obj_t scope)
+{
+   return cover_scope_data(db, scope)->block;
 }

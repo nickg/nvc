@@ -34,7 +34,7 @@ typedef struct _lazy_cscope lazy_cscope_t;
 
 typedef struct _lazy_cscope {
    lazy_cscope_t *parent;
-   cover_scope_t *cscope;
+   cover_obj_t    cscope;
    tree_t         tree;
    int            nth;
 } lazy_cscope_t;
@@ -54,12 +54,12 @@ typedef struct {
 
 static void vhdl_cover_stmts(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent);
 
-static cover_scope_t *get_cover_scope(vhdl_cover_t *g, lazy_cscope_t *lcs)
+static cover_obj_t get_cover_scope(vhdl_cover_t *g, lazy_cscope_t *lcs)
 {
-   if (lcs->cscope != NULL)
+   if (!cover_is_null(lcs->cscope))
       return lcs->cscope;
    else {
-      cover_scope_t *parent = get_cover_scope(g, lcs->parent);
+      cover_obj_t parent = get_cover_scope(g, lcs->parent);
       ident_t name = vhdl_scope_name(lcs->tree, lcs->nth);
       return (lcs->cscope =
               cover_create_scope(g->data, parent, lcs->tree, name));
@@ -81,7 +81,7 @@ static bool is_coverage_off(vhdl_cover_t *g, loc_t loc)
 
 static lazy_cscope_t lazy_cover_scope(tree_t t, lazy_cscope_t *parent, int nth)
 {
-   lazy_cscope_t lcs = { parent, NULL, t, nth };
+   lazy_cscope_t lcs = { parent, COVER_NULL_OBJ, t, nth };
    return lcs;
 }
 
@@ -102,7 +102,7 @@ static void vhdl_cover_branch(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
    if (is_coverage_off(g, loc))
       return;
 
-   cover_scope_t *cs = get_cover_scope(g, parent);
+   cover_obj_t cs = get_cover_scope(g, parent);
 
    if (tree_kind(t) == T_CHOICE) {  // Case choice
       cover_obj_t item = cover_item_new(g->data, cs, COV_ITEM_BRANCH, 1);
@@ -172,7 +172,7 @@ static void vhdl_cover_stmt(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
    if (is_coverage_off(g, loc))
       return;
 
-   cover_scope_t *cs = get_cover_scope(g, parent);
+   cover_obj_t cs = get_cover_scope(g, parent);
 
    cover_obj_t item = cover_item_new(g->data, cs, COV_ITEM_STMT, 1);
    if (cover_is_null(item))
@@ -284,7 +284,7 @@ static void vhdl_cover_expr(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
       should_not_reach_here();
    }
 
-   cover_scope_t *cs = get_cover_scope(g, parent);
+   cover_obj_t cs = get_cover_scope(g, parent);
 
    cover_obj_t item = cover_item_new(g->data, cs, COV_ITEM_EXPRESSION, nbins);
    if (cover_is_null(item))
@@ -342,7 +342,7 @@ static void vhdl_cover_states(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
    if (!folded_bounds(range_of(type, 0), &low, &high))
       return;
 
-   cover_scope_t *cs = get_cover_scope(g, parent);
+   cover_obj_t cs = get_cover_scope(g, parent);
 
    const int nbins = high - low + 1;
    cover_obj_t set = cover_item_new(g->data, cs, COV_ITEM_STATE, nbins);
@@ -548,7 +548,7 @@ static void vhdl_cover_toggle(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
    if (nelems == 0)
       return;
 
-   cover_scope_t *cs = get_cover_scope(g, parent);
+   cover_obj_t cs = get_cover_scope(g, parent);
 
    cover_flags_t flags = 0;
    if (tree_kind(t) == T_SIGNAL_DECL)
@@ -825,11 +825,11 @@ static void ignore_from_pragmas(vhdl_cover_t *g, tree_t unit)
    }
 }
 
-void vhdl_cover_block(tree_t block, cover_data_t *db, cover_scope_t *cs)
+void vhdl_cover_block(tree_t block, cover_data_t *db, cover_obj_t cs)
 {
    assert(tree_kind(block) == T_BLOCK);
 
-   if (db == NULL || cs == NULL)
+   if (db == NULL || cover_is_null(cs))
       return;
 
    vhdl_cover_t g = {

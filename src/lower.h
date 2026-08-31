@@ -20,6 +20,7 @@
 
 #include "prim.h"
 #include "array.h"
+#include "cov/cov-api.h"
 #include "mir/mir-unit.h"
 
 typedef int32_t vcode_reg_t;
@@ -46,7 +47,7 @@ typedef struct _lower_unit {
    var_list_t       free_temps;
    vcode_unit_t     vunit;
    cover_data_t    *cover;
-   cover_scope_t   *cscope;
+   cover_obj_t      cscope;
    bool             finished;
    lower_mode_t     mode;
    unsigned         deferred;
@@ -82,7 +83,7 @@ vcode_type_t lower_type(type_t type);
 vcode_stamp_t lower_bounds(type_t type);
 
 lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
-                             cover_data_t *cover, cover_scope_t *cs,
+                             cover_data_t *cover, cover_obj_t cscope,
                              tree_t block);
 vcode_unit_t lower_global_thunk(unit_registry_t *registry, tree_t t);
 vcode_unit_t lower_thunk_in_context(unit_registry_t *registry, tree_t t,
