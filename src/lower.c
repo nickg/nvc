@@ -60,9 +60,9 @@ typedef struct {
 } loop_info_t;
 
 struct _gen_stack {
-   gen_stack_t   *up;
-   loop_info_t   *loop;
-   cover_scope_t *cscope;
+   gen_stack_t *up;
+   loop_info_t *loop;
+   cover_obj_t  cscope;
 };
 
 #define INSTANCE_BIT  0x80000000
@@ -1687,7 +1687,7 @@ static void lower_branch_coverage(lower_unit_t *lu, tree_t b, int nth,
 
 static void lower_stmt_coverage(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 {
-   if (gs->cscope == NULL)
+   if (cover_is_null(gs->cscope))
       return;
    else if (!cover_enabled(lu->cover, COVER_MASK_STMT))
       return;
@@ -6200,14 +6200,15 @@ static gen_stack_t lower_push_loop(gen_stack_t *gs, loop_info_t *loop)
    return this;
 }
 
-static gen_stack_t lower_push_cscope(gen_stack_t *gs, tree_t t, int nth)
+static gen_stack_t lower_push_cscope(lower_unit_t *lu, gen_stack_t *gs,
+                                     tree_t t, int nth)
 {
-   if (gs->cscope == NULL)
+   if (cover_is_null(gs->cscope))
       return *gs;
 
    ident_t name = vhdl_scope_name(t, nth);
-   cover_scope_t *cs = cover_get_child(gs->cscope, name);
-   if (cs == NULL)
+   cover_obj_t cs = cover_get_child(lu->cover, gs->cscope, name);
+   if (cover_is_null(cs))
       return *gs;
 
    gen_stack_t this = {
@@ -6641,7 +6642,7 @@ static void lower_sequence(lower_unit_t *lu, tree_t block, gen_stack_t *gs)
    const int nstmts = tree_stmts(block);
    for (int i = 0; i < nstmts; i++) {
       tree_t s = tree_stmt(block, i);
-      gen_stack_t this = lower_push_cscope(gs, s, i);
+      gen_stack_t this = lower_push_cscope(lu, gs, s, i);
       lower_stmt(lu, s, &this);
    }
 }
@@ -6658,7 +6659,7 @@ static void lower_if(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
       tree_t c = tree_cond(stmt, i);
       vcode_block_t next_bb = VCODE_INVALID_BLOCK;
 
-      gen_stack_t this = lower_push_cscope(gs, c, i);
+      gen_stack_t this = lower_push_cscope(lu, gs, c, i);
 
       if (tree_has_value(c)) {
          int nexpr = 0;
@@ -7154,7 +7155,7 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
 
             emit_cond(hit_reg, hit_bb, skip_bb);
 
-            gen_stack_t this = lower_push_cscope(gs, alt, i);
+            gen_stack_t this = lower_push_cscope(lu, gs, alt, i);
 
             if (want_coverage)
                lower_branch_coverage(lu, a, j, hit_bb, VCODE_INVALID_BLOCK,
@@ -7183,7 +7184,7 @@ static void lower_case_scalar(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
       tree_t alt = tree_stmt(stmt, i);
       vcode_block_t hit_bb = VCODE_INVALID_BLOCK;
 
-      gen_stack_t this = lower_push_cscope(gs, alt, i);
+      gen_stack_t this = lower_push_cscope(lu, gs, alt, i);
 
       const int nchoices = tree_choices(alt);
       for (int j = 0; j < nchoices; j++) {
@@ -7407,7 +7408,7 @@ static void lower_case_array(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
    for (int i = 0; i < nstmts; i++) {
       tree_t alt = tree_stmt(stmt, i);
 
-      gen_stack_t this = lower_push_cscope(gs, alt, i);
+      gen_stack_t this = lower_push_cscope(lu, gs, alt, i);
 
       const int nchoices = tree_choices(alt);
       for (int j = 0; j < nchoices; j++) {
@@ -8413,12 +8414,12 @@ static void lower_signal_decl(lower_unit_t *lu, tree_t decl, gen_stack_t *gs)
                      VCODE_INVALID_REG, flags, bounds_reg);
 
    if (cover_enabled(lu->cover, COVER_MASK_TOGGLE)) {
-      gen_stack_t this = lower_push_cscope(gs, decl, 0);
+      gen_stack_t this = lower_push_cscope(lu, gs, decl, 0);
       lower_toggle_coverage(lu, decl, var, &this);
    }
 
    if (cover_enabled(lu->cover, COVER_MASK_STATE)) {
-      gen_stack_t this = lower_push_cscope(gs, decl, 0);
+      gen_stack_t this = lower_push_cscope(lu, gs, decl, 0);
       lower_state_coverage(lu, decl, &this);
    }
 }
@@ -9821,18 +9822,19 @@ static void lower_new_helper(lower_unit_t *lu, object_t *obj)
    emit_return(VCODE_INVALID_REG);
 }
 
-static cover_scope_t *lower_get_cscope(lower_unit_t *lu)
+static cover_obj_t lower_get_cscope(lower_unit_t *lu)
 {
    if (lu == NULL)
-      return NULL;
-   else if (lu->cscope != NULL)
+      return COVER_NULL_OBJ;
+   else if (!cover_is_null(lu->cscope))
       return lu->cscope;
    else {
-      cover_scope_t *parent = lower_get_cscope(lu->parent);
-      if (parent == NULL)
-         return NULL;
+      cover_obj_t parent = lower_get_cscope(lu->parent);
+      if (cover_is_null(parent))
+         return COVER_NULL_OBJ;
       else
-         return cover_get_child(parent, vhdl_scope_name(lu->container, 0));
+         return cover_get_child(lu->cover, parent,
+                                vhdl_scope_name(lu->container, 0));
    }
 }
 
@@ -12173,7 +12175,7 @@ static void lower_ports(lower_unit_t *lu, tree_t block, tree_t src,
    if (cover_enabled(lu->cover, COVER_MASK_TOGGLE)) {
       for (int i = 0; i < nports; i++) {
          tree_t port = tree_port(block, i);
-         gen_stack_t this = lower_push_cscope(gs, port, 0);
+         gen_stack_t this = lower_push_cscope(lu, gs, port, 0);
          lower_toggle_coverage(lu, port, port_vars[i], &this);
       }
    }
@@ -12781,7 +12783,7 @@ vcode_unit_t lower_thunk_in_context(unit_registry_t *registry, tree_t t,
 }
 
 lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
-                             cover_data_t *cover, cover_scope_t *cs,
+                             cover_data_t *cover, cover_obj_t cscope,
                              tree_t block)
 {
    assert(tree_kind(block) == T_BLOCK);
@@ -12807,13 +12809,13 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
    lower_unit_t *lu = lower_unit_new(ur, parent, vu, cover, block);
    unit_registry_put(ur, lu);
 
-   lu->cscope = cs;
+   lu->cscope = cscope;
 
    gen_stack_t gs = {
-      .cscope = cs,
+      .cscope = cscope,
    };
 
-   if (lu->cscope != NULL) {
+   if (!cover_is_null(lu->cscope)) {
       vcode_reg_t ptr = emit_get_counters(lu->name);
 
       vcode_type_t vtype = vcode_reg_type(ptr);

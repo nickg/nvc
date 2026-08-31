@@ -25,10 +25,10 @@
 #include "util.h"
 
 typedef struct _cover_block {
-   ident_t        name;
-   unsigned       next_tag;
-   cover_scope_t *self;
-   int32_t       *data;
+   ident_t      name;
+   unsigned     next_tag;
+   cover_obj_t  self;
+   int32_t     *data;
 } cover_block_t;
 
 typedef struct {

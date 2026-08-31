@@ -22,18 +22,18 @@
 #include "cov/cov-api.h"
 #include "cov/cov-structs.h"
 
-bool cover_is_hier(cover_scope_t *s);
-bool cover_is_leaf(cover_scope_t *s);
-bool cover_bin_unreachable(cover_data_t *data, cover_item_kind_t kind,
-                           const cover_bin_t *bin);
+bool cover_is_hier(const cover_data_t *db, cover_obj_t scope);
+bool cover_is_leaf(const cover_data_t *db, cover_obj_t scope);
 
-bool cover_should_emit_scope(cover_data_t *db, cover_scope_t *cs);
+bool cover_should_emit_scope(const cover_data_t *db, cover_obj_t scope);
 
-const rpt_file_t *rpt_get_file(cover_rpt_t *rpt, cover_scope_t *s);
-const rpt_hier_t *rpt_get_hier(cover_rpt_t *rpt, cover_scope_t *s);
+const rpt_file_t *rpt_get_file(cover_rpt_t *rpt, cover_obj_t scope);
+const rpt_hier_t *rpt_get_hier(cover_rpt_t *rpt, cover_obj_t scope);
 unsigned rpt_get_skipped(cover_rpt_t *rpt);
 
 typedef void (*rpt_file_fn_t)(const rpt_file_t *, void *);
 int rpt_iter_files(cover_rpt_t *rpt, rpt_file_fn_t fn, void *ctx);
+
+cover_block_t *cover_get_block(cover_data_t *db, cover_obj_t scope);
 
 #endif   // _COV_PRIV_H

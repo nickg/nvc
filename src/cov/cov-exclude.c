@@ -19,6 +19,7 @@
 #include "array.h"
 #include "cov/cov-api.h"
 #include "cov/cov-data.h"
+#include "cov/cov-priv.h"
 #include "ident.h"
 #include "option.h"
 #include "printf.h"
@@ -136,17 +137,21 @@ static excl_trie_t *excl_trie_search(excl_trie_t *et, ident_t id)
    return NULL;
 }
 
-static excl_trie_t *excl_trie_for_scope(excl_trie_t *root,
-                                        const cover_scope_t *cs)
+static excl_trie_t *excl_trie_for_scope(const cover_data_t *db,
+                                        excl_trie_t *root, cover_obj_t scope)
 {
-   if (cs == NULL)
+   if (cover_is_null(scope))
       return root;
 
-   excl_trie_t *parent = excl_trie_for_scope(root, cs->parent);
+   cover_obj_t parent_scope = cover_get_obj(db, scope, COV_ATTR_PARENT);
+
+   excl_trie_t *parent = excl_trie_for_scope(db, root, parent_scope);
    if (parent == NULL)
       return NULL;
 
-   excl_trie_t *et = excl_trie_search(parent, ident_rfrom(cs->hier, '.'));
+   ident_t hier = cover_get_ident(db, scope, COV_ATTR_HIER);
+
+   excl_trie_t *et = excl_trie_search(parent, ident_rfrom(hier, '.'));
    if (et != NULL)
       return et;
 
@@ -187,7 +192,7 @@ static void excl_trie_print(excl_trie_t *et, int indent)
 ////////////////////////////////////////////////////////////////////////////////
 // Exclude file
 
-static void cover_exclude_items(cover_data_t *db, cover_obj_t item)
+static void cover_exclude_items(cover_data_t *db, cover_obj_t item, void *ctx)
 {
    const int nbins = cover_count(db, item, COV_REL_BINS);
 
@@ -220,13 +225,10 @@ static void cover_exclude_items(cover_data_t *db, cover_obj_t item)
    }
 }
 
-static void cover_exclude_scope(cover_data_t *data, cover_scope_t *s)
+static void cover_exclude_scope(cover_data_t *db, cover_obj_t scope, void *ctx)
 {
-   for (int i = 0; i < s->items.count; i++)
-      cover_exclude_items(data, AGET(s->items, i));
-
-   for (int i = 0; i < s->children.count; i++)
-      cover_exclude_scope(data, s->children.items[i]);
+   cover_map(db, scope, COV_REL_ITEMS, cover_exclude_items, NULL);
+   cover_map(db, scope, COV_REL_CHILDREN, cover_exclude_scope, NULL);
 }
 
 static void cover_parse_exclude_file(const char *path, cover_data_t *data)
@@ -334,7 +336,7 @@ static void cover_apply_exclude_cmds(cover_data_t *data)
    for (int i = 0; i < data->ef->n_excl_cmds; i++)
       data->ef->excl[i].found = false;
 
-   cover_exclude_scope(data, data->root_scope);
+   cover_exclude_scope(data, data->root_scope, NULL);
 
    for (int i = 0; i < data->ef->n_excl_cmds; i++)
       if (!data->ef->excl[i].found)
@@ -342,21 +344,27 @@ static void cover_apply_exclude_cmds(cover_data_t *data)
                  "coverage item: '%s'", istr(data->ef->excl[i].hier));
 }
 
-static void cover_fold_scopes(cover_data_t *db, cover_scope_t *tgt_scope,
-                              cover_scope_t *src_scope)
+static void cover_fold_scopes(cover_data_t *db, cover_obj_t tgt_scope,
+                              cover_obj_t src_scope)
 {
-   int tgt_prefix_len = ident_len(tgt_scope->hier);
-   int src_prefix_len = ident_len(src_scope->hier);
+   ident_t tgt_scope_hier = cover_get_ident(db, tgt_scope, COV_ATTR_HIER);
+   ident_t src_scope_hier = cover_get_ident(db, src_scope, COV_ATTR_HIER);
+
+   int tgt_prefix_len = ident_len(tgt_scope_hier);
+   int src_prefix_len = ident_len(src_scope_hier);
+
+   const int tgt_nitems = cover_count(db, tgt_scope, COV_REL_ITEMS);
+   const int src_nitems = cover_count(db, src_scope, COV_REL_ITEMS);
 
    // Process items
-   for (int i = 0; i < src_scope->items.count; i++) {
-      cover_obj_t src = AGET(src_scope->items, i);
+   for (int i = 0; i < src_nitems; i++) {
+      cover_obj_t src = cover_at(db, src_scope, COV_REL_ITEMS, i);
 
       cover_item_kind_t src_kind = cover_get_kind(db, src);
       int src_nbins = cover_count(db, src, COV_REL_BINS);
 
-      for (int j = 0; j < tgt_scope->items.count; j++) {
-         cover_obj_t tgt = AGET(tgt_scope->items, j);
+      for (int j = 0; j < tgt_nitems; j++) {
+         cover_obj_t tgt = cover_at(db, tgt_scope, COV_REL_ITEMS, j);
 
          cover_item_kind_t tgt_kind = cover_get_kind(db, tgt);
          int tgt_nbins = cover_count(db, tgt, COV_REL_BINS);
@@ -394,22 +402,29 @@ static void cover_fold_scopes(cover_data_t *db, cover_scope_t *tgt_scope,
       }
    }
 
-   // Process sub-scopes
-   for (int i = 0; i < src_scope->children.count; i++) {
-      cover_scope_t *src = src_scope->children.items[i];
+   const int tgt_nchildren = cover_count(db, tgt_scope, COV_REL_CHILDREN);
+   const int src_nchildren = cover_count(db, src_scope, COV_REL_CHILDREN);
 
-      for (int j = 0; j < tgt_scope->children.count; j++) {
-         cover_scope_t *tgt = tgt_scope->children.items[j];
+   // Process sub-scopes
+   for (int i = 0; i < src_nchildren; i++) {
+      cover_obj_t src = cover_at(db, src_scope, COV_REL_CHILDREN, i);
+
+      ident_t src_hier = cover_get_ident(db, src, COV_ATTR_HIER);
+
+      for (int j = 0; j < tgt_nchildren; j++) {
+         cover_obj_t tgt = cover_at(db, tgt_scope, COV_REL_CHILDREN, j);
 
          // Compare hierarchical paths, but strip "tgt_scope" prefix from "tgt",
          // and "src_scope" from "src". Only suffix of hierarchy needs to be the same!
          ident_t tgt_suffix_hier = NULL;
          ident_t src_suffix_hier = NULL;
 
-         if (ident_len(tgt->hier) > tgt_prefix_len)
-            tgt_suffix_hier = ident_new(istr(tgt->hier) + tgt_prefix_len);
-         if (ident_len(src->hier) > src_prefix_len)
-            src_suffix_hier = ident_new(istr(src->hier) + src_prefix_len);
+         ident_t tgt_hier = cover_get_ident(db, tgt, COV_ATTR_HIER);
+
+         if (ident_len(tgt_hier) > tgt_prefix_len)
+            tgt_suffix_hier = ident_new(istr(tgt_hier) + tgt_prefix_len);
+         if (ident_len(src_hier) > src_prefix_len)
+            src_suffix_hier = ident_new(istr(src_hier) + src_prefix_len);
 
          if (tgt_suffix_hier == src_suffix_hier) {
             cover_fold_scopes(db, tgt, src);
@@ -419,41 +434,46 @@ static void cover_fold_scopes(cover_data_t *db, cover_scope_t *tgt_scope,
    }
 }
 
-static void cover_iterate_fold_source(cover_data_t *data, cover_scope_t *tgt_scope,
-                                      cover_scope_t *src_scope, cover_fold_cmd_t *cmd)
+static void cover_iterate_fold_source(cover_data_t *db,
+                                      cover_obj_t tgt_scope,
+                                      cover_obj_t src_scope,
+                                      cover_fold_cmd_t *cmd)
 {
-   for (int i = 0; i < src_scope->children.count; i++) {
-      cover_scope_t *curr_scp = src_scope->children.items[i];
+   ident_t tgt_hier = cover_get_ident(db, tgt_scope, COV_ATTR_HIER);
 
-      if (curr_scp->hier == cmd->source) {
+   const int src_nchildren = cover_count(db, src_scope, COV_REL_CHILDREN);
+   for (int i = 0; i < src_nchildren; i++) {
+      cover_obj_t src_child = cover_at(db, src_scope, COV_REL_CHILDREN, i);
+
+      ident_t src_hier = cover_get_ident(db, src_child, COV_ATTR_HIER);
+
+      if (src_hier == cmd->source) {
          cmd->found_source = true;
          diag_t *d = diag_new(DIAG_DEBUG, NULL);
          diag_printf(d, "folding coverage scopes:");
-         diag_hint(d, NULL, "        Target - %s", istr(tgt_scope->hier));
-         diag_hint(d, NULL, "        Source - %s", istr(curr_scp->hier));
+         diag_hint(d, NULL, "        Target - %s", istr(tgt_hier));
+         diag_hint(d, NULL, "        Source - %s", istr(src_hier));
          diag_emit(d);
-         cover_fold_scopes(data, tgt_scope, curr_scp);
+         cover_fold_scopes(db, tgt_scope, src_child);
       }
 
-      cover_iterate_fold_source(data, tgt_scope, curr_scp, cmd);
+      cover_iterate_fold_source(db, tgt_scope, src_child, cmd);
    }
 }
 
-static void cover_iterate_fold_target(cover_data_t *data, cover_scope_t *tgt_scope,
-                                      cover_fold_cmd_t *cmd)
+static void cover_iterate_fold_target(cover_data_t *db, cover_obj_t tgt_scope,
+                                      void *ctx)
 {
-   for (int i = 0; i < tgt_scope->children.count; i++) {
-      cover_scope_t *curr_scp = tgt_scope->children.items[i];
+   cover_fold_cmd_t *cmd = ctx;
 
-      // On target scope name match, go and search for all source scopes and collapse them
-      // into the target scope!
-      if (curr_scp->hier == cmd->target) {
-         cmd->found_target = true;
-         cover_iterate_fold_source(data, curr_scp, data->root_scope, cmd);
-      }
-
-      cover_iterate_fold_target(data, curr_scp, cmd);
+   // On target scope name match, go and search for all source scopes
+   // and collapse them into the target scope
+   if (cover_get_ident(db, tgt_scope, COV_ATTR_HIER) == cmd->target) {
+      cmd->found_target = true;
+      cover_iterate_fold_source(db, tgt_scope, db->root_scope, cmd);
    }
+
+   cover_map(db, tgt_scope, COV_REL_CHILDREN, cover_iterate_fold_target, cmd);
 }
 
 static void cover_apply_fold_cmds(cover_data_t *data)
@@ -468,7 +488,8 @@ static void cover_apply_fold_cmds(cover_data_t *data)
       cmd->found_source = false;
       cmd->found_target = false;
 
-      cover_iterate_fold_target(data, data->root_scope, cmd);
+      cover_map(data, data->root_scope, COV_REL_CHILDREN,
+                cover_iterate_fold_target, cmd);
 
       if (cmd->found_target == false)
          warn_at(&(cmd->loc), "fold target does not match any "
@@ -582,24 +603,32 @@ void cover_load_spec_file(cover_data_t *db, const char *path)
    }
 }
 
-bool cover_should_emit_scope(cover_data_t *db, cover_scope_t *cs)
+bool cover_should_emit_scope(const cover_data_t *db, cover_obj_t scope)
 {
    if (db->spec == NULL)
       return true;
 
-   cover_scope_t *blk = cs;
-   for (; blk != NULL && blk->block_name == NULL; blk = blk->parent);
+   ident_t block_name;
+   cover_obj_t blk = scope;
+   for (;;) {
+      cover_obj_t parent = cover_get_obj(db, blk, COV_ATTR_PARENT);
+      if (cover_is_null(parent))
+         return true;
 
-   if (blk == NULL)
-      return true;
+      if ((block_name = cover_get_ident(db, blk, COV_ATTR_BLOCK_NAME)))
+         break;
 
-   ident_t ename = ident_until(blk->block_name, '-');
+      blk = parent;
+   }
+
+   ident_t ename = ident_until(block_name, '-');
 
    const excl_trie_t *et_block = excl_trie_search(db->spec->block_trie, ename);
    if (et_block != NULL)
       return et_block->action == ACTION_INCLUDE;
 
-   const excl_trie_t *et_hier = excl_trie_for_scope(db->spec->hier_trie, cs);
+   const excl_trie_t *et_hier =
+      excl_trie_for_scope(db, db->spec->hier_trie, scope);
    if (et_hier != NULL)
       return et_hier->action == ACTION_INCLUDE;
 
@@ -632,14 +661,16 @@ bool cover_should_emit_array_toggle(cover_data_t *db, int width)
    return db->array_limit == 0 || width < db->array_limit;
 }
 
-bool cover_compatible_spec(cover_data_t *db, const cover_scope_t *a,
-                           const cover_scope_t *b)
+bool cover_compatible_spec(cover_data_t *db, cover_obj_t a, cover_obj_t b)
 {
+   assert(a.tag == COVER_TAG_SCOPE);
+   assert(b.tag == COVER_TAG_SCOPE);
+
    if (db->spec == NULL)
       return true;
 
-   excl_trie_t *et_a = excl_trie_for_scope(db->spec->hier_trie, a);
-   excl_trie_t *et_b = excl_trie_for_scope(db->spec->hier_trie, b);
+   excl_trie_t *et_a = excl_trie_for_scope(db, db->spec->hier_trie, a);
+   excl_trie_t *et_b = excl_trie_for_scope(db, db->spec->hier_trie, b);
 
    // TODO: this is overly strict since two rules may have the same effect
    return et_a == et_b;

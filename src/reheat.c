@@ -74,7 +74,7 @@ static void reheat_block(tree_t b, const reheat_ctx_t *parent)
       vlog_lower_block(ctx.mir, parent->cloned, b);
    }
    else {
-      cover_scope_t *cs = cover_get_scope(ctx.cover, ctx.dotted);
+      cover_obj_t cs = cover_get_scope(ctx.cover, ctx.dotted);
       ctx.lowered = lower_instance(ctx.registry, parent->lowered, ctx.cover,
                                    cs, b);
    }
