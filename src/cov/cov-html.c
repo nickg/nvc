@@ -39,9 +39,11 @@
 #define EXCLUDED_COLOR "#d6eaf8"
 #define COVERED_COLOR "#ccffcc"
 
-struct _cover_rpt_buf {
-   text_buf_t      *tb;
-   cover_rpt_buf_t *prev;
+typedef struct _rpt_buf rpt_buf_t;
+
+struct _rpt_buf {
+   text_buf_t *tb;
+   rpt_buf_t  *prev;
 };
 
 typedef enum {
@@ -56,6 +58,7 @@ typedef struct {
    cover_data_t *data;
    const char   *outdir;
    unsigned      item_limit;
+   rpt_buf_t    *rpt_buf;
 } html_gen_t;
 
 #define COV_RPT_TITLE "NVC code coverage report"
@@ -965,7 +968,7 @@ static void cover_print_jscript_funcs(FILE *f)
 // Per hierarchy reporting functions
 ///////////////////////////////////////////////////////////////////////////////
 
-static void cover_print_summary_table_row(FILE *f, cover_data_t *data, const rpt_stats_t *stats,
+static void cover_print_summary_table_row(html_gen_t *g, FILE *f, const rpt_stats_t *stats,
                                           ident_t entry_name, ident_t entry_link, int lvl,
                                           bool top, bool print_out)
 {
@@ -1054,10 +1057,10 @@ static void cover_print_summary_table_row(FILE *f, cover_data_t *data, const rpt
    }
    else if (opt_get_int(OPT_VERBOSE) && print_out) {
 
-      cover_rpt_buf_t *new = xcalloc(sizeof(cover_rpt_buf_t));
+      rpt_buf_t *new = xcalloc(sizeof(rpt_buf_t));
       new->tb = tb_new();
-      new->prev = data->rpt_buf;
-      data->rpt_buf = new;
+      new->prev = g->rpt_buf;
+      g->rpt_buf = new;
 
       tb_printf(new->tb,
          "%*s %-*s %10.1f %% (%6d / %6d)  %10.1f %% (%6d / %6d) %10.1f %% (%6d / %6d) "
@@ -1168,7 +1171,7 @@ static void cover_report_hier(html_gen_t *g, int lvl, cover_obj_t scope)
 
    ident_t hier = cover_get_ident(g->data, scope, COV_ATTR_HIER);
    ident_t rpt_name_id = ident_new(h->name_hash);
-   cover_print_summary_table_row(f, g->data, &(h->flat_stats), hier,
+   cover_print_summary_table_row(g, f, &(h->flat_stats), hier,
                                  rpt_name_id, lvl, false, false);
    cover_print_table_footer(f);
 
@@ -1209,7 +1212,7 @@ static void cover_report_hier_children(html_gen_t *g, int lvl,
 
             ident_t hier = cover_get_ident(g->data, batch[j], COV_ATTR_HIER);
 
-            cover_print_summary_table_row(summf, g->data, &(h->nested_stats),
+            cover_print_summary_table_row(g, summf, &(h->nested_stats),
                                           ident_rfrom(hier, '.'),
                                           ident_new(h->name_hash),
                                           lvl + 2, false, true);
@@ -1220,8 +1223,7 @@ static void cover_report_hier_children(html_gen_t *g, int lvl,
    } while (total > ARRAY_LEN(batch));
 }
 
-static void cover_report_per_hier(html_gen_t *g, FILE *f, cover_data_t *data,
-                                  cover_rpt_t *rpt)
+static void cover_report_per_hier(html_gen_t *g, FILE *f, cover_rpt_t *rpt)
 {
    const int nchildren = cover_count(g->data, g->data->root_scope,
                                      COV_REL_CHILDREN);
@@ -1235,7 +1237,7 @@ static void cover_report_per_hier(html_gen_t *g, FILE *f, cover_data_t *data,
       ident_t hier = cover_get_ident(g->data, child, COV_ATTR_HIER);
 
       const rpt_hier_t *h = rpt_get_hier(rpt, child);
-      cover_print_summary_table_row(f, data, &(h->nested_stats), hier,
+      cover_print_summary_table_row(g, f, &(h->nested_stats), hier,
                                     ident_new(h->name_hash), 0, true, true);
    }
 
@@ -1244,13 +1246,13 @@ static void cover_report_per_hier(html_gen_t *g, FILE *f, cover_data_t *data,
       printf("%-65s %-30s %-30s %-30s %-30s %-30s %-30s %-30s\n",
              "Hierarchy", "Statement", "Branch", "Toggle", "Expression",
              "FSM state", "Functional", "Average");
-      cover_rpt_buf_t *buf = data->rpt_buf;
+      rpt_buf_t *buf = g->rpt_buf;
       while (buf) {
          printf("%s\n", tb_get(buf->tb));
          tb_free(buf->tb);
-         data->rpt_buf = buf->prev;
+         g->rpt_buf = buf->prev;
          free(buf);
-         buf = data->rpt_buf;
+         buf = g->rpt_buf;
       };
    }
 
@@ -1291,8 +1293,7 @@ static int cover_sort_files_cb(const void *a, const void *b)
    return strcmp(fa->path, fb->path);
 }
 
-static void cover_report_per_file(html_gen_t *g, FILE *top_f,
-                                  cover_data_t *data, cover_rpt_t *rpt)
+static void cover_report_per_file(html_gen_t *g, FILE *top_f, cover_rpt_t *rpt)
 {
    const int n_files = rpt_iter_files(rpt, NULL, NULL);
    const rpt_file_t **files LOCAL =
@@ -1316,7 +1317,7 @@ static void cover_report_per_file(html_gen_t *g, FILE *top_f,
 
       fprintf(f, "<h2 style=\"margin-left: var(--margin-left);\">\n  Current File:\n</h2>\n\n");
       cover_print_summary_table_header(f, "cur_file_table", "File");
-      cover_print_summary_table_row(f, data, &(files[i]->stats), base_name_id,
+      cover_print_summary_table_row(g, f, &(files[i]->stats), base_name_id,
                                     base_name_id, 0, false, false);
       cover_print_table_footer(f);
 
@@ -1338,7 +1339,7 @@ static void cover_report_per_file(html_gen_t *g, FILE *top_f,
       cover_print_timestamp(f);
 
       // Print top table summary
-      cover_print_summary_table_row(top_f, data, &(files[i]->stats),
+      cover_print_summary_table_row(g, top_f, &(files[i]->stats),
                                     base_name_id, base_name_id,
                                     0, true, false);
    }
@@ -1426,11 +1427,11 @@ void cover_report(const char *path, cover_data_t *data, int item_limit)
 
    if (data->mask & COVER_MASK_PER_FILE_REPORT) {
       cover_print_summary_table_header(f, "file_table", "File");
-      cover_report_per_file(&g, f, data, rpt);
+      cover_report_per_file(&g, f, rpt);
    }
    else {
       cover_print_summary_table_header(f, "inst_table", "Current Instance");
-      cover_report_per_hier(&g, f, data, rpt);
+      cover_report_per_hier(&g, f, rpt);
    }
 
    cover_print_timestamp(f);

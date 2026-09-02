@@ -24,7 +24,6 @@
 #include "diag.h"
 
 typedef struct _cover_exclude_ctx   cover_exclude_ctx_t;
-typedef struct _cover_rpt_buf       cover_rpt_buf_t;
 typedef struct _cover_spec          cover_spec_t;
 
 typedef A(cover_obj_t) cover_array_t;
@@ -167,7 +166,6 @@ struct _cover_data {
    cover_mask_t     mask;
    int              array_limit;
    int              threshold;
-   cover_rpt_buf_t *rpt_buf;
    cover_spec_t    *spec;
    cover_ef_t      *ef;
    cover_obj_t      root_scope;
