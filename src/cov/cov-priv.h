@@ -34,6 +34,4 @@ unsigned rpt_get_skipped(cover_rpt_t *rpt);
 typedef void (*rpt_file_fn_t)(const rpt_file_t *, void *);
 int rpt_iter_files(cover_rpt_t *rpt, rpt_file_fn_t fn, void *ctx);
 
-cover_block_t *cover_get_block(cover_data_t *db, cover_obj_t scope);
-
 #endif   // _COV_PRIV_H

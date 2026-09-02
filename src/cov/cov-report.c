@@ -35,7 +35,7 @@ typedef struct _cover_rpt {
    cover_data_t *data;
    mem_pool_t   *pool;
    shash_t      *files;
-   hash_t       *hier;
+   ihash_t      *hier;
    unsigned      skipped;
    unsigned      item_limit;
 } cover_rpt_t;
@@ -332,10 +332,10 @@ static rpt_hier_t *rpt_visit_hier(cover_rpt_t *rpt, cover_obj_t scope)
 
    rpt_visit_file(rpt, scope);
 
-   cover_block_t *block = cover_get_block(rpt->data, scope);
+   cover_obj_t inst = cover_get_obj(rpt->data, scope, COV_ATTR_INST);
 
-   assert(hash_get(rpt->hier, block) == NULL);
-   hash_put(rpt->hier, block, h);
+   assert(ihash_get(rpt->hier, inst.bits) == NULL);
+   ihash_put(rpt->hier, inst.bits, h);
 
    rpt_visit_children(rpt, h, scope);
 
@@ -437,11 +437,12 @@ const rpt_hier_t *rpt_get_hier(cover_rpt_t *rpt, cover_obj_t scope)
 {
    assert(cover_is_hier(rpt->data, scope));
 
-   cover_block_t *block = cover_get_block(rpt->data, scope);
+   cover_obj_t inst = cover_get_obj(rpt->data, scope, COV_ATTR_INST);
 
-   rpt_hier_t *h = hash_get(rpt->hier, block);
+   rpt_hier_t *h = ihash_get(rpt->hier, inst.bits);
    if (h == NULL)
-      fatal_trace("no hierarchy report for %s", istr(block->name));
+      fatal_trace("no hierarchy report for %pI",
+                  cover_get_ident(rpt->data, inst, COV_ATTR_NAME));
 
    return h;
 }
@@ -473,7 +474,7 @@ cover_rpt_t *cover_report_new(cover_data_t *db, int item_limit)
    rpt->data       = db;
    rpt->pool       = pool_new();
    rpt->files      = shash_new(32);
-   rpt->hier       = hash_new(32);
+   rpt->hier       = ihash_new(32);
    rpt->item_limit = item_limit;
 
    const int nchildren = cover_count(db, db->root_scope, COV_REL_CHILDREN);
@@ -506,6 +507,6 @@ void cover_report_free(cover_rpt_t *rpt)
 
    pool_free(rpt->pool);
    shash_free(rpt->files);
-   hash_free(rpt->hier);
+   ihash_free(rpt->hier);
    free(rpt);
 }

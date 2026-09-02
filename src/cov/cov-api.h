@@ -26,6 +26,7 @@
 #define COVER_TAG_BIN   2
 #define COVER_TAG_RANGE 3
 #define COVER_TAG_SCOPE 4
+#define COVER_TAG_INST  5
 
 #define _COVER_TAG_BITS   3
 #define _COVER_ID_BITS    29
@@ -125,6 +126,8 @@ typedef enum {
    COV_ATTR_NAME,
    COV_ATTR_PARENT,
    COV_ATTR_BLOCK_NAME,
+   COV_ATTR_INST,
+   COV_ATTR_ROOT,
 } cover_attr_t;
 
 typedef enum {
@@ -266,6 +269,8 @@ void cover_put_ident(cover_data_t *db, cover_obj_t obj, cover_attr_t attr,
                      ident_t value);
 void cover_put_loc(cover_data_t *db, cover_obj_t obj, cover_attr_t attr,
                    loc_t value);
+void cover_put_obj(cover_data_t *db, cover_obj_t obj, cover_attr_t attr,
+                   cover_obj_t value);
 
 void cover_put_flags(cover_data_t *db, cover_obj_t obj, cover_flags_t flags);
 

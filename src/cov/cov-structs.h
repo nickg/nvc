@@ -24,13 +24,6 @@
 #include "cov/cov-data.h"
 #include "util.h"
 
-typedef struct _cover_block {
-   ident_t      name;
-   unsigned     next_tag;
-   cover_obj_t  self;
-   int32_t     *data;
-} cover_block_t;
-
 typedef struct {
    char   *text;
    size_t  len;
