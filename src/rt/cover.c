@@ -17,7 +17,7 @@
 
 #include "util.h"
 #include "cov/cov-api.h"
-#include "cov/cov-data.h"
+#include "cov/cov-priv.h"
 #include "ident.h"
 #include "jit/jit-exits.h"
 #include "rt/model.h"
@@ -233,7 +233,7 @@ void x_cover_setup_toggle_cb(sig_shared_t *ss, uint32_t offset, int32_t count,
    if (counters == NULL)
       return;
 
-   cover_mask_t op_mask = data->mask;
+   cover_mask_t op_mask = cover_get_u32(data, COVER_NULL_OBJ, COV_ATTR_MASK, 0);
 
    if (is_constant_input(s)) {
       int32_t *toggle_01 = counters + tag;
