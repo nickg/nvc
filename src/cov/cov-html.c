@@ -17,7 +17,6 @@
 
 #include "util.h"
 #include "cov/cov-api.h"
-#include "cov/cov-data.h"
 #include "cov/cov-priv.h"
 #include "cov/cov-structs.h"
 #include "cov/cov-style.h"

@@ -18,7 +18,6 @@
 #include "util.h"
 #include "array.h"
 #include "cov/cov-api.h"
-#include "cov/cov-data.h"
 #include "cov/cov-priv.h"
 #include "cov/cov-structs.h"
 #include "hash.h"
@@ -1266,6 +1265,13 @@ uint32_t cover_get_u32(const cover_data_t *db, cover_obj_t obj,
          default:                 return def;
          }
       }
+   case COVER_TAG_NULL:
+      {
+         switch (attr) {
+         case COV_ATTR_MASK: return db->mask;
+         default:            return def;
+         }
+      }
    default:
       return def;
    }
@@ -1384,6 +1390,13 @@ cover_obj_t cover_get_obj(const cover_data_t *db, cover_obj_t obj,
          const cover_inst_t *inst = cover_inst_data_const(db, obj);
          switch (attr) {
          case COV_ATTR_ROOT: return inst->root;
+         default:            return COVER_NULL_OBJ;
+         }
+      }
+   case COVER_TAG_NULL:
+      {
+         switch (attr) {
+         case COV_ATTR_ROOT: return db->root_scope;
          default:            return COVER_NULL_OBJ;
          }
       }

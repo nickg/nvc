@@ -128,6 +128,7 @@ typedef enum {
    COV_ATTR_BLOCK_NAME,
    COV_ATTR_INST,
    COV_ATTR_ROOT,
+   COV_ATTR_MASK,
 } cover_attr_t;
 
 typedef enum {

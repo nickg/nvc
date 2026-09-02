@@ -20,12 +20,17 @@
 
 #include "prim.h"
 #include "cov/cov-api.h"
-#include "cov/cov-structs.h"
+
+typedef struct _rpt_file rpt_file_t;
+typedef struct _rpt_hier rpt_hier_t;
 
 bool cover_is_hier(const cover_data_t *db, cover_obj_t scope);
 bool cover_is_leaf(const cover_data_t *db, cover_obj_t scope);
 
 bool cover_should_emit_scope(const cover_data_t *db, cover_obj_t scope);
+
+const char *cover_item_kind_str(cover_item_kind_t kind);
+void cover_merge_bin(cover_data_t *db, cover_obj_t obj, int32_t data);
 
 const rpt_file_t *rpt_get_file(cover_rpt_t *rpt, cover_obj_t scope);
 const rpt_hier_t *rpt_get_hier(cover_rpt_t *rpt, cover_obj_t scope);

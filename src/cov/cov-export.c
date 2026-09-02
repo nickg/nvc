@@ -17,8 +17,6 @@
 
 #include "util.h"
 #include "cov/cov-api.h"
-#include "cov/cov-data.h"
-#include "cov/cov-priv.h"
 #include "hash.h"
 #include "ident.h"
 #include "option.h"
@@ -233,7 +231,8 @@ void cover_export_cobertura(cover_data_t *data, FILE *f, const char *relative)
       .relative = relative,
    };
 
-   cobertura_export_scope(&report, NULL, data, data->root_scope);
+   cover_obj_t root = cover_get_obj(data, COVER_NULL_OBJ, COV_ATTR_ROOT);
+   cobertura_export_scope(&report, NULL, data, root);
 
    fprintf(f, "<?xml version='1.0' encoding='UTF-8'?>\n");
    fprintf(f, "<!DOCTYPE coverage SYSTEM "
@@ -270,7 +269,7 @@ void cover_export_cobertura(cover_data_t *data, FILE *f, const char *relative)
    fprintf(f, "<packages>\n");
    fprintf(f, "<package name=\"%s\" "
            "line-rate=\"%f\" branch-rate=\"%f\" complexity=\"0.0\">\n",
-           istr(cover_get_ident(data, data->root_scope, COV_ATTR_NAME)),
+           istr(cover_get_ident(data, root, COV_ATTR_NAME)),
            line_rate, branch_rate);
 
    fprintf(f, "<classes>\n");
@@ -381,5 +380,7 @@ static void dump_scope_xml(cover_data_t *db, cover_obj_t scope, int indent,
 void cover_export_xml(cover_data_t *data, FILE *f, const char *relative)
 {
    fprintf(f, "<?xml version=\"1.0\"?>\n");
-   dump_scope_xml(data, data->root_scope, 0, &LOC_INVALID, relative, f);
+
+   cover_obj_t root = cover_get_obj(data, COVER_NULL_OBJ, COV_ATTR_ROOT);
+   dump_scope_xml(data, root, 0, &LOC_INVALID, relative, f);
 }
