@@ -52,6 +52,13 @@ typedef struct _cover_ef {
    int                   alloc_fold_cmds;
 } cover_ef_t;
 
+typedef struct {
+   ident_t      name;
+   unsigned     next_tag;
+   cover_obj_t  root;
+   int32_t     *data;
+} cover_inst_t;
+
 typedef enum {
    CSCOPE_NONE,
    CSCOPE_INSTANCE,
@@ -62,7 +69,7 @@ typedef enum {
    CSCOPE_PROPERTY,
 } cscope_kind_t;
 
-typedef struct _cover_scope {
+typedef struct {
    ident_t        name;
    ident_t        hier;
    ident_t        block_name;
@@ -72,7 +79,7 @@ typedef struct _cover_scope {
    int            stmt_label;
    int            expression_label;
    cover_obj_t    parent;
-   cover_block_t *block;
+   cover_obj_t    inst;
    cover_array_t  children;
    cover_array_t  items;
    int            sig_pos;
@@ -150,6 +157,12 @@ typedef struct {
    cover_scope_t *items;
 } scope_tab_t;
 
+typedef struct {
+   unsigned      count;
+   unsigned      limit;
+   cover_inst_t *items;
+} inst_tab_t;
+
 struct _cover_data {
    cover_mask_t     mask;
    int              array_limit;
@@ -158,12 +171,13 @@ struct _cover_data {
    cover_spec_t    *spec;
    cover_ef_t      *ef;
    cover_obj_t      root_scope;
-   hash_t          *blocks;
+   hash_t          *inst_map;
    mem_pool_t      *pool;
    item_tab_t       items;
    bin_tab_t        bins;
    range_tab_t      ranges;
    scope_tab_t      scopes;
+   inst_tab_t       insts;
 };
 
 typedef struct {

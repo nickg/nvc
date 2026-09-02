@@ -18,6 +18,7 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
+#include "cov/cov-api.h"
 #include "diag.h"
 #include "hash.h"
 #include "ident.h"
@@ -73,10 +74,10 @@ typedef struct {
 } block_info_t;
 
 struct _gen_stack {
-   gen_stack_t   *up;
-   loop_info_t   *loop;
-   block_info_t  *block;
-   cover_scope_t *cscope;
+   gen_stack_t  *up;
+   loop_info_t  *loop;
+   block_info_t *block;
+   cover_obj_t   cscope;
 };
 
 typedef struct {
