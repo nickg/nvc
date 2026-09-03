@@ -2136,7 +2136,8 @@ static void elab_cover_block(elab_ctx_t *ctx, tree_t unit)
    }
 
    ctx->cscope = cover_create_block(ctx->cover, ctx->dotted, parent,
-                                    block, unit);
+                                    CSCOPE_INSTANCE, tree_ident(block),
+                                    *tree_loc(block), tree_ident(unit));
 }
 
 static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)

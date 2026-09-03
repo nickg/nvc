@@ -61,8 +61,8 @@ static cover_obj_t get_cover_scope(vhdl_cover_t *g, lazy_cscope_t *lcs)
    else {
       cover_obj_t parent = get_cover_scope(g, lcs->parent);
       ident_t name = vhdl_scope_name(lcs->tree, lcs->nth);
-      return (lcs->cscope =
-              cover_create_scope(g->data, parent, lcs->tree, name));
+      return (lcs->cscope = cover_scope_new(g->data, parent, CSCOPE_NONE, name,
+                                            *tree_loc(lcs->tree)));
    }
 }
 
@@ -549,6 +549,11 @@ static void vhdl_cover_toggle(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
       return;
 
    cover_obj_t cs = get_cover_scope(g, parent);
+
+   // Remember the position where its name in the hierarchy starts
+   ident_t parent_hier = cover_get_ident(g->data, parent->parent->cscope,
+                                         COV_ATTR_HIER);
+   cover_put_u32(g->data, cs, COV_ATTR_SIG_POS, ident_len(parent_hier) + 1);
 
    cover_flags_t flags = 0;
    if (tree_kind(t) == T_SIGNAL_DECL)

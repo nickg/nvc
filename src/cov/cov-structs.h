@@ -32,31 +32,21 @@ typedef struct {
    int32_t     *data;
 } cover_inst_t;
 
-typedef enum {
-   CSCOPE_NONE,
-   CSCOPE_INSTANCE,
-   CSCOPE_SUBPROG,
-   CSCOPE_PACKAGE,
-   CSCOPE_PROCESS,
-   CSCOPE_USER,
-   CSCOPE_PROPERTY,
-} cscope_kind_t;
-
 typedef struct {
-   ident_t        name;
-   ident_t        hier;
-   ident_t        block_name;
-   loc_t          loc;
-   cscope_kind_t  kind;
-   int            branch_label;
-   int            stmt_label;
-   int            expression_label;
-   cover_obj_t    parent;
-   cover_obj_t    inst;
-   cover_array_t  children;
-   cover_array_t  items;
-   int            sig_pos;
-   bool           emit;
+   cover_scope_kind_t kind;
+   ident_t            name;
+   ident_t            hier;
+   ident_t            block_name;
+   loc_t              loc;
+   int                branch_label;
+   int                stmt_label;
+   int                expression_label;
+   cover_obj_t        parent;
+   cover_obj_t        inst;
+   cover_array_t      children;
+   cover_array_t      items;
+   int                sig_pos;
+   bool               emit;
 } cover_scope_t;
 
 typedef struct {
