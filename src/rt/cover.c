@@ -383,8 +383,8 @@ void _nvc_create_cover_scope(jit_scalar_t *args)
    user_scope_t *us = jit_mspace_alloc(sizeof(user_scope_t));
    us->counters = NULL;
    us->name     = name;
-   us->scope    = cover_create_user_scope(db, parent, *tree_loc(inst->where),
-                                          suffix);
+   us->scope    = cover_scope_new(db, parent, CSCOPE_USER, suffix,
+                                  *tree_loc(inst->where));
 
    *ptr = us;
 }

@@ -262,6 +262,41 @@ cover_obj_t cover_inst_new(cover_data_t *db, ident_t name)
    return obj;
 }
 
+cover_obj_t cover_scope_new(cover_data_t *db, cover_obj_t parent,
+                            cover_scope_kind_t kind, ident_t name, loc_t loc)
+{
+   if (db == NULL)
+      return COVER_NULL_OBJ;
+
+   assert(!cover_is_null(parent));
+   assert(!cover_is_null(db->root_scope));
+
+   cover_scope_t *pd = cover_scope_data(db, parent);
+
+   cover_scope_t new = {
+      .kind    = kind,
+      .parent  = parent,
+      .inst    = pd->inst,
+      .name    = name,
+      .loc     = loc,
+      .hier    = ident_prefix(pd->hier, new.name, '.'),
+      .sig_pos = pd->sig_pos,
+   };
+
+   cover_obj_t obj = {
+      .tag = COVER_TAG_SCOPE,
+      .id = db->scopes.count,
+   };
+
+   APUSH(pd->children, obj);
+   APUSH(db->scopes, new);
+
+   cover_scope_t *sd = cover_scope_data(db, obj);
+   sd->emit = cover_should_emit_scope(db, obj);
+
+   return obj;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Coverage data write/read to covdb, covdb merging and coverage scope handling
 ///////////////////////////////////////////////////////////////////////////////
@@ -472,14 +507,26 @@ void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
 
 cover_data_t *cover_data_init(cover_mask_t mask, int array_limit, int threshold)
 {
-   cover_data_t *data = xcalloc(sizeof(cover_data_t));
-   data->mask        = mask;
-   data->array_limit = array_limit;
-   data->threshold   = threshold;
-   data->inst_map    = hash_new(16);
-   data->pool        = pool_new();
+   cover_data_t *db = xcalloc(sizeof(cover_data_t));
+   db->mask        = mask;
+   db->array_limit = array_limit;
+   db->threshold   = threshold;
+   db->inst_map    = hash_new(16);
+   db->pool        = pool_new();
 
-   return data;
+   ident_t root_name = lib_name(lib_work());
+   cover_scope_t root = {
+      .loc = LOC_INVALID,
+      .name = root_name,
+      .hier = root_name,
+   };
+
+   db->root_scope.tag = COVER_TAG_SCOPE;
+   db->root_scope.id = 0;
+
+   APUSH(db->scopes, root);
+
+   return db;
 }
 
 void cover_data_free(cover_data_t *db)
@@ -508,137 +555,26 @@ bool cover_enabled(cover_data_t *data, cover_mask_t mask)
 }
 
 cover_obj_t cover_create_block(cover_data_t *db, ident_t qual,
-                               cover_obj_t parent, tree_t inst, tree_t unit)
+                               cover_obj_t parent, cover_scope_kind_t kind,
+                               ident_t name, loc_t loc, ident_t unit_name)
 {
    if (db == NULL)
       return COVER_NULL_OBJ;
 
-   if (cover_is_null(parent)) {
-      assert(cover_is_null(db->root_scope));
-
-      cover_scope_t root = {
-         .loc = LOC_INVALID,
-         .name = lib_name(lib_work()),
-         .hier = lib_name(lib_work()),
-      };
-
-      db->root_scope.tag = COVER_TAG_SCOPE;
-      db->root_scope.id = 0;
-
-      APUSH(db->scopes, root);
-
+   if (cover_is_null(parent))
       parent = db->root_scope;
-   }
 
-   cover_obj_t root = cover_create_scope(db, parent, inst, tree_ident(inst));
+   cover_obj_t root = cover_scope_new(db, parent, kind, name, loc);
 
    cover_obj_t obj = cover_inst_new(db, qual);
    cover_put_obj(db, obj, COV_ATTR_ROOT, root);
 
    cover_scope_t *sd = cover_scope_data(db, root);
    sd->inst = obj;
-   sd->block_name = ident_rfrom(tree_ident(unit), '.');
+   sd->block_name = ident_rfrom(unit_name, '.');
    sd->emit = cover_should_emit_scope(db, root);
 
    return root;
-}
-
-cover_obj_t cover_create_user_scope(cover_data_t *db, cover_obj_t parent,
-                                    loc_t loc, ident_t name)
-{
-   if (db == NULL)
-      return COVER_NULL_OBJ;
-
-   assert(!cover_is_null(parent));
-
-   cover_scope_t *pd = cover_scope_data(db, parent);
-
-   cover_scope_t new = {};
-   new.name   = name;
-   new.parent = parent;
-   new.loc    = loc;
-   new.hier   = ident_prefix(pd->hier, name, '.');
-   new.kind   = CSCOPE_USER;
-
-   cover_obj_t obj = {
-      .tag = COVER_TAG_SCOPE,
-      .id = db->scopes.count,
-   };
-
-   APUSH(pd->children, obj);
-   APUSH(db->scopes, new);
-
-   cover_scope_t *sd = cover_scope_data(db, obj);
-   sd->emit = cover_should_emit_scope(db, obj);
-
-   return obj;
-}
-
-cover_obj_t cover_create_scope(cover_data_t *db, cover_obj_t parent,
-                               tree_t t, ident_t name)
-{
-   if (db == NULL)
-      return COVER_NULL_OBJ;
-
-   assert(!cover_is_null(parent));
-   assert(!cover_is_null(db->root_scope));
-   assert(!is_design_unit(t));
-
-   cover_scope_t *pd = cover_scope_data(db, parent);
-
-   cover_scope_t new = {};
-
-   switch (tree_kind(t)) {
-   case T_BLOCK:
-      new.kind = CSCOPE_INSTANCE;
-      break;
-   case T_PROCESS:
-   case T_INERTIAL:
-      new.kind = CSCOPE_PROCESS;
-      break;
-   case T_PROC_BODY:
-   case T_FUNC_BODY:
-      new.kind = CSCOPE_SUBPROG;
-      break;
-   case T_PSL_DIRECT:
-      new.kind = CSCOPE_PROPERTY;
-      break;
-   case T_PACK_INST:
-   case T_PACKAGE:
-   case T_PACK_BODY:
-      new.kind = CSCOPE_PACKAGE;
-      break;
-   case T_SIGNAL_DECL:
-   case T_PORT_DECL:
-      // For toggle coverage, remember the position where its name in
-      // the hierarchy starts.
-      new.sig_pos = ident_len(pd->hier) + 1;
-      break;
-   default:
-      break;
-   }
-
-   new.parent = parent;
-   new.inst   = pd->inst;
-   new.name   = name;
-   new.loc    = *tree_loc(t);
-   new.hier   = ident_prefix(pd->hier, new.name, '.');
-
-   if (new.sig_pos == 0)
-      new.sig_pos = pd->sig_pos;
-
-   cover_obj_t obj = {
-      .tag = COVER_TAG_SCOPE,
-      .id = db->scopes.count,
-   };
-
-   APUSH(pd->children, obj);
-   APUSH(db->scopes, new);
-
-   cover_scope_t *sd = cover_scope_data(db, obj);
-   sd->emit = cover_should_emit_scope(db, obj);
-
-   return obj;
 }
 
 static void cover_read_header(fbuf_t *f, cover_data_t *data)
@@ -1298,6 +1234,14 @@ int64_t cover_get_i64(const cover_data_t *db, cover_obj_t obj,
          default:                return def;
          }
       }
+   case COVER_TAG_SCOPE:
+      {
+         const cover_scope_t *scope = cover_scope_data_const(db, obj);
+         switch (attr) {
+         case COV_ATTR_SIG_POS: return scope->sig_pos;
+         default:               return def;
+         }
+      }
    default:
       return def;
    }
@@ -1452,6 +1396,17 @@ void cover_put_u32(cover_data_t *db, cover_obj_t obj, cover_attr_t attr,
             return;
          case COV_ATTR_ATLEAST:
             item->atleast = value;
+            return;
+         default:
+            should_not_reach_here();
+         }
+      }
+   case COVER_TAG_SCOPE:
+      {
+         cover_scope_t *scope = cover_scope_data(db, obj);
+         switch (attr) {
+         case COV_ATTR_SIG_POS:
+            scope->sig_pos = value;
             return;
          default:
             should_not_reach_here();

@@ -101,6 +101,16 @@ typedef enum {
 #define NUM_COVER_KINDS (COV_ITEM_FUNCTIONAL + 1)
 
 typedef enum {
+   CSCOPE_NONE,
+   CSCOPE_INSTANCE,
+   CSCOPE_SUBPROG,
+   CSCOPE_PACKAGE,
+   CSCOPE_PROCESS,
+   CSCOPE_USER,
+   CSCOPE_PROPERTY,
+} cover_scope_kind_t;
+
+typedef enum {
    COV_REL_BINS,
    COV_REL_ITEMS,
    COV_REL_CHILDREN,
@@ -129,6 +139,7 @@ typedef enum {
    COV_ATTR_INST,
    COV_ATTR_ROOT,
    COV_ATTR_MASK,
+   COV_ATTR_SIG_POS,
 } cover_attr_t;
 
 typedef enum {
@@ -233,6 +244,8 @@ cover_obj_t cover_get_item(const cover_data_t *db, cover_obj_t scope,
 
 cover_obj_t cover_item_new(cover_data_t *db, cover_obj_t scope,
                            cover_item_kind_t kind, int nbins);
+cover_obj_t cover_scope_new(cover_data_t *db, cover_obj_t parent,
+                            cover_scope_kind_t kind, ident_t name, loc_t loc);
 
 size_t cover_count(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel);
 size_t cover_rel(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel,
@@ -302,11 +315,8 @@ void cover_export_xml(cover_data_t *data, FILE *f, const char *relative);
 //
 
 cover_obj_t cover_create_block(cover_data_t *db, ident_t qual,
-                               cover_obj_t parent, tree_t inst, tree_t unit);
-cover_obj_t cover_create_scope(cover_data_t *db, cover_obj_t parent,
-                               tree_t t, ident_t name);
-cover_obj_t cover_create_user_scope(cover_data_t *db, cover_obj_t parent,
-                                    loc_t loc, ident_t name);
+                               cover_obj_t parent, cover_scope_kind_t kind,
+                               ident_t name, loc_t loc, ident_t unit_name);
 void cover_add_ranges(cover_data_t *db, cover_obj_t obj, unsigned count);
 
 bool cover_compatible_spec(cover_data_t *db, cover_obj_t a, cover_obj_t b);
