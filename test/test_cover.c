@@ -449,6 +449,123 @@ START_TEST(test_issue1567)
 }
 END_TEST
 
+static cover_obj_t make_cover_block(cover_data_t *db, const char *qual,
+                                    cover_obj_t parent, const char *name)
+{
+   return cover_create_block(db, ident_new(qual), parent, CSCOPE_INSTANCE,
+                             ident_new(name), LOC_INVALID, ident_new(name));
+}
+
+static cover_obj_t add_functional_range(cover_data_t *db, cover_obj_t scope,
+                                        int64_t min, int64_t max, int32_t data)
+{
+   cover_obj_t item = cover_item_new(db, scope, COV_ITEM_FUNCTIONAL, 1);
+   ck_assert(!cover_is_null(item));
+
+   cover_obj_t bin = cover_at(db, item, COV_REL_BINS, 0);
+   ck_assert(!cover_is_null(bin));
+
+   cover_add_ranges(db, bin, 1);
+
+   cover_obj_t range = cover_at(db, bin, COV_REL_RANGES, 0);
+   ck_assert(!cover_is_null(range));
+
+   cover_put_i64(db, range, COV_ATTR_MIN, min);
+   cover_put_i64(db, range, COV_ATTR_MAX, max);
+   cover_merge_bin(db, bin, data);
+
+   return item;
+}
+
+START_TEST(test_merge3)
+{
+   // Test that merging a cloned scope deep-copies its functional ranges.
+   cover_data_t *dst = cover_data_init(COVER_MASK_ALL, 0, 1);
+   cover_data_t *src = cover_data_init(COVER_MASK_ALL, 0, 1);
+
+   cover_obj_t dst_top =
+      make_cover_block(dst, "WORK.TOP", COVER_NULL_OBJ, "TOP");
+   cover_obj_t src_top =
+      make_cover_block(src, "WORK.TOP", COVER_NULL_OBJ, "TOP");
+
+   // Ensure range zero in the destination has different contents. A shallow
+   // copy of first_range will incorrectly refer to this range.
+   add_functional_range(dst, dst_top, 100, 200, 1);
+
+   cover_obj_t src_child =
+      make_cover_block(src, "WORK.TOP.CHILD", src_top, "CHILD");
+   add_functional_range(src, src_child, 7, 9, 3);
+
+   cover_merge(dst, src, MERGE_UNION);
+   cover_data_free(src);
+
+   cover_obj_t dst_child = cover_get_scope(dst, ident_new("WORK.TOP.CHILD"));
+   ck_assert(!cover_is_null(dst_child));
+
+   cover_obj_t item = cover_at(dst, dst_child, COV_REL_ITEMS, 0);
+   cover_obj_t bin = cover_at(dst, item, COV_REL_BINS, 0);
+   cover_obj_t range = cover_at(dst, bin, COV_REL_RANGES, 0);
+
+   ck_assert_int_eq(cover_get_i64(dst, range, COV_ATTR_MIN, -1), 7);
+   ck_assert_int_eq(cover_get_i64(dst, range, COV_ATTR_MAX, -1), 9);
+   ck_assert_int_eq(cover_get_u32(dst, bin, COV_ATTR_DATA, 0), 3);
+
+   cover_data_free(dst);
+}
+END_TEST
+
+START_TEST(test_merge4)
+{
+   // Test that merging searches for children in the destination database.
+   cover_data_t *dst = cover_data_init(COVER_MASK_ALL, 0, 1);
+   cover_data_t *src = cover_data_init(COVER_MASK_ALL, 0, 1);
+
+   // Make the matching destination scope occur after an unrelated scope. The
+   // merge must count children in the destination database, not interpret the
+   // destination scope handle in the source database.
+   make_cover_block(dst, "WORK.DST_EXTRA", COVER_NULL_OBJ, "EXTRA");
+   cover_obj_t dst_root = cover_get_obj(dst, COVER_NULL_OBJ, COV_ATTR_ROOT);
+   make_cover_block(dst, "WORK.DST_COMMON", dst_root, "COMMON");
+
+   make_cover_block(src, "WORK.SRC_COMMON", COVER_NULL_OBJ, "COMMON");
+
+   cover_merge(dst, src, MERGE_UNION);
+
+   ck_assert_int_eq(cover_count(dst, dst_root, COV_REL_CHILDREN), 2);
+
+   cover_data_free(src);
+   cover_data_free(dst);
+}
+END_TEST
+
+START_TEST(test_merge5)
+{
+   // Test that a union merge copies an item present only in the source.
+   cover_data_t *dst = cover_data_init(COVER_MASK_ALL, 0, 1);
+   cover_data_t *src = cover_data_init(COVER_MASK_ALL, 0, 1);
+
+   cover_obj_t dst_top =
+      make_cover_block(dst, "WORK.TOP", COVER_NULL_OBJ, "TOP");
+   cover_obj_t src_top =
+      make_cover_block(src, "WORK.TOP", COVER_NULL_OBJ, "TOP");
+
+   cover_obj_t src_item = cover_item_new(src, src_top, COV_ITEM_STMT, 1);
+   cover_obj_t src_bin = cover_at(src, src_item, COV_REL_BINS, 0);
+   cover_merge_bin(src, src_bin, 5);
+
+   cover_merge(dst, src, MERGE_UNION);
+
+   ck_assert_int_eq(cover_count(dst, dst_top, COV_REL_ITEMS), 1);
+
+   cover_obj_t dst_item = cover_at(dst, dst_top, COV_REL_ITEMS, 0);
+   cover_obj_t dst_bin = cover_at(dst, dst_item, COV_REL_BINS, 0);
+   ck_assert_int_eq(cover_get_u32(dst, dst_bin, COV_ATTR_DATA, 0), 5);
+
+   cover_data_free(src);
+   cover_data_free(dst);
+}
+END_TEST
+
 Suite *get_cover_tests(void)
 {
    Suite *s = suite_create("cover");
@@ -464,6 +581,9 @@ Suite *get_cover_tests(void)
    tcase_add_test(tc, test_issue1431);
    tcase_add_test(tc, test_issue1442);
    tcase_add_test(tc, test_issue1567);
+   tcase_add_test(tc, test_merge3);
+   tcase_add_test(tc, test_merge4);
+   tcase_add_test(tc, test_merge5);
    suite_add_tcase(s, tc);
 
    return s;

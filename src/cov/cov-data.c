@@ -813,9 +813,35 @@ static cover_obj_t cover_clone_item(cover_data_t *dst_db,
 
    copy.first_bin = cover_alloc_bins(dst_db, src_data->nbins);
 
-   cover_bin_t *dst_bins = cover_get_bins(dst_db, &copy);
-   cover_bin_t *src_bins = cover_get_bins(src_db, src_data);
-   memcpy(dst_bins, src_bins, src_data->nbins * sizeof(cover_bin_t));
+   cover_bin_t *dst_bins = cover_bin_data(dst_db, copy.first_bin);
+   const cover_bin_t *src_bins =
+      cover_bin_data_const(src_db, src_data->first_bin);
+
+   for (int i = 0; i < src_data->nbins; i++) {
+      cover_bin_t *d = &(dst_bins[i]);
+      const cover_bin_t *s = &(src_bins[i]);
+
+      d->hier      = s->hier;
+      d->tag       = INT32_MAX;
+      d->data      = s->data;
+      d->flags     = s->flags;
+      d->field_idx = s->field_idx;
+
+      if (s->n_ranges > 0) {
+         cover_obj_t bin = {
+            .tag = COVER_TAG_BIN,
+            .id = copy.first_bin.id + i,
+         };
+         cover_add_ranges(dst_db, bin, s->n_ranges);
+
+         cover_range_t *dst_r = cover_range_data(dst_db, d->first_range);
+         const cover_range_t *src_r =
+            cover_range_data_const(src_db, s->first_range);
+
+         for (int j = 0; j < s->n_ranges; j++)
+            dst_r[j] = src_r[j];
+      }
+   }
 
    cover_obj_t item_obj = {
       .tag = COVER_TAG_ITEM,
@@ -857,15 +883,16 @@ static cover_obj_t cover_clone_scope(cover_data_t *dst_db,
    }
    copy->inst = dst_inst;
 
-   for (int i = 0; i < src->items.count; i++)
-      APUSH(copy->items, cover_clone_item(dst_db, src_db, src->items.items[i]));
+   for (int i = 0; i < src->items.count; i++) {
+      cover_obj_t copy = cover_clone_item(dst_db, src_db, src->items.items[i]);
+      cover_append(dst_db, obj, COV_REL_ITEMS, copy);
+   }
 
    for (int i = 0; i < src->children.count; i++) {
-      cover_obj_t child = cover_clone_scope(dst_db, src_db,
-                                            src->children.items[i], obj,
-                                            dst_inst);
-      copy = cover_scope_data(dst_db, obj);  // May be invalidated
-      APUSH(copy->children, child);
+      cover_obj_t copy = cover_clone_scope(dst_db, src_db,
+                                           src->children.items[i], obj,
+                                           dst_inst);
+      cover_append(dst_db, obj, COV_REL_CHILDREN, copy);
    }
 
    return obj;
@@ -903,13 +930,14 @@ static void cover_merge_scope(cover_data_t *dst_db,
          }
       }
 
-      if (!merged) {
-         // TOOD: if mode == MERGE_UNION add to dst_s->items?
+      if (!merged && mode == MERGE_UNION) {
+         cover_obj_t copy = cover_clone_item(dst_db, src_db, src);
+         cover_append(dst_db, dst_scope, COV_REL_ITEMS, copy);
       }
    }
 
    const int src_nchildren = cover_count(src_db, src_scope, COV_REL_CHILDREN);
-   const int dst_nchildren = cover_count(src_db, dst_scope, COV_REL_CHILDREN);
+   const int dst_nchildren = cover_count(dst_db, dst_scope, COV_REL_CHILDREN);
 
    for (int i = 0; i < src_nchildren; i++) {
       cover_obj_t src_c = cover_at(src_db, src_scope, COV_REL_CHILDREN, i);
@@ -1166,6 +1194,10 @@ void cover_append(cover_data_t *db, cover_obj_t parent, cover_rel_t rel,
          case COV_REL_CHILDREN:
             assert(obj.tag == COVER_TAG_SCOPE);
             APUSH(s->children, obj);
+            return;
+         case COV_REL_ITEMS:
+            assert(obj.tag == COVER_TAG_ITEM);
+            APUSH(s->items, obj);
             return;
          default:
             should_not_reach_here();
