@@ -53,6 +53,13 @@ static const struct {
 #define COVER_FILE_MAGIC   0x6e636462   // ASCII "ncdb"
 #define COVER_FILE_VERSION 9
 
+static inline cover_obj_t cover_make_obj(unsigned tag, unsigned id)
+{
+   assert(tag != COVER_TAG_NULL);
+   assert(id <= COVER_ID_MAX);
+   return (cover_obj_t){ .tag = tag, .id = id };
+}
+
 static cover_bin_t *cover_get_bins(const cover_data_t *db,
                                    const cover_item_t *item)
 {
@@ -150,11 +157,7 @@ static cover_obj_t cover_alloc_bins(cover_data_t *db, unsigned count)
       db->bins.limit = new_limit;
    }
 
-   cover_obj_t obj = {
-      .tag = COVER_TAG_BIN,
-      .id = db->bins.count,
-   };
-
+   cover_obj_t obj = cover_make_obj(COVER_TAG_BIN, db->bins.count);
    db->bins.count += count;
    return obj;
 }
@@ -175,9 +178,7 @@ void cover_add_ranges(cover_data_t *db, cover_obj_t obj, unsigned count)
       db->ranges.limit = new_limit;
    }
 
-   bin->first_range.tag = COVER_TAG_RANGE;
-   bin->first_range.id = db->ranges.count;
-
+   bin->first_range = cover_make_obj(COVER_TAG_RANGE, db->ranges.count);
    bin->n_ranges = count;
 
    db->ranges.count += count;
@@ -233,11 +234,7 @@ cover_obj_t cover_item_new(cover_data_t *db, cover_obj_t scope,
       };
    }
 
-   cover_obj_t obj = {
-      .tag = COVER_TAG_ITEM,
-      .id = db->items.count,
-   };
-
+   cover_obj_t obj = cover_make_obj(COVER_TAG_ITEM, db->items.count);
    APUSH(db->items, item);
 
    APUSH(sd->items, obj);
@@ -250,10 +247,7 @@ cover_obj_t cover_inst_new(cover_data_t *db, ident_t name)
       .name = name,
    };
 
-   cover_obj_t obj = {
-      .tag = COVER_TAG_INST,
-      .id = db->insts.count,
-   };
+   cover_obj_t obj = cover_make_obj(COVER_TAG_INST, db->insts.count);
 
    assert(hash_get(db->inst_map, name) == NULL);
    hash_put(db->inst_map, name, (void *)(uintptr_t)obj.bits);
@@ -283,13 +277,10 @@ cover_obj_t cover_scope_new(cover_data_t *db, cover_obj_t parent,
       .sig_pos = pd->sig_pos,
    };
 
-   cover_obj_t obj = {
-      .tag = COVER_TAG_SCOPE,
-      .id = db->scopes.count,
-   };
-
-   APUSH(pd->children, obj);
+   cover_obj_t obj = cover_make_obj(COVER_TAG_SCOPE, db->scopes.count);
    APUSH(db->scopes, new);
+
+   cover_append(db, parent, COV_REL_CHILDREN, obj);
 
    cover_scope_t *sd = cover_scope_data(db, obj);
    sd->emit = cover_should_emit_scope(db, obj);
@@ -521,9 +512,7 @@ cover_data_t *cover_data_init(cover_mask_t mask, int array_limit, int threshold)
       .hier = root_name,
    };
 
-   db->root_scope.tag = COVER_TAG_SCOPE;
-   db->root_scope.id = 0;
-
+   db->root_scope = cover_make_obj(COVER_TAG_SCOPE, 0);
    APUSH(db->scopes, root);
 
    return db;
@@ -631,10 +620,8 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
          item->loc_rhs = LOC_INVALID;
       }
 
-      if (item->nbins > 0) {
-         item->first_bin.tag = COVER_TAG_BIN;
-         item->first_bin.id = fbuf_get_uint(f);
-      }
+      if (item->nbins > 0)
+         item->first_bin = cover_make_obj(COVER_TAG_BIN, fbuf_get_uint(f));
    }
 
    db->ranges.count = db->ranges.limit = fbuf_get_uint(f);
@@ -657,10 +644,8 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
       bin->field_idx = fbuf_get_uint(f);
       bin->n_ranges = fbuf_get_uint(f);
 
-      if (bin->n_ranges > 0) {
-         bin->first_range.tag = COVER_TAG_RANGE;
-         bin->first_range.id = fbuf_get_uint(f);
-      }
+      if (bin->n_ranges > 0)
+         bin->first_range = cover_make_obj(COVER_TAG_RANGE, fbuf_get_uint(f));
 
       bin->hier = ident_read(ident_ctx);
    }
@@ -675,7 +660,7 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
       inst->next_tag = fbuf_get_uint(f);
       inst->root.bits = fbuf_get_uint(f);
 
-      cover_obj_t obj = { .tag = COVER_TAG_INST, .id = i };
+      cover_obj_t obj = cover_make_obj(COVER_TAG_INST, i);
       assert(hash_get(db->inst_map, inst->name) == NULL);
       hash_put(db->inst_map, inst->name, (void *)(uintptr_t)obj.bits);
    }
@@ -699,8 +684,7 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
       s->items.items = xmalloc_array(s->items.count, sizeof(cover_obj_t));
 
       for (int j = 0; j < s->items.count; j++) {
-         cover_obj_t obj = { .tag = COVER_TAG_ITEM };
-         obj.id = fbuf_get_uint(f);
+         cover_obj_t obj = cover_make_obj(COVER_TAG_ITEM, fbuf_get_uint(f));
          assert(obj.id < db->items.count);
          s->items.items[j] = obj;
       }
@@ -709,8 +693,7 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
       s->children.items = xmalloc_array(s->children.count, sizeof(cover_obj_t));
 
       for (int j = 0; j < s->children.count; j++) {
-         cover_obj_t obj = { .tag = COVER_TAG_SCOPE };
-         obj.id = fbuf_get_uint(f);
+         cover_obj_t obj = cover_make_obj(COVER_TAG_SCOPE, fbuf_get_uint(f));
          assert(obj.id < db->scopes.count);
          s->children.items[j] = obj;
       }
@@ -828,10 +811,7 @@ static cover_obj_t cover_clone_item(cover_data_t *dst_db,
       d->field_idx = s->field_idx;
 
       if (s->n_ranges > 0) {
-         cover_obj_t bin = {
-            .tag = COVER_TAG_BIN,
-            .id = copy.first_bin.id + i,
-         };
+         cover_obj_t bin = cover_make_obj(COVER_TAG_BIN, copy.first_bin.id + i);
          cover_add_ranges(dst_db, bin, s->n_ranges);
 
          cover_range_t *dst_r = cover_range_data(dst_db, d->first_range);
@@ -843,11 +823,7 @@ static cover_obj_t cover_clone_item(cover_data_t *dst_db,
       }
    }
 
-   cover_obj_t item_obj = {
-      .tag = COVER_TAG_ITEM,
-      .id = dst_db->items.count,
-   };
-
+   cover_obj_t item_obj = cover_make_obj(COVER_TAG_ITEM, dst_db->items.count);
    APUSH(dst_db->items, copy);
 
    return item_obj;
@@ -859,11 +835,7 @@ static cover_obj_t cover_clone_scope(cover_data_t *dst_db,
                                      cover_obj_t parent_scope,
                                      cover_obj_t parent_inst)
 {
-   cover_obj_t obj = {
-      .tag = COVER_TAG_SCOPE,
-      .id = dst_db->scopes.count,
-   };
-
+   cover_obj_t obj = cover_make_obj(COVER_TAG_SCOPE, dst_db->scopes.count);
    APUSH(dst_db->scopes, *cover_scope_data_const(src_db, src_scope));
 
    cover_scope_t *copy = cover_scope_data(dst_db, obj);
@@ -1096,10 +1068,8 @@ static size_t cover_rel_contig(unsigned rel_count, cover_obj_t rel_first,
 
    const size_t count = rel_count - first;
 
-   for (int i = 0; i < MIN(count, max); i++) {
-      out[i].tag = rel_first.tag;
-      out[i].id  = rel_first.id + first + i;
-   }
+   for (int i = 0; i < MIN(count, max); i++)
+      out[i] = cover_make_obj(rel_first.tag, rel_first.id + first + i);
 
    return count;
 }
