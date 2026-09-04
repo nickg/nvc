@@ -185,7 +185,7 @@ void cover_add_ranges(cover_data_t *db, cover_obj_t obj, unsigned count)
 }
 
 cover_obj_t cover_item_new(cover_data_t *db, cover_obj_t scope,
-                           cover_item_kind_t kind, int nbins)
+                           cover_item_kind_t kind, loc_t loc, int nbins)
 {
    cover_scope_t *sd = cover_scope_data(db, scope);
 
@@ -211,7 +211,7 @@ cover_obj_t cover_item_new(cover_data_t *db, cover_obj_t scope,
    cover_item_t item = {
       .nbins     = nbins,
       .kind      = kind,
-      .loc       = LOC_INVALID,
+      .loc       = loc,
       .loc_lhs   = LOC_INVALID,
       .loc_rhs   = LOC_INVALID,
       .atleast   = db->threshold,
