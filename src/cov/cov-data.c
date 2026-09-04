@@ -390,6 +390,13 @@ static void cover_debug_dump(const cover_data_t *db, cover_obj_t scope,
 }
 LCOV_EXCL_STOP
 
+static void cover_write_obj(fbuf_t *f, cover_obj_t obj)
+{
+   fbuf_put_uint(f, obj.tag);
+   if (obj.tag != COVER_TAG_NULL)
+      fbuf_put_uint(f, obj.id);
+}
+
 void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
 {
    if (dt == COV_DUMP_RUNTIME)
@@ -461,7 +468,7 @@ void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
 
       ident_write(inst->name, ident_ctx);
       fbuf_put_uint(f, inst->next_tag);
-      fbuf_put_uint(f, inst->root.bits);
+      cover_write_obj(f, inst->root);
    }
 
    fbuf_put_uint(f, db->scopes.count);
@@ -474,8 +481,8 @@ void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
       fbuf_put_uint(f, s->kind);
       loc_write(&s->loc, loc_wr);
 
-      fbuf_put_uint(f, s->parent.bits);
-      fbuf_put_uint(f, s->inst.bits);
+      cover_write_obj(f, s->parent);
+      cover_write_obj(f, s->inst);
 
       fbuf_put_uint(f, s->items.count);
       for (int i = 0; i < s->items.count; i++) {
@@ -490,7 +497,7 @@ void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
       }
    }
 
-   fbuf_put_uint(f, db->root_scope.bits);
+   cover_write_obj(f, db->root_scope);
 
    loc_write_end(loc_wr);
    ident_write_end(ident_ctx);
@@ -582,6 +589,16 @@ static void cover_read_header(fbuf_t *f, cover_data_t *data)
    data->array_limit = fbuf_get_uint(f);
 }
 
+static cover_obj_t cover_read_obj(fbuf_t *f)
+{
+   const unsigned tag = fbuf_get_uint(f);
+   if (tag == COVER_TAG_NULL)
+      return COVER_NULL_OBJ;
+
+   const unsigned id = fbuf_get_uint(f);
+   return cover_make_obj(tag, id);
+}
+
 cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
 {
    cover_data_t *db = xcalloc(sizeof(cover_data_t));
@@ -658,7 +675,7 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
 
       inst->name = ident_read(ident_ctx);
       inst->next_tag = fbuf_get_uint(f);
-      inst->root.bits = fbuf_get_uint(f);
+      inst->root = cover_read_obj(f);
 
       cover_obj_t obj = cover_make_obj(COVER_TAG_INST, i);
       assert(hash_get(db->inst_map, inst->name) == NULL);
@@ -677,8 +694,8 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
       s->kind = fbuf_get_uint(f);
       loc_read(&s->loc, loc_rd);
 
-      s->parent.bits = fbuf_get_uint(f);
-      s->inst.bits = fbuf_get_uint(f);
+      s->parent = cover_read_obj(f);
+      s->inst = cover_read_obj(f);
 
       s->items.count = s->items.limit = fbuf_get_uint(f);
       s->items.items = xmalloc_array(s->items.count, sizeof(cover_obj_t));
@@ -699,7 +716,7 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
       }
    }
 
-   db->root_scope.bits = fbuf_get_uint(f);
+   db->root_scope = cover_read_obj(f);
 
    ident_read_end(ident_ctx);
    loc_read_end(loc_rd);
