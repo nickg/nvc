@@ -469,15 +469,15 @@ void _nvc_add_cover_item(jit_scalar_t *args)
       }
    }
 
-   cover_obj_t item = cover_item_new(db, us->scope, COV_ITEM_FUNCTIONAL, 1);
+   // XXX: keeps report from crashing but location does not make sense here
+   loc_t scope_loc = cover_get_loc(db, us->scope, COV_ATTR_LOC);
+
+   cover_obj_t item = cover_item_new(db, us->scope, COV_ITEM_FUNCTIONAL,
+                                     scope_loc, 1);
    assert(!cover_is_null(item));   // Preconditions checked above
 
    cover_obj_t bin0 = cover_at(db, item, COV_REL_BINS, 0);
    cover_put_ident(db, bin0, COV_ATTR_HIER, ident_new(tb_get(tb)));
-
-   // XXX: keeps report from crashing but location does not make sense here
-   loc_t scope_loc = cover_get_loc(db, us->scope, COV_ATTR_LOC);
-   cover_put_loc(db, item, COV_ATTR_LOC, scope_loc);
 
    // Name remembered at the time of cover point creation in its scope
    ident_t scope_name = cover_get_ident(db, us->scope, COV_ATTR_NAME);

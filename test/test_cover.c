@@ -459,7 +459,8 @@ static cover_obj_t make_cover_block(cover_data_t *db, const char *qual,
 static cover_obj_t add_functional_range(cover_data_t *db, cover_obj_t scope,
                                         int64_t min, int64_t max, int32_t data)
 {
-   cover_obj_t item = cover_item_new(db, scope, COV_ITEM_FUNCTIONAL, 1);
+   cover_obj_t item = cover_item_new(db, scope, COV_ITEM_FUNCTIONAL,
+                                     LOC_INVALID, 1);
    ck_assert(!cover_is_null(item));
 
    cover_obj_t bin = cover_at(db, item, COV_REL_BINS, 0);
@@ -549,7 +550,8 @@ START_TEST(test_merge5)
    cover_obj_t src_top =
       make_cover_block(src, "WORK.TOP", COVER_NULL_OBJ, "TOP");
 
-   cover_obj_t src_item = cover_item_new(src, src_top, COV_ITEM_STMT, 1);
+   cover_obj_t src_item = cover_item_new(src, src_top, COV_ITEM_STMT,
+                                         LOC_INVALID, 1);
    cover_obj_t src_bin = cover_at(src, src_item, COV_REL_BINS, 0);
    cover_merge_bin(src, src_bin, 5);
 

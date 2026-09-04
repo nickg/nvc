@@ -243,7 +243,7 @@ cover_obj_t cover_get_item(const cover_data_t *db, cover_obj_t scope,
                            cover_item_kind_t kind, int nth);
 
 cover_obj_t cover_item_new(cover_data_t *db, cover_obj_t scope,
-                           cover_item_kind_t kind, int nbins);
+                           cover_item_kind_t kind, loc_t loc, int nbins);
 cover_obj_t cover_scope_new(cover_data_t *db, cover_obj_t parent,
                             cover_scope_kind_t kind, ident_t name, loc_t loc);
 

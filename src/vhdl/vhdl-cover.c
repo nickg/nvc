@@ -105,11 +105,10 @@ static void vhdl_cover_branch(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
    cover_obj_t cs = get_cover_scope(g, parent);
 
    if (tree_kind(t) == T_CHOICE) {  // Case choice
-      cover_obj_t item = cover_item_new(g->data, cs, COV_ITEM_BRANCH, 1);
+      cover_obj_t item = cover_item_new(g->data, cs, COV_ITEM_BRANCH, loc, 1);
       if (cover_is_null(item))
          return;
 
-      cover_put_loc(g->data, item, COV_ATTR_LOC, loc);
       cover_put_u32(g->data, item, COV_ATTR_SOURCE, COV_SRC_CASE_CHOICE);
 
       cover_obj_t bin0 = cover_at(g->data, item, COV_REL_BINS, 0);
@@ -122,7 +121,7 @@ static void vhdl_cover_branch(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
                       ident_prefix(prefix, suffix, '.'));
    }
    else {    // If-else
-      cover_obj_t item = cover_item_new(g->data, cs, COV_ITEM_BRANCH, 2);
+      cover_obj_t item = cover_item_new(g->data, cs, COV_ITEM_BRANCH, loc, 2);
       if (cover_is_null(item))
          return;
 
@@ -142,7 +141,6 @@ static void vhdl_cover_branch(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
          src = COV_SRC_CONDITION;
       }
 
-      cover_put_loc(g->data, item, COV_ATTR_LOC, loc);
       cover_put_u32(g->data, item, COV_ATTR_SOURCE, src);
 
       static const cover_flags_t bin_flags[] = {
@@ -174,7 +172,7 @@ static void vhdl_cover_stmt(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
 
    cover_obj_t cs = get_cover_scope(g, parent);
 
-   cover_obj_t item = cover_item_new(g->data, cs, COV_ITEM_STMT, 1);
+   cover_obj_t item = cover_item_new(g->data, cs, COV_ITEM_STMT, loc, 1);
    if (cover_is_null(item))
       return;
 
@@ -286,7 +284,8 @@ static void vhdl_cover_expr(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
 
    cover_obj_t cs = get_cover_scope(g, parent);
 
-   cover_obj_t item = cover_item_new(g->data, cs, COV_ITEM_EXPRESSION, nbins);
+   cover_obj_t item = cover_item_new(g->data, cs, COV_ITEM_EXPRESSION,
+                                     loc, nbins);
    if (cover_is_null(item))
       return;
 
@@ -301,7 +300,6 @@ static void vhdl_cover_expr(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
    }
 
    cover_put_ident(g->data, item, COV_ATTR_FUNC_NAME, tree_ident(t));
-   cover_put_loc(g->data, item, COV_ATTR_LOC, loc);
 
    for (int i = 0; i < nbins; i++) {
       cover_put_flags(g->data, bins[i], bin_flags[i] | flags);
@@ -345,7 +343,7 @@ static void vhdl_cover_states(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
    cover_obj_t cs = get_cover_scope(g, parent);
 
    const int nbins = high - low + 1;
-   cover_obj_t set = cover_item_new(g->data, cs, COV_ITEM_STATE, nbins);
+   cover_obj_t set = cover_item_new(g->data, cs, COV_ITEM_STATE, loc, nbins);
    if (cover_is_null(set))
       return;
 
@@ -371,7 +369,6 @@ static void vhdl_cover_states(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
 
    cover_put_ident(g->data, set, COV_ATTR_FUNC_NAME, ident_rfrom(itype, '.'));
    cover_put_i64(g->data, set, COV_ATTR_METADATA, low);
-   cover_put_loc(g->data, set, COV_ATTR_LOC, loc);
 }
 
 static int vhdl_cover_count_toggle_elems(vhdl_cover_t *g, type_t type)
@@ -563,11 +560,9 @@ static void vhdl_cover_toggle(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
 
    if (type_is_record(type)) {
       cover_obj_t item = cover_item_new(g->data, cs, COV_ITEM_TOGGLE,
-                                        nelems * 2);
+                                        loc, nelems * 2);
       if (cover_is_null(item))
          return;
-
-      cover_put_loc(g->data, item, COV_ATTR_LOC, loc);
 
       cover_obj_t *bins LOCAL = xmalloc_array(nelems * 2, sizeof(cover_obj_t));
       cover_rel(g->data, item, COV_REL_BINS, 0, bins, nelems * 2);
@@ -585,11 +580,9 @@ static void vhdl_cover_toggle(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
       return;
 
    if (type_is_scalar(type)) {
-      cover_obj_t item = cover_item_new(g->data, cs, COV_ITEM_TOGGLE, 2);
+      cover_obj_t item = cover_item_new(g->data, cs, COV_ITEM_TOGGLE, loc, 2);
       if (cover_is_null(item))
          return;
-
-      cover_put_loc(g->data, item, COV_ATTR_LOC, loc);
 
       cover_obj_t bins[2];
       cover_rel(g->data, item, COV_REL_BINS, 0, bins, 2);
@@ -609,11 +602,9 @@ static void vhdl_cover_toggle(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
    }
    else {
       cover_obj_t item = cover_item_new(g->data, cs, COV_ITEM_TOGGLE,
-                                        nelems * 2);
+                                        loc, nelems * 2);
       if (cover_is_null(item))
          return;
-
-      cover_put_loc(g->data, item, COV_ATTR_LOC, loc);
 
       cover_obj_t *bins LOCAL = xmalloc_array(nelems * 2, sizeof(cover_obj_t));
       cover_rel(g->data, item, COV_REL_BINS, 0, bins, nelems * 2);

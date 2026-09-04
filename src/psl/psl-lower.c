@@ -145,12 +145,10 @@ static void psl_lower_cover(lower_unit_t *lu, psl_node_t p)
       return;
 
    cover_obj_t item = cover_item_new(lu->cover, lu->cscope,
-                                     COV_ITEM_FUNCTIONAL, 1);
+                                     COV_ITEM_FUNCTIONAL, *psl_loc(p), 1);
 
    if (cover_is_null(item))
       return;
-
-   cover_put_loc(lu->cover, item, COV_ATTR_LOC, *psl_loc(p));
 
    cover_obj_t bin = cover_at(lu->cover, item, COV_REL_BINS, 0);
    uint32_t tag = cover_get_u32(lu->cover, bin, COV_ATTR_TAG, -1);
