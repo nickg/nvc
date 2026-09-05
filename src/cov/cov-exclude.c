@@ -192,12 +192,11 @@ static void excl_trie_print(excl_trie_t *et, int indent)
 ////////////////////////////////////////////////////////////////////////////////
 // Exclude file
 
-static void cover_exclude_items(cover_data_t *db, cover_obj_t item, void *ctx)
+static void cover_exclude_items(cover_data_t *db, cover_obj_t item)
 {
-   const int nbins = cover_count(db, item, COV_REL_BINS);
-
-   for (int i = 0; i < nbins; i++) {
-      cover_obj_t bin = cover_at(db, item, COV_REL_BINS, i);
+   cover_iter_t it = cover_begin(db, item, COV_REL_BINS);
+   cover_obj_t bin;
+   while (cover_next(&it, &bin)) {
       ident_t hier = cover_get_ident(db, bin, COV_ATTR_HIER);
 
       for (int j = 0; j < db->ef->n_excl_cmds; j++) {
@@ -225,10 +224,17 @@ static void cover_exclude_items(cover_data_t *db, cover_obj_t item, void *ctx)
    }
 }
 
-static void cover_exclude_scope(cover_data_t *db, cover_obj_t scope, void *ctx)
+static void cover_exclude_scope(cover_data_t *db, cover_obj_t scope)
 {
-   cover_map(db, scope, COV_REL_ITEMS, cover_exclude_items, NULL);
-   cover_map(db, scope, COV_REL_CHILDREN, cover_exclude_scope, NULL);
+   cover_iter_t item_it = cover_begin(db, scope, COV_REL_ITEMS);
+   cover_obj_t item;
+   while (cover_next(&item_it, &item))
+      cover_exclude_items(db, item);
+
+   cover_iter_t child_it = cover_begin(db, scope, COV_REL_CHILDREN);
+   cover_obj_t child;
+   while (cover_next(&child_it, &child))
+      cover_exclude_scope(db, child);
 }
 
 static void cover_parse_exclude_file(const char *path, cover_data_t *data)
@@ -336,7 +342,7 @@ static void cover_apply_exclude_cmds(cover_data_t *data)
    for (int i = 0; i < data->ef->n_excl_cmds; i++)
       data->ef->excl[i].found = false;
 
-   cover_exclude_scope(data, data->root_scope, NULL);
+   cover_exclude_scope(data, data->root_scope);
 
    for (int i = 0; i < data->ef->n_excl_cmds; i++)
       if (!data->ef->excl[i].found)
@@ -353,19 +359,16 @@ static void cover_fold_scopes(cover_data_t *db, cover_obj_t tgt_scope,
    int tgt_prefix_len = ident_len(tgt_scope_hier);
    int src_prefix_len = ident_len(src_scope_hier);
 
-   const int tgt_nitems = cover_count(db, tgt_scope, COV_REL_ITEMS);
-   const int src_nitems = cover_count(db, src_scope, COV_REL_ITEMS);
-
    // Process items
-   for (int i = 0; i < src_nitems; i++) {
-      cover_obj_t src = cover_at(db, src_scope, COV_REL_ITEMS, i);
-
+   cover_iter_t src_it = cover_begin(db, src_scope, COV_REL_ITEMS);
+   cover_obj_t src;
+   while (cover_next(&src_it, &src)) {
       cover_item_kind_t src_kind = cover_get_kind(db, src);
       int src_nbins = cover_count(db, src, COV_REL_BINS);
 
-      for (int j = 0; j < tgt_nitems; j++) {
-         cover_obj_t tgt = cover_at(db, tgt_scope, COV_REL_ITEMS, j);
-
+      cover_iter_t tgt_it = cover_begin(db, tgt_scope, COV_REL_ITEMS);
+      cover_obj_t tgt;
+      while (cover_next(&tgt_it, &tgt)) {
          cover_item_kind_t tgt_kind = cover_get_kind(db, tgt);
          int tgt_nbins = cover_count(db, tgt, COV_REL_BINS);
 
@@ -402,18 +405,14 @@ static void cover_fold_scopes(cover_data_t *db, cover_obj_t tgt_scope,
       }
    }
 
-   const int tgt_nchildren = cover_count(db, tgt_scope, COV_REL_CHILDREN);
-   const int src_nchildren = cover_count(db, src_scope, COV_REL_CHILDREN);
-
    // Process sub-scopes
-   for (int i = 0; i < src_nchildren; i++) {
-      cover_obj_t src = cover_at(db, src_scope, COV_REL_CHILDREN, i);
-
+   src_it = cover_begin(db, src_scope, COV_REL_CHILDREN);
+   while (cover_next(&src_it, &src)) {
       ident_t src_hier = cover_get_ident(db, src, COV_ATTR_HIER);
 
-      for (int j = 0; j < tgt_nchildren; j++) {
-         cover_obj_t tgt = cover_at(db, tgt_scope, COV_REL_CHILDREN, j);
-
+      cover_iter_t tgt_it = cover_begin(db, tgt_scope, COV_REL_CHILDREN);
+      cover_obj_t tgt;
+      while (cover_next(&tgt_it, &tgt)) {
          // Compare hierarchical paths, but strip "tgt_scope" prefix from "tgt",
          // and "src_scope" from "src". Only suffix of hierarchy needs to be the same!
          ident_t tgt_suffix_hier = NULL;
@@ -441,10 +440,9 @@ static void cover_iterate_fold_source(cover_data_t *db,
 {
    ident_t tgt_hier = cover_get_ident(db, tgt_scope, COV_ATTR_HIER);
 
-   const int src_nchildren = cover_count(db, src_scope, COV_REL_CHILDREN);
-   for (int i = 0; i < src_nchildren; i++) {
-      cover_obj_t src_child = cover_at(db, src_scope, COV_REL_CHILDREN, i);
-
+   cover_iter_t it = cover_begin(db, src_scope, COV_REL_CHILDREN);
+   cover_obj_t src_child;
+   while (cover_next(&it, &src_child)) {
       ident_t src_hier = cover_get_ident(db, src_child, COV_ATTR_HIER);
 
       if (src_hier == cmd->source) {
@@ -462,10 +460,8 @@ static void cover_iterate_fold_source(cover_data_t *db,
 }
 
 static void cover_iterate_fold_target(cover_data_t *db, cover_obj_t tgt_scope,
-                                      void *ctx)
+                                      cover_fold_cmd_t *cmd)
 {
-   cover_fold_cmd_t *cmd = ctx;
-
    // On target scope name match, go and search for all source scopes
    // and collapse them into the target scope
    if (cover_get_ident(db, tgt_scope, COV_ATTR_HIER) == cmd->target) {
@@ -473,7 +469,10 @@ static void cover_iterate_fold_target(cover_data_t *db, cover_obj_t tgt_scope,
       cover_iterate_fold_source(db, tgt_scope, db->root_scope, cmd);
    }
 
-   cover_map(db, tgt_scope, COV_REL_CHILDREN, cover_iterate_fold_target, cmd);
+   cover_iter_t it = cover_begin(db, tgt_scope, COV_REL_CHILDREN);
+   cover_obj_t child;
+   while (cover_next(&it, &child))
+      cover_iterate_fold_target(db, child, cmd);
 }
 
 static void cover_apply_fold_cmds(cover_data_t *data)
@@ -488,8 +487,10 @@ static void cover_apply_fold_cmds(cover_data_t *data)
       cmd->found_source = false;
       cmd->found_target = false;
 
-      cover_map(data, data->root_scope, COV_REL_CHILDREN,
-                cover_iterate_fold_target, cmd);
+      cover_iter_t it = cover_begin(data, data->root_scope, COV_REL_CHILDREN);
+      cover_obj_t child;
+      while (cover_next(&it, &child))
+         cover_iterate_fold_target(data, child, cmd);
 
       if (cmd->found_target == false)
          warn_at(&(cmd->loc), "fold target does not match any "

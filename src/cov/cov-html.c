@@ -1196,30 +1196,24 @@ static void cover_report_hier(html_gen_t *g, int lvl, cover_obj_t scope)
 static void cover_report_hier_children(html_gen_t *g, int lvl,
                                        cover_obj_t scope, FILE *summf)
 {
-   cover_obj_t batch[32];
-   int pos = 0, total;
-   do {
-      total = cover_rel(g->data, scope, COV_REL_CHILDREN, pos, batch,
-                        ARRAY_LEN(batch));
-      pos += ARRAY_LEN(batch);
+   cover_iter_t it = cover_begin(g->data, scope, COV_REL_CHILDREN);
+   cover_obj_t child;
+   while (cover_next(&it, &child)) {
+      if (cover_is_hier(g->data, child)) {
+         cover_report_hier(g, lvl + 2, child);
 
-      for (int j = 0; j < MIN(total, ARRAY_LEN(batch)); j++) {
-         if (cover_is_hier(g->data, batch[j])) {
-            cover_report_hier(g, lvl + 2, batch[j]);
+         const rpt_hier_t *h = rpt_get_hier(g->rpt, child);
 
-            const rpt_hier_t *h = rpt_get_hier(g->rpt, batch[j]);
+         ident_t hier = cover_get_ident(g->data, child, COV_ATTR_HIER);
 
-            ident_t hier = cover_get_ident(g->data, batch[j], COV_ATTR_HIER);
-
-            cover_print_summary_table_row(g, summf, &(h->nested_stats),
-                                          ident_rfrom(hier, '.'),
-                                          ident_new(h->name_hash),
-                                          lvl + 2, false, true);
-         }
-         else
-            cover_report_hier_children(g, lvl, batch[j], summf);
+         cover_print_summary_table_row(g, summf, &(h->nested_stats),
+                                       ident_rfrom(hier, '.'),
+                                       ident_new(h->name_hash),
+                                       lvl + 2, false, true);
       }
-   } while (total > ARRAY_LEN(batch));
+      else
+         cover_report_hier_children(g, lvl, child, summf);
+   }
 }
 
 static void cover_report_per_hier(html_gen_t *g, FILE *f, cover_rpt_t *rpt)

@@ -361,7 +361,7 @@ static void rpt_visit_sub_scope(cover_rpt_t *rpt, rpt_hier_t *h,
 
          cover_obj_t small[10];
          const int nbins = cover_rel(rpt->data, item, COV_REL_BINS, 0, small,
-                                      ARRAY_LEN(small));
+                                     ARRAY_LEN(small));
 
          if (nbins <= ARRAY_LEN(small))
             rpt_get_detail(rpt, &h->detail, &h->flat_stats, item, small, NULL,
@@ -382,22 +382,16 @@ static void rpt_visit_sub_scope(cover_rpt_t *rpt, rpt_hier_t *h,
 static void rpt_visit_children(cover_rpt_t *rpt, rpt_hier_t *h,
                                cover_obj_t scope)
 {
-   cover_obj_t batch[32];
-   int pos = 0, total;
-   do {
-      total = cover_rel(rpt->data, scope, COV_REL_CHILDREN, pos, batch,
-                        ARRAY_LEN(batch));
-      pos += ARRAY_LEN(batch);
-
-      for (int j = 0; j < MIN(total, ARRAY_LEN(batch)); j++) {
-         if (cover_is_hier(rpt->data, batch[j])) {
-            rpt_hier_t *sub = rpt_visit_hier(rpt, batch[j]);
-            rpt_merge_stats(&h->nested_stats, &sub->nested_stats);
-         }
-         else
-            rpt_visit_sub_scope(rpt, h, batch[j]);
+   cover_iter_t it = cover_begin(rpt->data, scope, COV_REL_CHILDREN);
+   cover_obj_t child;
+   while (cover_next(&it, &child)) {
+      if (cover_is_hier(rpt->data, child)) {
+         rpt_hier_t *sub = rpt_visit_hier(rpt, child);
+         rpt_merge_stats(&h->nested_stats, &sub->nested_stats);
       }
-   } while (total > ARRAY_LEN(batch));
+      else
+         rpt_visit_sub_scope(rpt, h, child);
+   }
 }
 
 static void rpt_gen_file_details(cover_rpt_t *rpt, rpt_file_t *f)
