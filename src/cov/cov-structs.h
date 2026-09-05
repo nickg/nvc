@@ -42,7 +42,6 @@ typedef struct {
    cover_obj_t        inst;
    cover_array_t      children;
    cover_array_t      items;
-   int                sig_pos;
    bool               emit;
 } cover_scope_t;
 

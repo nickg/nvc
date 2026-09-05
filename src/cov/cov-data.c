@@ -192,10 +192,6 @@ cover_obj_t cover_item_new(cover_data_t *db, cover_obj_t scope,
    if (!sd->emit)
       return COVER_NULL_OBJ;
 
-   int64_t metadata = 0;
-   if (kind == COV_ITEM_TOGGLE)
-      metadata = sd->sig_pos;
-
    cover_item_t item = {
       .nbins     = nbins,
       .kind      = kind,
@@ -203,7 +199,6 @@ cover_obj_t cover_item_new(cover_data_t *db, cover_obj_t scope,
       .loc_lhs   = LOC_INVALID,
       .loc_rhs   = LOC_INVALID,
       .atleast   = db->threshold,
-      .metadata  = metadata,
       .source    = COV_SRC_UNKNOWN,
       .first_bin = cover_alloc_bins(db, nbins),
    };
@@ -262,7 +257,6 @@ cover_obj_t cover_scope_new(cover_data_t *db, cover_obj_t parent,
       .name    = name,
       .loc     = loc,
       .hier    = ident_prefix(pd->hier, new.name, '.'),
-      .sig_pos = pd->sig_pos,
    };
 
    cover_obj_t obj = cover_make_obj(COVER_TAG_SCOPE, db->scopes.count);
@@ -1241,14 +1235,6 @@ int64_t cover_get_i64(const cover_data_t *db, cover_obj_t obj,
          default:                return def;
          }
       }
-   case COVER_TAG_SCOPE:
-      {
-         const cover_scope_t *scope = cover_scope_data_const(db, obj);
-         switch (attr) {
-         case COV_ATTR_SIG_POS: return scope->sig_pos;
-         default:               return def;
-         }
-      }
    default:
       return def;
    }
@@ -1403,17 +1389,6 @@ void cover_put_u32(cover_data_t *db, cover_obj_t obj, cover_attr_t attr,
             return;
          case COV_ATTR_ATLEAST:
             item->atleast = value;
-            return;
-         default:
-            should_not_reach_here();
-         }
-      }
-   case COVER_TAG_SCOPE:
-      {
-         cover_scope_t *scope = cover_scope_data(db, obj);
-         switch (attr) {
-         case COV_ATTR_SIG_POS:
-            scope->sig_pos = value;
             return;
          default:
             should_not_reach_here();
