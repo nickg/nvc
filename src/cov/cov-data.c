@@ -300,18 +300,12 @@ static void cover_update_counts(cover_data_t *db, cover_scope_t *s)
          for (int i = 0; i < s->items.count; i++) {
             cover_obj_t item = s->items.items[i];
 
-            cover_obj_t chunk[10];
-            int pos = 0, nbins;
-            do {
-               nbins = cover_rel(db, item, COV_REL_BINS, pos, chunk,
-                                 ARRAY_LEN(chunk));
-               pos += ARRAY_LEN(chunk);
-
-               for (int j = 0; j < MIN(nbins, ARRAY_LEN(chunk)); j++) {
-                  uint32_t tag = cover_get_tag(db, chunk[j]);
-                  cover_merge_bin(db, chunk[j], id->data[tag]);
-               }
-            } while (nbins > ARRAY_LEN(chunk));
+            cover_iter_t it = cover_begin(db, item, COV_REL_BINS);
+            cover_obj_t bin;
+            while (cover_next(&it, &bin)) {
+               uint32_t tag = cover_get_tag(db, bin);
+               cover_merge_bin(db, bin, id->data[tag]);
+            }
          }
       }
    }
@@ -1138,18 +1132,33 @@ cover_obj_t cover_at(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel,
       return result[0];
 }
 
-void cover_map(cover_data_t *db, cover_obj_t obj, cover_rel_t rel,
-               cover_map_fn_t fn, void *ctx)
+cover_iter_t cover_begin(const cover_data_t *db, cover_obj_t obj,
+                         cover_rel_t rel)
 {
-   cover_obj_t batch[32];
-   int pos = 0, total;
-   do {
-      total = cover_rel(db, obj, rel, pos, batch, ARRAY_LEN(batch));
-      pos += ARRAY_LEN(batch);
+   cover_iter_t it = {
+      .data = db,
+      .obj  = obj,
+      .rel  = rel,
+      .next = ARRAY_LEN(it.batch),
+   };
+   return it;
+}
 
-      for (int j = 0; j < MIN(total, ARRAY_LEN(batch)); j++)
-         (*fn)(db, batch[j], ctx);
-   } while (total > ARRAY_LEN(batch));
+bool cover_next(cover_iter_t *it, cover_obj_t *obj)
+{
+   if (it->next == ARRAY_LEN(it->batch)) {
+      unsigned total = cover_rel(it->data, it->obj, it->rel, it->pos,
+                                 it->batch, ARRAY_LEN(it->batch));
+      it->count = MIN(total, ARRAY_LEN(it->batch));
+      it->pos += it->count;
+      it->next = 0;
+   }
+
+   if (it->next == it->count)
+      return false;
+
+   *obj = it->batch[it->next++];
+   return true;
 }
 
 void cover_append(cover_data_t *db, cover_obj_t parent, cover_rel_t rel,

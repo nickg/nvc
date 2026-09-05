@@ -225,6 +225,16 @@ typedef enum {
    MERGE_UNION,
 } merge_mode_t;
 
+typedef struct {
+   const cover_data_t *data;
+   cover_obj_t         obj;
+   cover_rel_t         rel;
+   uint32_t            pos;
+   uint16_t            next;
+   uint16_t            count;
+   cover_obj_t         batch[8];
+} cover_iter_t;
+
 cover_data_t *cover_data_init(cover_mask_t mask, int array_limit, int threshold);
 void cover_data_free(cover_data_t *db);
 bool cover_enabled(cover_data_t *data, cover_mask_t mask);
@@ -254,10 +264,9 @@ cover_obj_t cover_at(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel,
 void cover_append(cover_data_t *db, cover_obj_t parent, cover_rel_t rel,
                   cover_obj_t obj);
 
-typedef void (*cover_map_fn_t)(cover_data_t *, cover_obj_t, void *);
-
-void cover_map(cover_data_t *db, cover_obj_t obj, cover_rel_t rel,
-               cover_map_fn_t fn, void *ctx);
+cover_iter_t cover_begin(const cover_data_t *db, cover_obj_t obj,
+                         cover_rel_t rel);
+bool cover_next(cover_iter_t *it, cover_obj_t *obj);
 
 uint32_t cover_get_u32(const cover_data_t *db, cover_obj_t obj,
                        cover_attr_t attr, uint32_t def);

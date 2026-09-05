@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2023-2025  Nick Gasson
+//  Copyright (C) 2023-2026  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #include "ident.h"
 #include "option.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -142,6 +143,7 @@ static void cobertura_export_scope(cobertura_report_t *report,
 
             cover_obj_t bins[2];
             int nbins = cover_rel(db, item, COV_REL_BINS, 0, bins, 2);
+            assert(nbins <= ARRAY_LEN(bins));
 
             for (int j = 0; j < nbins; j++) {
                uint32_t data = cover_get_u32(db, bins[j], COV_ATTR_DATA, 0);
