@@ -38,9 +38,6 @@ typedef struct {
    ident_t            hier;
    ident_t            block_name;
    loc_t              loc;
-   int                branch_label;
-   int                stmt_label;
-   int                expression_label;
    cover_obj_t        parent;
    cover_obj_t        inst;
    cover_array_t      children;

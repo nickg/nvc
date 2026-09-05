@@ -207,7 +207,8 @@ static void vhdl_cover_stmt(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
    cover_put_u32(g->data, item, COV_ATTR_SOURCE, src);
 }
 
-static void vhdl_cover_expr(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
+static void vhdl_cover_expr(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent,
+                            unsigned *nth)
 {
    if (!cover_enabled(g->data, COVER_MASK_EXPRESSION))
       return;
@@ -301,18 +302,23 @@ static void vhdl_cover_expr(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
 
    cover_put_ident(g->data, item, COV_ATTR_FUNC_NAME, tree_ident(t));
 
+   const unsigned expr_num = (*nth)++;
+
    for (int i = 0; i < nbins; i++) {
       cover_put_flags(g->data, bins[i], bin_flags[i] | flags);
 
-      ident_t suffix = ident_new(cover_bmask_to_bin_str(bin_flags[i]));
       ident_t prefix = cover_get_ident(g->data, bins[i], COV_ATTR_HIER);
-      cover_put_ident(g->data, bins[i], COV_ATTR_HIER,
-                      ident_prefix(prefix, suffix, '.'));
+
+      // Expression items do not nest scope
+      ident_t hier = ident_sprintf("%s._E%d.%s", istr(prefix), expr_num,
+                                   cover_bmask_to_bin_str(bin_flags[i]));
+
+      cover_put_ident(g->data, bins[i], COV_ATTR_HIER, hier);
    }
 
    const int nparams = tree_params(t);
    for (int i = 0; i < nparams; i++)
-      vhdl_cover_expr(g, tree_value(tree_param(t, i)), parent);
+      vhdl_cover_expr(g, tree_value(tree_param(t, i)), parent, nth);
 }
 
 static void vhdl_cover_states(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
@@ -626,7 +632,8 @@ static void vhdl_cover_if(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
       lazy_cscope_t lcs = lazy_cover_scope(c, parent, i);
 
       if (tree_has_value(c)) {
-         vhdl_cover_expr(g, tree_value(c), &lcs);
+         unsigned nth = 0;
+         vhdl_cover_expr(g, tree_value(c), &lcs, &nth);
          vhdl_cover_branch(g, c, &lcs);
       }
 
@@ -673,9 +680,10 @@ static void vhdl_cover_signal_assign(vhdl_cover_t *g, tree_t t,
 {
    vhdl_cover_stmt(g, t, parent);
 
+   unsigned nth_expr = 0;
    const int nwaves = tree_waveforms(t);
    for (int i = 0; i < nwaves; i++)
-      vhdl_cover_expr(g, tree_value(tree_waveform(t, i)), parent);
+      vhdl_cover_expr(g, tree_value(tree_waveform(t, i)), parent, &nth_expr);
 }
 
 static void vhdl_cover_wait(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
@@ -786,7 +794,8 @@ static void vhdl_cover_inertial(vhdl_cover_t *g, tree_t t, ident_t qual,
                                 lazy_cscope_t *parent)
 {
    lazy_cscope_t lcs = lazy_cover_scope(t, parent, 0);
-   vhdl_cover_expr(g, tree_value(t), &lcs);
+   unsigned nth = 0;
+   vhdl_cover_expr(g, tree_value(t), &lcs, &nth);
 }
 
 static void ignore_from_pragmas(vhdl_cover_t *g, tree_t unit)

@@ -192,18 +192,6 @@ cover_obj_t cover_item_new(cover_data_t *db, cover_obj_t scope,
    if (!sd->emit)
       return COVER_NULL_OBJ;
 
-   // Everything creates scope, so name of current item is already given
-   // by scope in hierarchy.
-   ident_t hier = sd->hier;
-
-   // Expression items do not nest scope, expression name must be created
-   if (kind == COV_ITEM_EXPRESSION) {
-      char buf[16];
-      checked_sprintf(buf, sizeof(buf), "_E%d", sd->expression_label);
-      hier = ident_prefix(hier, ident_new(buf), '.');
-      sd->expression_label++;
-   }
-
    int64_t metadata = 0;
    if (kind == COV_ITEM_TOGGLE)
       metadata = sd->sig_pos;
@@ -230,7 +218,7 @@ cover_obj_t cover_item_new(cover_data_t *db, cover_obj_t scope,
    for (int i = 0; i < nbins; i++) {
       bins[i] = (cover_bin_t){
          .tag  = id != NULL ? id->next_tag++ : INT32_MAX,
-         .hier = hier,
+         .hier = sd->hier,
       };
    }
 
