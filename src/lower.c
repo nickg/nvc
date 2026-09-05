@@ -12124,11 +12124,6 @@ static void lower_ports(lower_unit_t *lu, tree_t block, tree_t src,
          lower_port_signal(lu, port, port_vars[i], bounds_reg);
       else if (poison != NULL && hset_contains(poison, port))
          lower_port_signal(lu, port, port_vars[i], bounds_reg);
-
-      if (cover_enabled(lu->cover, COVER_MASK_TOGGLE)) {
-         gen_stack_t this = lower_push_cscope(gs, port, 0);
-         lower_toggle_coverage(lu, port, port_vars[i], &this);
-      }
    }
 
    for (int i = 0; i < nparams; i++) {
@@ -12139,6 +12134,15 @@ static void lower_ports(lower_unit_t *lu, tree_t block, tree_t src,
          tree_t port = tree_ref(name_to_ref(tree_name(map)));
          if (hset_contains(poison, port))
             lower_port_map(lu, block, map, map_regs[i]);
+      }
+   }
+
+   // Must happen after the port has been connected to its actual signal
+   if (cover_enabled(lu->cover, COVER_MASK_TOGGLE)) {
+      for (int i = 0; i < nports; i++) {
+         tree_t port = tree_port(block, i);
+         gen_stack_t this = lower_push_cscope(gs, port, 0);
+         lower_toggle_coverage(lu, port, port_vars[i], &this);
       }
    }
 

@@ -1471,3 +1471,4 @@ issue1630       cover,shell
 issue1579       vhpi
 issue1640       verilog
 issue1647       verilog
+cover30         cover=toggle+exclude-unreachable,no-collapse,2008

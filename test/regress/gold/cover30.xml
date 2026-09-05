@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<scope name="WORK">
+  <scope name="COVER30" block_name="COVER30-TEST" file="cover30.vhd" line="22">
+    <scope name="CLK" line="23">
+      <toggle hier="WORK.COVER30.CLK.BIN_0_TO_1" data="3"/>
+      <toggle hier="WORK.COVER30.CLK.BIN_1_TO_0" data="2"/>
+    </scope>
+    <scope name="I_SUB" block_name="COVER30_SUB-RTL" line="30">
+      <scope name="CLK_IN" line="6">
+        <toggle hier="WORK.COVER30.I_SUB.CLK_IN.BIN_0_TO_1" data="3"/>
+        <toggle hier="WORK.COVER30.I_SUB.CLK_IN.BIN_1_TO_0" data="2"/>
+      </scope>
+      <scope name="CLK_OUT" line="7">
+        <toggle hier="WORK.COVER30.I_SUB.CLK_OUT.BIN_0_TO_1" data="2"/>
+        <toggle hier="WORK.COVER30.I_SUB.CLK_OUT.BIN_1_TO_0" data="2"/>
+      </scope>
+    </scope>
+  </scope>
+</scope>
