@@ -556,7 +556,7 @@ static void vhdl_cover_toggle(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
    // Remember the position where its name in the hierarchy starts
    ident_t parent_hier = cover_get_ident(g->data, parent->parent->cscope,
                                          COV_ATTR_HIER);
-   cover_put_u32(g->data, cs, COV_ATTR_SIG_POS, ident_len(parent_hier) + 1);
+   const unsigned sig_pos = ident_len(parent_hier) + 1;
 
    cover_flags_t flags = 0;
    if (tree_kind(t) == T_SIGNAL_DECL)
@@ -570,6 +570,8 @@ static void vhdl_cover_toggle(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
       if (cover_is_null(item))
          return;
 
+      cover_put_i64(g->data, item, COV_ATTR_METADATA, sig_pos);
+
       cover_obj_t *bins LOCAL = xmalloc_array(nelems * 2, sizeof(cover_obj_t));
       cover_rel(g->data, item, COV_REL_BINS, 0, bins, nelems * 2);
 
@@ -577,6 +579,7 @@ static void vhdl_cover_toggle(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
       unsigned field_idx = 0;
       vhdl_cover_add_record_toggle_items(g, type, "", flags, &p, &field_idx);
       assert(p == bins + nelems * 2);
+      return;
    }
 
    type_t root = type_base_recur(type_elem_recur(type));
@@ -589,6 +592,8 @@ static void vhdl_cover_toggle(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
       cover_obj_t item = cover_item_new(g->data, cs, COV_ITEM_TOGGLE, loc, 2);
       if (cover_is_null(item))
          return;
+
+      cover_put_i64(g->data, item, COV_ATTR_METADATA, sig_pos);
 
       cover_obj_t bins[2];
       cover_rel(g->data, item, COV_REL_BINS, 0, bins, 2);
@@ -611,6 +616,8 @@ static void vhdl_cover_toggle(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
                                         loc, nelems * 2);
       if (cover_is_null(item))
          return;
+
+      cover_put_i64(g->data, item, COV_ATTR_METADATA, sig_pos);
 
       cover_obj_t *bins LOCAL = xmalloc_array(nelems * 2, sizeof(cover_obj_t));
       cover_rel(g->data, item, COV_REL_BINS, 0, bins, nelems * 2);
