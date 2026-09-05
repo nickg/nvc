@@ -246,12 +246,16 @@ static void rpt_merge_file_items(cover_rpt_t *rpt, rpt_file_t *f,
       }
 
       if (!found) {
-         const rpt_item_t new = {
-            .item = scope_item,
-            .bin  = scope_bin0,
-            .data = data,
-         };
-         APUSH(f->items, new);
+         cover_iter_t it = cover_begin(rpt->data, scope_item, COV_REL_BINS);
+         cover_obj_t bin;
+         while (cover_next(&it, &bin)) {
+            const rpt_item_t new = {
+               .item = scope_item,
+               .bin  = bin,
+               .data = cover_get_u32(rpt->data, bin, COV_ATTR_DATA, 0),
+            };
+            APUSH(f->items, new);
+         }
       }
    }
 }
