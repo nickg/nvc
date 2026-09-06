@@ -452,8 +452,12 @@ END_TEST
 static cover_obj_t make_cover_block(cover_data_t *db, const char *qual,
                                     cover_obj_t parent, const char *name)
 {
-   return cover_create_block(db, ident_new(qual), parent, CSCOPE_INSTANCE,
-                             ident_new(name), LOC_INVALID, ident_new(name));
+   if (cover_is_null(parent))
+      parent = cover_get_obj(db, COVER_NULL_OBJ, COV_ATTR_ROOT);
+
+   cover_obj_t inst = cover_inst_new(db, ident_new(qual), ident_new(name));
+   return cover_scope_new(db, inst, parent, CSCOPE_INSTANCE, ident_new(name),
+                          LOC_INVALID);
 }
 
 static cover_obj_t add_functional_range(cover_data_t *db, cover_obj_t scope,

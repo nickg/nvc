@@ -355,10 +355,10 @@ void _nvc_create_cover_scope(jit_scalar_t *args)
    if (db == NULL || !cover_enabled(db, COVER_MASK_FUNCTIONAL))
       return;
 
-   rt_scope_t *inst = get_active_scope(m);
-   assert(inst->kind == SCOPE_INSTANCE);
+   rt_scope_t *rt_scope = get_active_scope(m);
+   assert(rt_scope->kind == SCOPE_INSTANCE);
 
-   cover_obj_t parent = cover_get_scope(db, inst->name);
+   cover_obj_t parent = cover_get_scope(db, rt_scope->name);
    if (cover_is_null(parent))
       return;
 
@@ -378,13 +378,15 @@ void _nvc_create_cover_scope(jit_scalar_t *args)
    }
 
    ident_t suffix = ident_new(tb_get(tb));
-   ident_t name = ident_prefix(inst->name, suffix, '.');
+   ident_t name = ident_prefix(rt_scope->name, suffix, '.');
+
+   cover_obj_t inst = cover_get_obj(db, parent, COV_ATTR_INST);
 
    user_scope_t *us = jit_mspace_alloc(sizeof(user_scope_t));
    us->counters = NULL;
    us->name     = name;
-   us->scope    = cover_scope_new(db, parent, CSCOPE_USER, suffix,
-                                  *tree_loc(inst->where));
+   us->scope    = cover_scope_new(db, inst, parent, CSCOPE_USER, suffix,
+                                  *tree_loc(rt_scope->where));
 
    *ptr = us;
 }

@@ -226,6 +226,9 @@ cover_obj_t cover_item_new(cover_data_t *db, cover_obj_t scope,
 
 cover_obj_t cover_inst_new(cover_data_t *db, ident_t name, ident_t block_name)
 {
+   if (db == NULL)
+      return COVER_NULL_OBJ;
+
    cover_inst_t new = {
       .name       = name,
       .block_name = block_name,
@@ -240,8 +243,9 @@ cover_obj_t cover_inst_new(cover_data_t *db, ident_t name, ident_t block_name)
    return obj;
 }
 
-cover_obj_t cover_scope_new(cover_data_t *db, cover_obj_t parent,
-                            cover_scope_kind_t kind, ident_t name, loc_t loc)
+cover_obj_t cover_scope_new(cover_data_t *db, cover_obj_t inst,
+                            cover_obj_t parent, cover_scope_kind_t kind,
+                            ident_t name, loc_t loc)
 {
    if (db == NULL)
       return COVER_NULL_OBJ;
@@ -250,11 +254,12 @@ cover_obj_t cover_scope_new(cover_data_t *db, cover_obj_t parent,
    assert(!cover_is_null(db->root_scope));
 
    cover_scope_t *pd = cover_scope_data(db, parent);
+   cover_inst_t *id = cover_inst_data(db, inst);
 
    cover_scope_t new = {
       .kind    = kind,
       .parent  = parent,
-      .inst    = pd->inst,
+      .inst    = inst,
       .name    = name,
       .loc     = loc,
       .hier    = ident_prefix(pd->hier, new.name, '.'),
@@ -264,6 +269,9 @@ cover_obj_t cover_scope_new(cover_data_t *db, cover_obj_t parent,
    APUSH(db->scopes, new);
 
    cover_append(db, parent, COV_REL_CHILDREN, obj);
+
+   if (cover_is_null(id->root))
+      id->root = obj;
 
    cover_scope_t *sd = cover_scope_data(db, obj);
    sd->emit = cover_should_emit_scope(db, obj);
@@ -530,30 +538,6 @@ void cover_data_free(cover_data_t *db)
 bool cover_enabled(cover_data_t *data, cover_mask_t mask)
 {
    return data != NULL && (data->mask & mask);
-}
-
-cover_obj_t cover_create_block(cover_data_t *db, ident_t qual,
-                               cover_obj_t parent, cover_scope_kind_t kind,
-                               ident_t name, loc_t loc, ident_t unit_name)
-{
-   if (db == NULL)
-      return COVER_NULL_OBJ;
-
-   if (cover_is_null(parent))
-      parent = db->root_scope;
-
-   cover_obj_t root = cover_scope_new(db, parent, kind, name, loc);
-
-   ident_t block_name = ident_rfrom(unit_name, '.');
-
-   cover_obj_t obj = cover_inst_new(db, qual, block_name);
-   cover_put_obj(db, obj, COV_ATTR_ROOT, root);
-
-   cover_scope_t *sd = cover_scope_data(db, root);
-   sd->inst = obj;
-   sd->emit = cover_should_emit_scope(db, root);
-
-   return root;
 }
 
 static void cover_read_header(fbuf_t *f, cover_data_t *data)

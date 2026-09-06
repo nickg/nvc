@@ -49,6 +49,7 @@ typedef A(ignore_range_t) ignore_array_t;
 
 typedef struct {
    cover_data_t   *data;
+   cover_obj_t     inst;
    ignore_array_t  ignore;
 } vhdl_cover_t;
 
@@ -61,7 +62,8 @@ static cover_obj_t get_cover_scope(vhdl_cover_t *g, lazy_cscope_t *lcs)
    else {
       cover_obj_t parent = get_cover_scope(g, lcs->parent);
       ident_t name = vhdl_scope_name(lcs->tree, lcs->nth);
-      return (lcs->cscope = cover_scope_new(g->data, parent, CSCOPE_NONE, name,
+      return (lcs->cscope = cover_scope_new(g->data, g->inst, parent,
+                                            CSCOPE_NONE, name,
                                             *tree_loc(lcs->tree)));
    }
 }
@@ -846,6 +848,7 @@ void vhdl_cover_block(tree_t block, cover_data_t *db, cover_obj_t cs)
 
    vhdl_cover_t g = {
       .data = db,
+      .inst = cover_get_obj(db, cs, COV_ATTR_INST),
    };
 
    tree_t hier = tree_decl(block, 0);

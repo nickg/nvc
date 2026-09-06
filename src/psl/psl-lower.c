@@ -538,9 +538,13 @@ void psl_lower_directive(lower_unit_t *lu, object_t *obj)
    ident_t prefix = vcode_unit_name(context);
    ident_t name = vcode_unit_name(lu->vunit);
 
-   lu->cscope = cover_create_block(lu->cover, name, lu->parent->cscope,
-                                   CSCOPE_PROPERTY, tree_ident(wrapper),
-                                   *tree_loc(wrapper), tree_ident(wrapper));
+   // FIXME: this is a separate instance as unit may be lowered after
+   //        real instance counters have been allocated
+   cover_obj_t inst = cover_inst_new(lu->cover, name, tree_ident(wrapper));
+
+   lu->cscope = cover_scope_new(lu->cover, inst, lu->parent->cscope,
+                                CSCOPE_PROPERTY, tree_ident(wrapper),
+                                *tree_loc(wrapper));
 
    vcode_type_t vcontext = vtype_context(prefix);
    emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));

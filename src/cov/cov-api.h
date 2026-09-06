@@ -253,8 +253,12 @@ cover_obj_t cover_get_item(const cover_data_t *db, cover_obj_t scope,
 
 cover_obj_t cover_item_new(cover_data_t *db, cover_obj_t scope,
                            cover_item_kind_t kind, loc_t loc, int nbins);
-cover_obj_t cover_scope_new(cover_data_t *db, cover_obj_t parent,
-                            cover_scope_kind_t kind, ident_t name, loc_t loc);
+cover_obj_t cover_scope_new(cover_data_t *db, cover_obj_t inst,
+                            cover_obj_t parent, cover_scope_kind_t kind,
+                            ident_t name, loc_t loc);
+cover_obj_t cover_inst_new(cover_data_t *db, ident_t name, ident_t block_name);
+
+void cover_add_ranges(cover_data_t *db, cover_obj_t obj, unsigned count);
 
 size_t cover_count(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel);
 size_t cover_rel(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel,
@@ -321,11 +325,6 @@ void cover_export_xml(cover_data_t *data, FILE *f, const char *relative);
 //
 // Interface to code generator
 //
-
-cover_obj_t cover_create_block(cover_data_t *db, ident_t qual,
-                               cover_obj_t parent, cover_scope_kind_t kind,
-                               ident_t name, loc_t loc, ident_t unit_name);
-void cover_add_ranges(cover_data_t *db, cover_obj_t obj, unsigned count);
 
 bool cover_compatible_spec(cover_data_t *db, cover_obj_t a, cover_obj_t b);
 
