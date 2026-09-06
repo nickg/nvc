@@ -224,10 +224,11 @@ cover_obj_t cover_item_new(cover_data_t *db, cover_obj_t scope,
    return obj;
 }
 
-cover_obj_t cover_inst_new(cover_data_t *db, ident_t name)
+cover_obj_t cover_inst_new(cover_data_t *db, ident_t name, ident_t block_name)
 {
    cover_inst_t new = {
-      .name = name,
+      .name       = name,
+      .block_name = block_name,
    };
 
    cover_obj_t obj = cover_make_obj(COVER_TAG_INST, db->insts.count);
@@ -443,6 +444,7 @@ void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
       const cover_inst_t *inst = &(db->insts.items[i]);
 
       ident_write(inst->name, ident_ctx);
+      ident_write(inst->block_name, ident_ctx);
       fbuf_put_uint(f, inst->next_tag);
       cover_write_obj(f, inst->root);
    }
@@ -453,7 +455,6 @@ void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
 
       ident_write(s->name, ident_ctx);
       ident_write(s->hier, ident_ctx);
-      ident_write(s->block_name, ident_ctx);
       fbuf_put_uint(f, s->kind);
       loc_write(&s->loc, loc_wr);
 
@@ -543,12 +544,13 @@ cover_obj_t cover_create_block(cover_data_t *db, ident_t qual,
 
    cover_obj_t root = cover_scope_new(db, parent, kind, name, loc);
 
-   cover_obj_t obj = cover_inst_new(db, qual);
+   ident_t block_name = ident_rfrom(unit_name, '.');
+
+   cover_obj_t obj = cover_inst_new(db, qual, block_name);
    cover_put_obj(db, obj, COV_ATTR_ROOT, root);
 
    cover_scope_t *sd = cover_scope_data(db, root);
    sd->inst = obj;
-   sd->block_name = ident_rfrom(unit_name, '.');
    sd->emit = cover_should_emit_scope(db, root);
 
    return root;
@@ -655,6 +657,7 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
       cover_inst_t *inst = &(db->insts.items[i]);
 
       inst->name = ident_read(ident_ctx);
+      inst->block_name = ident_read(ident_ctx);
       inst->next_tag = fbuf_get_uint(f);
       inst->root = cover_read_obj(f);
 
@@ -671,7 +674,6 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
 
       s->name = ident_read(ident_ctx);
       s->hier = ident_read(ident_ctx);
-      s->block_name = ident_read(ident_ctx);
       s->kind = fbuf_get_uint(f);
       loc_read(&s->loc, loc_rd);
 
@@ -849,7 +851,9 @@ static cover_obj_t cover_clone_scope(cover_data_t *dst_db,
    cover_obj_t src_root = cover_get_obj(src_db, src_inst, COV_ATTR_ROOT);
    if (cover_equals(src_scope, src_root)) {
       ident_t name = cover_get_ident(src_db, src_inst, COV_ATTR_NAME);
-      dst_inst = cover_inst_new(dst_db, name);
+      ident_t block_name =
+         cover_get_ident(src_db, src_inst, COV_ATTR_BLOCK_NAME);
+      dst_inst = cover_inst_new(dst_db, name, block_name);
       cover_put_obj(dst_db, dst_inst, COV_ATTR_ROOT, obj);
    }
    copy->inst = dst_inst;
@@ -1282,18 +1286,18 @@ ident_t cover_get_ident(const cover_data_t *db, cover_obj_t obj,
       {
          const cover_scope_t *scope = cover_scope_data_const(db, obj);
          switch (attr) {
-         case COV_ATTR_NAME:       return scope->name;
-         case COV_ATTR_HIER:       return scope->hier;
-         case COV_ATTR_BLOCK_NAME: return scope->block_name;
-         default:                  return NULL;
+         case COV_ATTR_NAME: return scope->name;
+         case COV_ATTR_HIER: return scope->hier;
+         default:            return NULL;
          }
       }
    case COVER_TAG_INST:
       {
          const cover_inst_t *inst = cover_inst_data_const(db, obj);
          switch (attr) {
-         case COV_ATTR_NAME: return inst->name;
-         default:            return NULL;
+         case COV_ATTR_NAME:       return inst->name;
+         case COV_ATTR_BLOCK_NAME: return inst->block_name;
+         default:                  return NULL;
          }
       }
    default:
@@ -1486,9 +1490,6 @@ void cover_put_ident(cover_data_t *db, cover_obj_t obj, cover_attr_t attr,
             return;
          case COV_ATTR_HIER:
             scope->hier = value;
-            return;
-         case COV_ATTR_BLOCK_NAME:
-            scope->block_name = value;
             return;
          default:
             should_not_reach_here();

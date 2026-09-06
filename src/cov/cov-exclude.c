@@ -616,7 +616,9 @@ bool cover_should_emit_scope(const cover_data_t *db, cover_obj_t scope)
       if (cover_is_null(parent))
          return true;
 
-      if ((block_name = cover_get_ident(db, blk, COV_ATTR_BLOCK_NAME)))
+      cover_obj_t inst = cover_get_obj(db, blk, COV_ATTR_INST);
+
+      if ((block_name = cover_get_ident(db, inst, COV_ATTR_BLOCK_NAME)))
          break;
 
       blk = parent;

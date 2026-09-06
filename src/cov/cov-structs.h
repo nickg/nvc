@@ -29,6 +29,7 @@ typedef struct {
    ident_t      name;
    unsigned     next_tag;
    cover_obj_t  root;
+   ident_t      block_name;
    int32_t     *data;
 } cover_inst_t;
 
@@ -36,7 +37,6 @@ typedef struct {
    cover_scope_kind_t kind;
    ident_t            name;
    ident_t            hier;
-   ident_t            block_name;
    loc_t              loc;
    cover_obj_t        parent;
    cover_obj_t        inst;

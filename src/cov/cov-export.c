@@ -57,7 +57,8 @@ static cobertura_class_t *cobertura_get_class(cobertura_report_t *report,
                                               cover_data_t *db,
                                               cover_obj_t scope)
 {
-   ident_t block_name = cover_get_ident(db, scope, COV_ATTR_BLOCK_NAME);
+   cover_obj_t inst = cover_get_obj(db, scope, COV_ATTR_INST);
+   ident_t block_name = cover_get_ident(db, inst, COV_ATTR_BLOCK_NAME);
 
    cobertura_class_t *c = hash_get(report->class_map, block_name);
    if (c != NULL)
@@ -119,7 +120,8 @@ static void cobertura_export_scope(cobertura_report_t *report,
                                    cobertura_class_t *class,
                                    cover_data_t *db, cover_obj_t scope)
 {
-   ident_t block_name = cover_get_ident(db, scope, COV_ATTR_BLOCK_NAME);
+   cover_obj_t inst = cover_get_obj(db, scope, COV_ATTR_INST);
+   ident_t block_name = cover_get_ident(db, inst, COV_ATTR_BLOCK_NAME);
    if (block_name != NULL)
       class = cobertura_get_class(report, db, scope);
 
@@ -341,13 +343,17 @@ static void dump_scope_xml(cover_data_t *db, cover_obj_t scope, int indent,
                            const loc_t *loc, const char *relative, FILE *f)
 {
    ident_t name = cover_get_ident(db, scope, COV_ATTR_NAME);
-   ident_t block_name = cover_get_ident(db, scope, COV_ATTR_BLOCK_NAME);
+   cover_obj_t inst = cover_get_obj(db, scope, COV_ATTR_INST);
    loc_t scope_loc = cover_get_loc(db, scope, COV_ATTR_LOC);
 
    fprintf(f, "%*s<scope name=\"%s\"", indent, "", istr(name));
 
-   if (block_name != NULL)
-      fprintf(f, " block_name=\"%s\"", istr(block_name));
+   cover_obj_t root = cover_get_obj(db, inst, COV_ATTR_ROOT);
+   if (cover_equals(scope, root)) {
+      ident_t block_name = cover_get_ident(db, inst, COV_ATTR_BLOCK_NAME);
+      if (block_name != NULL)
+         fprintf(f, " block_name=\"%s\"", istr(block_name));
+   }
 
    if (scope_loc.file_ref != FILE_INVALID
        && scope_loc.file_ref != loc->file_ref) {
