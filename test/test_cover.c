@@ -455,7 +455,10 @@ static cover_obj_t make_cover_block(cover_data_t *db, const char *qual,
    if (cover_is_null(parent))
       parent = cover_get_obj(db, COVER_NULL_OBJ, COV_ATTR_ROOT);
 
-   cover_obj_t inst = cover_inst_new(db, ident_new(qual), ident_new(name));
+   cover_obj_t parent_inst = cover_get_obj(db, parent, COV_ATTR_INST);
+
+   cover_obj_t inst = cover_inst_new(db, ident_new(qual), parent_inst,
+                                     ident_new(name));
    return cover_scope_new(db, inst, parent, CSCOPE_INSTANCE, ident_new(name),
                           LOC_INVALID);
 }

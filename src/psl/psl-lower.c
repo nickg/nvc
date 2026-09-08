@@ -540,7 +540,10 @@ void psl_lower_directive(lower_unit_t *lu, object_t *obj)
 
    // FIXME: this is a separate instance as unit may be lowered after
    //        real instance counters have been allocated
-   cover_obj_t inst = cover_inst_new(lu->cover, name, tree_ident(wrapper));
+   cover_obj_t parent = cover_get_obj(lu->cover, lu->parent->cscope,
+                                      COV_ATTR_INST);
+   cover_obj_t inst = cover_inst_new(lu->cover, name, parent,
+                                     tree_ident(wrapper));
 
    lu->cscope = cover_scope_new(lu->cover, inst, lu->parent->cscope,
                                 CSCOPE_PROPERTY, tree_ident(wrapper),

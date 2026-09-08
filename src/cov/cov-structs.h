@@ -26,11 +26,13 @@
 typedef A(cover_obj_t) cover_array_t;
 
 typedef struct {
-   ident_t      name;
-   unsigned     next_tag;
-   cover_obj_t  root;
-   ident_t      block_name;
-   int32_t     *data;
+   ident_t        name;
+   unsigned       next_tag;
+   cover_obj_t    root;
+   cover_obj_t    parent;
+   cover_array_t  children;
+   ident_t        block_name;
+   int32_t       *data;
 } cover_inst_t;
 
 typedef struct {
@@ -154,6 +156,7 @@ struct _cover_data {
    cover_spec_t    *spec;
    cover_ef_t      *ef;
    cover_obj_t      root_scope;
+   cover_array_t    roots;
    hash_t          *inst_map;
    mem_pool_t      *pool;
    item_tab_t       items;

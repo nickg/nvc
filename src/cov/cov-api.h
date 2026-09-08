@@ -256,7 +256,8 @@ cover_obj_t cover_item_new(cover_data_t *db, cover_obj_t scope,
 cover_obj_t cover_scope_new(cover_data_t *db, cover_obj_t inst,
                             cover_obj_t parent, cover_scope_kind_t kind,
                             ident_t name, loc_t loc);
-cover_obj_t cover_inst_new(cover_data_t *db, ident_t name, ident_t block_name);
+cover_obj_t cover_inst_new(cover_data_t *db, ident_t name, cover_obj_t parent,
+                           ident_t block_name);
 
 void cover_add_ranges(cover_data_t *db, cover_obj_t obj, unsigned count);
 
