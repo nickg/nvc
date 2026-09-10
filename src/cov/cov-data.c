@@ -51,7 +51,7 @@ static const struct {
 };
 
 #define COVER_FILE_MAGIC   0x6e636462   // ASCII "ncdb"
-#define COVER_FILE_VERSION 9
+#define COVER_FILE_VERSION 10
 
 static inline cover_obj_t cover_make_obj(unsigned tag, unsigned id)
 {
@@ -467,6 +467,13 @@ void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
       ident_write(inst->block_name, ident_ctx);
       fbuf_put_uint(f, inst->next_tag);
       cover_write_obj(f, inst->root);
+      cover_write_obj(f, inst->parent);
+
+      fbuf_put_uint(f, inst->children.count);
+      for (int j = 0; j < inst->children.count; j++) {
+         assert(inst->children.items[j].tag == COVER_TAG_INST);
+         fbuf_put_uint(f, inst->children.items[j].id);
+      }
    }
 
    fbuf_put_uint(f, db->scopes.count);
@@ -482,16 +489,22 @@ void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
       cover_write_obj(f, s->inst);
 
       fbuf_put_uint(f, s->items.count);
-      for (int i = 0; i < s->items.count; i++) {
-         assert(s->items.items[i].tag == COVER_TAG_ITEM);
-         fbuf_put_uint(f, s->items.items[i].id);
+      for (int j = 0; j < s->items.count; j++) {
+         assert(s->items.items[j].tag == COVER_TAG_ITEM);
+         fbuf_put_uint(f, s->items.items[j].id);
       }
 
       fbuf_put_uint(f, s->children.count);
-      for (int i = 0; i < s->children.count; i++) {
-         assert(s->children.items[i].tag == COVER_TAG_SCOPE);
-         fbuf_put_uint(f, s->children.items[i].id);
+      for (int j = 0; j < s->children.count; j++) {
+         assert(s->children.items[j].tag == COVER_TAG_SCOPE);
+         fbuf_put_uint(f, s->children.items[j].id);
       }
+   }
+
+   fbuf_put_uint(f, db->roots.count);
+   for (int i = 0; i < db->roots.count; i++) {
+      assert(db->roots.items[i].tag == COVER_TAG_INST);
+      fbuf_put_uint(f, db->roots.items[i].id);
    }
 
    cover_write_obj(f, db->root_scope);
@@ -661,6 +674,17 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
       inst->block_name = ident_read(ident_ctx);
       inst->next_tag = fbuf_get_uint(f);
       inst->root = cover_read_obj(f);
+      inst->parent = cover_read_obj(f);
+
+      inst->children.count = inst->children.limit = fbuf_get_uint(f);
+      inst->children.items = xmalloc_array(inst->children.count,
+                                           sizeof(cover_obj_t));
+
+      for (int j = 0; j < inst->children.count; j++) {
+         cover_obj_t obj = cover_make_obj(COVER_TAG_INST, fbuf_get_uint(f));
+         assert(obj.id < db->insts.count);
+         inst->children.items[j] = obj;
+      }
 
       cover_obj_t obj = cover_make_obj(COVER_TAG_INST, i);
       assert(hash_get(db->inst_map, inst->name) == NULL);
@@ -698,6 +722,15 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
          assert(obj.id < db->scopes.count);
          s->children.items[j] = obj;
       }
+   }
+
+   db->roots.count = db->roots.limit = fbuf_get_uint(f);
+   db->roots.items = xmalloc_array(db->roots.count, sizeof(cover_obj_t));
+
+   for (int i = 0; i < db->roots.count; i++) {
+      cover_obj_t obj = cover_make_obj(COVER_TAG_INST, fbuf_get_uint(f));
+      assert(obj.id < db->insts.count);
+      db->roots.items[i] = obj;
    }
 
    db->root_scope = cover_read_obj(f);
