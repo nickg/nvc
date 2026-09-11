@@ -27,6 +27,7 @@
 #include "tree.h"
 #include "type.h"
 #include "vcode.h"
+#include "vhdl/vhdl-phase.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -144,17 +145,19 @@ static void psl_lower_cover(lower_unit_t *lu, psl_node_t p)
    if (!cover_enabled(lu->cover, COVER_MASK_FUNCTIONAL))
       return;
 
-   cover_obj_t item = cover_item_new(lu->cover, lu->cscope,
-                                     COV_ITEM_FUNCTIONAL, *psl_loc(p), 1);
-
+   cover_obj_t item = cover_get_item(lu->cover, lu->cscope,
+                                     COV_ITEM_FUNCTIONAL, 0);
    if (cover_is_null(item))
       return;
 
    cover_obj_t bin = cover_at(lu->cover, item, COV_REL_BINS, 0);
    uint32_t tag = cover_get_u32(lu->cover, bin, COV_ATTR_TAG, -1);
 
+   cover_obj_t inst = cover_get_obj(lu->cover, lu->cscope, COV_ATTR_INST);
+   ident_t inst_name = cover_get_ident(lu->cover, inst, COV_ATTR_NAME);
+
    // TODO: move this to initialisation
-   vcode_reg_t counters = emit_get_counters(lu->name);
+   vcode_reg_t counters = emit_get_counters(inst_name);
    emit_cover_stmt(counters, tag);
 }
 
@@ -538,16 +541,8 @@ void psl_lower_directive(lower_unit_t *lu, object_t *obj)
    ident_t prefix = vcode_unit_name(context);
    ident_t name = vcode_unit_name(lu->vunit);
 
-   // FIXME: this is a separate instance as unit may be lowered after
-   //        real instance counters have been allocated
-   cover_obj_t parent = cover_get_obj(lu->cover, lu->parent->cscope,
-                                      COV_ATTR_INST);
-   cover_obj_t inst = cover_inst_new(lu->cover, name, parent,
-                                     tree_ident(wrapper));
-
-   lu->cscope = cover_scope_new(lu->cover, inst, lu->parent->cscope,
-                                CSCOPE_PROPERTY, tree_ident(wrapper),
-                                *tree_loc(wrapper));
+   lu->cscope = cover_get_child(lu->cover, lu->parent->cscope,
+                                vhdl_scope_name(lu->container, 0));
 
    vcode_type_t vcontext = vtype_context(prefix);
    emit_param(vcontext, VCODE_INVALID_STAMP, ident_new("context"));

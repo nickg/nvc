@@ -4802,9 +4802,9 @@ static void irgen_op_extract(jit_irgen_t *g, mir_value_t n)
 
 static void irgen_op_get_counters(jit_irgen_t *g, mir_value_t n)
 {
-   jit_value_t handle = jit_value_from_handle(g->func->handle);
+   jit_handle_t handle = irgen_get_handle(g, n, 0);
 
-   j_send(g, 0, handle);
+   j_send(g, 0, jit_value_from_handle(handle));
    macro_exit(g, JIT_EXIT_GET_COUNTERS);
    j_recv(g, g->map[n.id], 0);
 }

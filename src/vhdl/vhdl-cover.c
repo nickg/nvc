@@ -22,6 +22,7 @@
 #include "tree.h"
 #include "type.h"
 #include "printf.h"
+#include "psl/psl-node.h"
 #include "vhdl/vhdl-phase.h"
 #include "vhdl/vhdl-util.h"
 
@@ -791,12 +792,29 @@ static void vhdl_cover_decls(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
    }
 }
 
-static void vhdl_cover_process(vhdl_cover_t *g, tree_t t, ident_t qual,
-                               lazy_cscope_t *parent)
+static void vhdl_cover_process(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
 {
    lazy_cscope_t lcs = lazy_cover_scope(t, parent, 0);
    vhdl_cover_stmts(g, t, &lcs);
    vhdl_cover_decls(g, t, &lcs);
+}
+
+static void vhdl_cover_psl(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
+{
+   psl_node_t p = tree_psl(t);
+
+   if (psl_kind(p) != P_COVER)
+      return;
+
+   if (!cover_enabled(g->data, COVER_MASK_FUNCTIONAL))
+      return;
+
+   cover_obj_t parent_scope = get_cover_scope(g, parent);
+   cover_obj_t scope = cover_scope_new(g->data, g->inst, parent_scope,
+                                       CSCOPE_PROPERTY, tree_ident(t),
+                                       *tree_loc(t));
+
+   cover_item_new(g->data, scope,COV_ITEM_FUNCTIONAL, *psl_loc(p), 1);
 }
 
 static void vhdl_cover_inertial(vhdl_cover_t *g, tree_t t, ident_t qual,
@@ -886,10 +904,10 @@ void vhdl_cover_block(tree_t block, cover_data_t *db, cover_obj_t cs)
       tree_t s = tree_stmt(block, i);
       switch (tree_kind(s)) {
       case T_PROCESS:
-         {
-            ident_t qual = ident_prefix(sym_prefix, tree_ident(s), '.');
-            vhdl_cover_process(&g, s, qual, &lcs);
-         }
+         vhdl_cover_process(&g, s, &lcs);
+         break;
+      case T_PSL_DIRECT:
+         vhdl_cover_psl(&g, s, &lcs);
          break;
       default:
          break;
