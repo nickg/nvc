@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<scope name="WORK">
+  <scope name="COVER21" block_name="COVER21-TEST" file="cover21.vhd" line="7">
+    <scope name="ONE" line="14">
+      <functional hier="WORK.COVER21.ONE" data="1"/>
+    </scope>
+    <scope name="TWO" line="15">
+      <functional hier="WORK.COVER21.TWO" data="1"/>
+    </scope>
+    <scope name="THREE" line="16">
+      <functional hier="WORK.COVER21.THREE" data="1"/>
+    </scope>
+    <scope name="FOUR" line="17">
+      <functional hier="WORK.COVER21.FOUR" data="0"/>
+    </scope>
+  </scope>
+</scope>
