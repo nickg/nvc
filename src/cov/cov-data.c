@@ -299,24 +299,23 @@ void cover_merge_bin(cover_data_t *db, cover_obj_t obj, int32_t data)
 
 static void cover_update_counts(cover_data_t *db, cover_scope_t *s)
 {
-   if (!cover_is_null(s->inst)) {
-      cover_inst_t *id = cover_inst_data(db, s->inst);
-      if (id->data != NULL) {
-         for (int i = 0; i < s->items.count; i++) {
-            cover_obj_t item = s->items.items[i];
+   if (cover_is_null(s->inst))
+      return;
 
-            cover_iter_t it = cover_begin(db, item, COV_REL_BINS);
-            cover_obj_t bin;
-            while (cover_next(&it, &bin)) {
-               uint32_t tag = cover_get_tag(db, bin);
-               cover_merge_bin(db, bin, id->data[tag]);
-            }
-         }
+   cover_inst_t *id = cover_inst_data(db, s->inst);
+   if (id->data == NULL)
+      return;
+
+   for (int i = 0; i < s->items.count; i++) {
+      cover_obj_t item = s->items.items[i];
+
+      cover_iter_t it = cover_begin(db, item, COV_REL_BINS);
+      cover_obj_t bin;
+      while (cover_next(&it, &bin)) {
+         uint32_t tag = cover_get_tag(db, bin);
+         cover_merge_bin(db, bin, id->data[tag]);
       }
    }
-
-   for (int i = 0; i < s->children.count; i++)
-      cover_update_counts(db, cover_scope_data(db, s->children.items[i]));
 }
 
 LCOV_EXCL_START
@@ -388,8 +387,10 @@ static void cover_write_obj(fbuf_t *f, cover_obj_t obj)
 
 void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
 {
-   if (dt == COV_DUMP_RUNTIME)
-      cover_update_counts(db, cover_scope_data(db, db->root_scope));
+   if (dt == COV_DUMP_RUNTIME) {
+      for (int i = 0; i < db->scopes.count; i++)
+         cover_update_counts(db, &(db->scopes.items[i]));
+   }
 
    if (opt_get_int(OPT_COVER_VERBOSE))
       cover_debug_dump(db, COVER_NULL_OBJ, 0);
