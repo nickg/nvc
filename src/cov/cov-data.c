@@ -51,7 +51,7 @@ static const struct {
 };
 
 #define COVER_FILE_MAGIC   0x6e636462   // ASCII "ncdb"
-#define COVER_FILE_VERSION 10
+#define COVER_FILE_VERSION 11
 
 static inline cover_obj_t cover_make_obj(unsigned tag, unsigned id)
 {
@@ -213,23 +213,27 @@ cover_obj_t cover_item_new(cover_data_t *db, cover_obj_t scope,
 }
 
 cover_obj_t cover_inst_new(cover_data_t *db, ident_t name, cover_obj_t parent,
-                           ident_t block_name)
+                           ident_t block_name, ident_t qual_name)
 {
    if (db == NULL)
       return COVER_NULL_OBJ;
+
+   ident_t parent_hier = cover_get_ident(db, parent, COV_ATTR_HIER);
 
    cover_inst_t new = {
       .name       = name,
       .parent     = parent,
       .block_name = block_name,
+      .qual_name  = qual_name,
+      .hier       = ident_prefix(parent_hier, new.name, '.'),
    };
 
    cover_obj_t obj = cover_make_obj(COVER_TAG_INST, db->insts.count);
 
    cover_append(db, parent, COV_REL_CHILDREN, obj);
 
-   assert(hash_get(db->inst_map, name) == NULL);
-   hash_put(db->inst_map, name, (void *)(uintptr_t)obj.bits);
+   assert(hash_get(db->inst_map, qual_name) == NULL);
+   hash_put(db->inst_map, qual_name, (void *)(uintptr_t)obj.bits);
 
    APUSH(db->insts, new);
    return obj;
@@ -453,6 +457,8 @@ void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
 
       ident_write(inst->name, ident_ctx);
       ident_write(inst->block_name, ident_ctx);
+      ident_write(inst->qual_name, ident_ctx);
+      ident_write(inst->hier, ident_ctx);
       fbuf_put_uint(f, inst->next_tag);
       cover_write_obj(f, inst->root);
       cover_write_obj(f, inst->parent);
@@ -660,6 +666,8 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
 
       inst->name = ident_read(ident_ctx);
       inst->block_name = ident_read(ident_ctx);
+      inst->qual_name = ident_read(ident_ctx);
+      inst->hier = ident_read(ident_ctx);
       inst->next_tag = fbuf_get_uint(f);
       inst->root = cover_read_obj(f);
       inst->parent = cover_read_obj(f);
@@ -675,8 +683,8 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
       }
 
       cover_obj_t obj = cover_make_obj(COVER_TAG_INST, i);
-      assert(hash_get(db->inst_map, inst->name) == NULL);
-      hash_put(db->inst_map, inst->name, (void *)(uintptr_t)obj.bits);
+      assert(hash_get(db->inst_map, inst->qual_name) == NULL);
+      hash_put(db->inst_map, inst->qual_name, (void *)(uintptr_t)obj.bits);
    }
 
    db->scopes.count = db->scopes.limit = fbuf_get_uint(f);
@@ -802,9 +810,12 @@ static cover_obj_t cover_clone_scope(cover_data_t *dst_db,
    cover_obj_t src_root = cover_get_obj(src_db, src_inst, COV_ATTR_ROOT);
    if (cover_equals(src_scope, src_root)) {
       ident_t name = cover_get_ident(src_db, src_inst, COV_ATTR_NAME);
-      ident_t block_name =
-         cover_get_ident(src_db, src_inst, COV_ATTR_BLOCK_NAME);
-      dst_inst = cover_inst_new(dst_db, name, parent_inst, block_name);
+      ident_t block_name = cover_get_ident(src_db, src_inst,
+                                           COV_ATTR_BLOCK_NAME);
+      ident_t qual_name = cover_get_ident(src_db, src_inst,
+                                          COV_ATTR_QUAL_NAME);
+      dst_inst = cover_inst_new(dst_db, name, parent_inst, block_name,
+                                qual_name);
       cover_put_obj(dst_db, dst_inst, COV_ATTR_ROOT, obj);
    }
    copy->inst = dst_inst;
@@ -1164,6 +1175,16 @@ size_t cover_rel(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel,
             return 0;
          }
       }
+   case COVER_TAG_INST:
+      {
+         const cover_inst_t *inst = cover_inst_data_const(db, obj);
+         switch (rel) {
+         case COV_REL_CHILDREN:
+            return cover_rel_array(&inst->children, first, out, max);
+         default:
+            return 0;
+         }
+      }
    case COVER_TAG_NULL:
       {
          switch (rel) {
@@ -1363,6 +1384,8 @@ ident_t cover_get_ident(const cover_data_t *db, cover_obj_t obj,
          switch (attr) {
          case COV_ATTR_NAME:       return inst->name;
          case COV_ATTR_BLOCK_NAME: return inst->block_name;
+         case COV_ATTR_QUAL_NAME:  return inst->qual_name;
+         case COV_ATTR_HIER:       return inst->hier;
          default:                  return NULL;
          }
       }
@@ -1613,6 +1636,7 @@ void cover_put_obj(cover_data_t *db, cover_obj_t obj, cover_attr_t attr,
          cover_inst_t *inst = cover_inst_data(db, obj);
          switch (attr) {
          case COV_ATTR_ROOT:
+            assert(cover_is_null(inst->root));
             inst->root = value;
             return;
          default:

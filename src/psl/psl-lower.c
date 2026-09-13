@@ -154,10 +154,10 @@ static void psl_lower_cover(lower_unit_t *lu, psl_node_t p)
    uint32_t tag = cover_get_u32(lu->cover, bin, COV_ATTR_TAG, -1);
 
    cover_obj_t inst = cover_get_obj(lu->cover, lu->cscope, COV_ATTR_INST);
-   ident_t inst_name = cover_get_ident(lu->cover, inst, COV_ATTR_NAME);
+   ident_t qual_name = cover_get_ident(lu->cover, inst, COV_ATTR_QUAL_NAME);
 
    // TODO: move this to initialisation
-   vcode_reg_t counters = emit_get_counters(inst_name);
+   vcode_reg_t counters = emit_get_counters(qual_name);
    emit_cover_stmt(counters, tag);
 }
 

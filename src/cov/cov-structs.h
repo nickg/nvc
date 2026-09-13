@@ -32,6 +32,8 @@ typedef struct {
    cover_obj_t    parent;
    cover_array_t  children;
    ident_t        block_name;
+   ident_t        qual_name;
+   ident_t        hier;
    int32_t       *data;
 } cover_inst_t;
 
