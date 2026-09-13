@@ -539,7 +539,7 @@ START_TEST(test_merge4)
 
    cover_merge(dst, src, MERGE_UNION);
 
-   ck_assert_int_eq(cover_count(dst, dst_root, COV_REL_CHILDREN), 2);
+   ck_assert_int_eq(cover_count(dst, COVER_NULL_OBJ, COV_REL_CHILDREN), 2);
 
    cover_data_free(src);
    cover_data_free(dst);

@@ -925,30 +925,27 @@ static void cover_merge_scope(cover_data_t *dst_db,
                               cover_obj_t src_scope,
                               merge_mode_t mode)
 {
-   const cover_scope_t *src_s = cover_scope_data_const(src_db, src_scope);
-   cover_scope_t *dst_s = cover_scope_data(dst_db, dst_scope);
-
    cover_obj_t parent_inst = cover_get_obj(dst_db, dst_scope, COV_ATTR_INST);
 
-   for (int i = 0; i < src_s->items.count; i++) {
-      cover_obj_t src = AGET(src_s->items, i);
+   const int dst_nitems = cover_count(dst_db, dst_scope, COV_REL_ITEMS);
 
+   cover_obj_t src, dst;
+   cover_iter_t src_item_it = cover_begin(src_db, src_scope, COV_REL_ITEMS);
+   for (int i = 0; cover_next(&src_item_it, &src); i++) {
       // Try the same index first assuming the scopes are identical
-      if (i < dst_s->items.count) {
-         cover_obj_t dst = AGET(dst_s->items, i);
+      if (i < dst_nitems) {
+         cover_obj_t dst = cover_at(dst_db, dst_scope, COV_REL_ITEMS, i);
          if (cover_merge_items(dst_db, src_db, dst, src))
             continue;
       }
 
       bool merged = false;
-      for (int j = 0; j < dst_s->items.count; j++) {
+      cover_iter_t dst_item_it = cover_begin(dst_db, dst_scope, COV_REL_ITEMS);
+      for (int j = 0; cover_next(&dst_item_it, &dst); j++) {
          if (i == j)
             continue;
-         else {
-            cover_obj_t dst = AGET(dst_s->items, j);
-            if ((merged = cover_merge_items(dst_db, src_db, dst, src)))
-               break;
-         }
+         else if ((merged = cover_merge_items(dst_db, src_db, dst, src)))
+            break;
       }
 
       if (!merged && mode == MERGE_UNION) {
@@ -957,27 +954,25 @@ static void cover_merge_scope(cover_data_t *dst_db,
       }
    }
 
-   const int src_nchildren = cover_count(src_db, src_scope, COV_REL_CHILDREN);
-   const int dst_nchildren = cover_count(dst_db, dst_scope, COV_REL_CHILDREN);
-
-   for (int i = 0; i < src_nchildren; i++) {
-      cover_obj_t src_c = cover_at(src_db, src_scope, COV_REL_CHILDREN, i);
-      ident_t src_name = cover_get_ident(src_db, src_c, COV_ATTR_NAME);
+   cover_iter_t src_child_it = cover_begin(src_db, src_scope, COV_REL_CHILDREN);
+   while (cover_next(&src_child_it, &src)) {
+      ident_t src_name = cover_get_ident(src_db, src, COV_ATTR_NAME);
 
       bool found = false;
-      for (int j = 0; j < dst_nchildren; j++) {
-         cover_obj_t dst_c = cover_at(dst_db, dst_scope, COV_REL_CHILDREN, j);
-         ident_t dst_name = cover_get_ident(dst_db, dst_c, COV_ATTR_NAME);
+      cover_iter_t dst_child_it =
+         cover_begin(dst_db, dst_scope, COV_REL_CHILDREN);
+      while (cover_next(&dst_child_it, &dst)) {
+         ident_t dst_name = cover_get_ident(dst_db, dst, COV_ATTR_NAME);
 
          if (dst_name == src_name) {
-            cover_merge_scope(dst_db, src_db, dst_c, src_c, mode);
+            cover_merge_scope(dst_db, src_db, dst, src, mode);
             found = true;
             break;
          }
       }
 
       if (!found && mode == MERGE_UNION) {
-         cover_obj_t copy = cover_clone_scope(dst_db, src_db, src_c, dst_scope,
+         cover_obj_t copy = cover_clone_scope(dst_db, src_db, src, dst_scope,
                                               parent_inst);
          cover_append(dst_db, dst_scope, COV_REL_CHILDREN, copy);
       }
@@ -1232,11 +1227,14 @@ bool cover_next(cover_iter_t *it, cover_obj_t *obj)
       it->next = 0;
    }
 
-   if (it->next == it->count)
+   if (it->next == it->count) {
+      *obj = COVER_NULL_OBJ;
       return false;
-
-   *obj = it->batch[it->next++];
-   return true;
+   }
+   else {
+      *obj = it->batch[it->next++];
+      return true;
+   }
 }
 
 void cover_append(cover_data_t *db, cover_obj_t parent, cover_rel_t rel,
