@@ -1,16 +1,6 @@
 <?xml version="1.0"?>
 <scope name="WORK">
   <scope name="COVER25" block_name="COVER25-TEST" file="cover25.vhd" line="35">
-    <scope name="SUB1_I" block_name="SUB-TEST" line="42">
-      <scope name="sub_scope">
-        <functional hier="WORK.COVER25.SUB1_I.sub_scope.item" data="10"/>
-      </scope>
-    </scope>
-    <scope name="SUB2_I" block_name="SUB-TEST" line="44">
-      <scope name="sub_scope" line="39">
-        <functional hier="WORK.COVER25.SUB2_I.sub_scope.item" data="5"/>
-      </scope>
-    </scope>
     <scope name="top_scope">
       <functional hier="WORK.COVER25.top_scope.item1" data="1"/>
       <functional hier="WORK.COVER25.top_scope.item2" data="2"/>
@@ -20,6 +10,16 @@
       <functional hier="WORK.COVER25.top_scope#1.dup#1" data="0"/>
       <functional hier="WORK.COVER25.top_scope#1.dup#2" data="0"/>
       <functional hier="WORK.COVER25.top_scope#1.&#32;&#42;&#42;&#46;x&#126;" data="0"/>
+    </scope>
+    <scope name="SUB1_I" block_name="SUB-TEST" line="42">
+      <scope name="sub_scope">
+        <functional hier="WORK.COVER25.SUB1_I.sub_scope.item" data="10"/>
+      </scope>
+    </scope>
+    <scope name="SUB2_I" block_name="SUB-TEST" line="44">
+      <scope name="sub_scope" line="39">
+        <functional hier="WORK.COVER25.SUB2_I.sub_scope.item" data="5"/>
+      </scope>
     </scope>
   </scope>
 </scope>

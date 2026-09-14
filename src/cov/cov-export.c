@@ -48,33 +48,34 @@ typedef struct _cobertura_class {
 } cobertura_class_t;
 
 typedef struct {
-   hash_t            *class_map;
-   cobertura_class_t *classes;
-   const char        *relative;
+   hash_t             *class_map;
+   cobertura_class_t  *classes;
+   const cover_data_t *data;
+   const char         *relative;
 } cobertura_report_t;
 
 static cobertura_class_t *cobertura_get_class(cobertura_report_t *report,
-                                              cover_data_t *db,
                                               cover_obj_t scope)
 {
-   cover_obj_t inst = cover_get_obj(db, scope, COV_ATTR_INST);
-   ident_t block_name = cover_get_ident(db, inst, COV_ATTR_BLOCK_NAME);
+   cover_obj_t inst = cover_get_obj(report->data, scope, COV_ATTR_INST);
+   ident_t block_name = cover_get_ident(report->data, inst,
+                                        COV_ATTR_BLOCK_NAME);
 
    cobertura_class_t *c = hash_get(report->class_map, block_name);
    if (c != NULL)
       return c;
 
-   cover_obj_t item0 = cover_at(db, scope, COV_REL_ITEMS, 0);
-   cover_obj_t child0 = cover_at(db, scope, COV_REL_CHILDREN, 0);
+   cover_obj_t item0 = cover_at(report->data, scope, COV_REL_ITEMS, 0);
+   cover_obj_t child0 = cover_at(report->data, scope, COV_REL_CHILDREN, 0);
 
    // For instance scopes location will be in the instantiating file
    loc_t loc;
    if (!cover_is_null(item0))
-      loc = cover_get_loc(db, item0, COV_ATTR_LOC);
+      loc = cover_get_loc(report->data, item0, COV_ATTR_LOC);
    else if (!cover_is_null(child0))
-      loc = cover_get_loc(db, child0, COV_ATTR_LOC);
+      loc = cover_get_loc(report->data, child0, COV_ATTR_LOC);
    else
-      loc = cover_get_loc(db, scope, COV_ATTR_LOC);
+      loc = cover_get_loc(report->data, scope, COV_ATTR_LOC);
 
    LOCAL_TEXT_BUF tb = tb_new();
    get_relative_path(tb, report->relative, loc_file_str(&loc));
@@ -117,26 +118,19 @@ static cobertura_line_t *cobertura_get_line(cobertura_class_t *class,
 }
 
 static void cobertura_export_scope(cobertura_report_t *report,
-                                   cobertura_class_t *class,
-                                   cover_data_t *db, cover_obj_t scope)
+                                   cobertura_class_t *class, cover_obj_t scope)
 {
-   cover_obj_t inst = cover_get_obj(db, scope, COV_ATTR_INST);
-   ident_t block_name = cover_get_ident(db, inst, COV_ATTR_BLOCK_NAME);
-   if (block_name != NULL)
-      class = cobertura_get_class(report, db, scope);
-
-   const int nitems = cover_count(db, scope, COV_REL_ITEMS);
-
-   for (int i = 0; i < nitems; i++) {
-      cover_obj_t item = cover_at(db, scope, COV_REL_ITEMS, i);
-      loc_t loc = cover_get_loc(db, item, COV_ATTR_LOC);
+   cover_iter_t item_it = cover_begin(report->data, scope, COV_REL_ITEMS);
+   cover_obj_t item;
+   while (cover_next(&item_it, &item)) {
+      loc_t loc = cover_get_loc(report->data, item, COV_ATTR_LOC);
       cobertura_line_t *l = cobertura_get_line(class, &loc);
 
-      switch (cover_get_kind(db, item)) {
+      switch (cover_get_kind(report->data, item)) {
       case COV_ITEM_STMT:
          {
-            cover_obj_t bin = cover_at(db, item, COV_REL_BINS, 0);
-            l->hits += cover_get_u32(db, bin, COV_ATTR_DATA, 0);
+            cover_obj_t bin = cover_at(report->data, item, COV_REL_BINS, 0);
+            l->hits += cover_get_u32(report->data, bin, COV_ATTR_DATA, 0);
          }
          break;
       case COV_ITEM_BRANCH:
@@ -144,13 +138,15 @@ static void cobertura_export_scope(cobertura_report_t *report,
             l->branch = true;
 
             cover_obj_t bins[2];
-            int nbins = cover_rel(db, item, COV_REL_BINS, 0, bins, 2);
+            int nbins = cover_rel(report->data, item, COV_REL_BINS, 0, bins, 2);
             assert(nbins <= ARRAY_LEN(bins));
 
             for (int j = 0; j < nbins; j++) {
-               uint32_t data = cover_get_u32(db, bins[j], COV_ATTR_DATA, 0);
+               uint32_t data = cover_get_u32(report->data, bins[j],
+                                             COV_ATTR_DATA, 0);
                if (data > 0)
-                  l->bflags |= cover_get_u32(db, bins[j], COV_ATTR_FLAGS, 0);
+                  l->bflags |= cover_get_u32(report->data, bins[j],
+                                             COV_ATTR_FLAGS, 0);
             }
          }
          break;
@@ -159,12 +155,28 @@ static void cobertura_export_scope(cobertura_report_t *report,
       }
    }
 
-   const int nchildren = cover_count(db, scope, COV_REL_CHILDREN);
+   cover_obj_t inst = cover_get_obj(report->data, scope, COV_ATTR_INST);
 
-   for (int i = 0; i < nchildren; i++) {
-      cover_obj_t child = cover_at(db, scope, COV_REL_CHILDREN, i);
-      cobertura_export_scope(report, class, db, child);
+   cover_iter_t child_it = cover_begin(report->data, scope, COV_REL_CHILDREN);
+   cover_obj_t child;
+   while (cover_next(&child_it, &child)) {
+      // TODO: remove this check
+      if (cover_equals(cover_get_obj(report->data, child, COV_ATTR_INST), inst))
+         cobertura_export_scope(report, class, child);
    }
+}
+
+static void cobertura_export_inst(cobertura_report_t *report, cover_obj_t inst)
+{
+   cover_obj_t root = cover_get_obj(report->data, inst, COV_ATTR_ROOT);
+   cobertura_class_t *class = cobertura_get_class(report, root);
+
+   cobertura_export_scope(report, class, root);
+
+   cover_iter_t it = cover_begin(report->data, inst, COV_REL_CHILDREN);
+   cover_obj_t child;
+   while (cover_next(&it, &child))
+      cobertura_export_inst(report, child);
 }
 
 static void cobertura_class_stats(const cobertura_class_t *class,
@@ -228,15 +240,19 @@ static void cobertura_print_class(cobertura_class_t *class, FILE *f)
    fprintf(f, "</class>\n");
 }
 
-void cover_export_cobertura(cover_data_t *data, FILE *f, const char *relative)
+void cover_export_cobertura(const cover_data_t *db, FILE *f,
+                            const char *relative)
 {
    cobertura_report_t report = {
       .class_map = hash_new(64),
       .relative = relative,
+      .data = db,
    };
 
-   cover_obj_t root = cover_get_obj(data, COVER_NULL_OBJ, COV_ATTR_ROOT);
-   cobertura_export_scope(&report, NULL, data, root);
+   cover_iter_t it = cover_begin(db, COVER_NULL_OBJ, COV_REL_CHILDREN);
+   cover_obj_t root;
+   while (cover_next(&it, &root))
+      cobertura_export_inst(&report, root);
 
    fprintf(f, "<?xml version='1.0' encoding='UTF-8'?>\n");
    fprintf(f, "<!DOCTYPE coverage SYSTEM "
@@ -273,7 +289,7 @@ void cover_export_cobertura(cover_data_t *data, FILE *f, const char *relative)
    fprintf(f, "<packages>\n");
    fprintf(f, "<package name=\"%s\" "
            "line-rate=\"%f\" branch-rate=\"%f\" complexity=\"0.0\">\n",
-           istr(cover_get_ident(data, root, COV_ATTR_NAME)),
+           istr(cover_get_ident(db, COVER_NULL_OBJ, COV_ATTR_HIER)),
            line_rate, branch_rate);
 
    fprintf(f, "<classes>\n");
@@ -298,15 +314,14 @@ void cover_export_cobertura(cover_data_t *data, FILE *f, const char *relative)
 ////////////////////////////////////////////////////////////////////////////////
 // XML dump format for debugging and testing
 
-static void dump_item_xml(cover_data_t *db, cover_obj_t item, int indent,
+static void dump_item_xml(const cover_data_t *db, cover_obj_t item, int indent,
                           FILE *f)
 {
    const cover_item_kind_t kind = cover_get_kind(db, item);
-   const int nbins = cover_count(db, item, COV_REL_BINS);
 
-   for (int i = 0; i < nbins; i++) {
-      cover_obj_t bin = cover_at(db, item, COV_REL_BINS, i);
-
+   cover_iter_t it = cover_begin(db, item, COV_REL_BINS);
+   cover_obj_t bin;
+   while (cover_next(&it, &bin)) {
       ident_t hier = cover_get_ident(db, bin, COV_ATTR_HIER);
       uint32_t data = cover_get_u32(db, bin, COV_ATTR_DATA, 0);
 
@@ -339,21 +354,19 @@ static void dump_item_xml(cover_data_t *db, cover_obj_t item, int indent,
    }
 }
 
-static void dump_scope_xml(cover_data_t *db, cover_obj_t scope, int indent,
-                           const loc_t *loc, const char *relative, FILE *f)
+static void dump_scope_xml(const cover_data_t *db, cover_obj_t scope,
+                           int indent, const loc_t *loc, const char *relative,
+                           FILE *f)
 {
    ident_t name = cover_get_ident(db, scope, COV_ATTR_NAME);
    cover_obj_t inst = cover_get_obj(db, scope, COV_ATTR_INST);
    loc_t scope_loc = cover_get_loc(db, scope, COV_ATTR_LOC);
 
-   fprintf(f, "%*s<scope name=\"%s\"", indent, "", istr(name));
-
    cover_obj_t root = cover_get_obj(db, inst, COV_ATTR_ROOT);
-   if (cover_equals(scope, root)) {
-      ident_t block_name = cover_get_ident(db, inst, COV_ATTR_BLOCK_NAME);
-      if (block_name != NULL)
-         fprintf(f, " block_name=\"%s\"", istr(block_name));
-   }
+   if (cover_equals(root, scope))
+      return;  // TODO: remove
+
+   fprintf(f, "%*s<scope name=\"%s\"", indent, "", istr(name));
 
    if (scope_loc.file_ref != FILE_INVALID
        && scope_loc.file_ref != loc->file_ref) {
@@ -368,27 +381,69 @@ static void dump_scope_xml(cover_data_t *db, cover_obj_t scope, int indent,
 
    fprintf(f, ">\n");
 
-   const int nitems = cover_count(db, scope, COV_REL_ITEMS);
-
-   for (int i = 0; i < nitems; i++) {
-      cover_obj_t item = cover_at(db, scope, COV_REL_ITEMS, i);
+   cover_iter_t item_it = cover_begin(db, scope, COV_REL_ITEMS);
+   cover_obj_t item;
+   while (cover_next(&item_it, &item))
       dump_item_xml(db, item, indent, f);
-   }
 
-   const int nchildren = cover_count(db, scope, COV_REL_CHILDREN);
-
-   for (int i = 0; i < nchildren; i++) {
-      cover_obj_t child = cover_at(db, scope, COV_REL_CHILDREN, i);
+   cover_iter_t child_it = cover_begin(db, scope, COV_REL_CHILDREN);
+   cover_obj_t child;
+   while (cover_next(&child_it, &child))
       dump_scope_xml(db, child, indent + 2, &scope_loc, relative, f);
-   }
 
    fprintf(f, "%*s</scope>\n", indent, "");
 }
 
-void cover_export_xml(cover_data_t *data, FILE *f, const char *relative)
+static void dump_inst_xml(const cover_data_t *db, cover_obj_t inst, int indent,
+                          const loc_t *loc, const char *relative, FILE *f)
+{
+   ident_t name = cover_get_ident(db, inst, COV_ATTR_NAME);
+   cover_obj_t root = cover_get_obj(db, inst, COV_ATTR_ROOT);
+   loc_t scope_loc = cover_get_loc(db, root, COV_ATTR_LOC);
+
+   fprintf(f, "%*s<scope name=\"%s\"", indent, "", istr(name));
+
+   ident_t block_name = cover_get_ident(db, inst, COV_ATTR_BLOCK_NAME);
+   if (block_name != NULL)
+      fprintf(f, " block_name=\"%s\"", istr(block_name));
+
+   if (scope_loc.file_ref != FILE_INVALID
+       && scope_loc.file_ref != loc->file_ref) {
+      LOCAL_TEXT_BUF tb = tb_new();
+      get_relative_path(tb, relative, loc_file_str(&scope_loc));
+      fprintf(f, " file=\"%s\"", tb_get(tb));
+   }
+
+   if (scope_loc.first_line != LINE_INVALID && scope_loc.first_line > 0
+       && scope_loc.first_line != loc->first_line)
+      fprintf(f, " line=\"%d\"", scope_loc.first_line);
+
+   fprintf(f, ">\n");
+
+   cover_iter_t scope_it = cover_begin(db, root, COV_REL_CHILDREN);
+   cover_obj_t scope;
+   while (cover_next(&scope_it, &scope))
+      dump_scope_xml(db, scope, indent + 2, &scope_loc, relative, f);
+
+   cover_iter_t child_it = cover_begin(db, inst, COV_REL_CHILDREN);
+   cover_obj_t child;
+   while (cover_next(&child_it, &child))
+      dump_inst_xml(db, child, indent + 2, &scope_loc, relative, f);
+
+   fprintf(f, "%*s</scope>\n", indent, "");
+}
+
+void cover_export_xml(const cover_data_t *db, FILE *f, const char *relative)
 {
    fprintf(f, "<?xml version=\"1.0\"?>\n");
 
-   cover_obj_t root = cover_get_obj(data, COVER_NULL_OBJ, COV_ATTR_ROOT);
-   dump_scope_xml(data, root, 0, &LOC_INVALID, relative, f);
+   ident_t work_name = cover_get_ident(db, COVER_NULL_OBJ, COV_ATTR_HIER);
+   fprintf(f, "<scope name=\"%s\">\n", istr(work_name));
+
+   cover_iter_t it = cover_begin(db, COVER_NULL_OBJ, COV_REL_CHILDREN);
+   cover_obj_t root;
+   while (cover_next(&it, &root))
+      dump_inst_xml(db, root, 2, &LOC_INVALID, relative, f);
+
+   fprintf(f, "</scope>\n");
 }

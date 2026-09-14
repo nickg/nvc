@@ -51,7 +51,7 @@ static const struct {
 };
 
 #define COVER_FILE_MAGIC   0x6e636462   // ASCII "ncdb"
-#define COVER_FILE_VERSION 11
+#define COVER_FILE_VERSION 12
 
 static inline cover_obj_t cover_make_obj(unsigned tag, unsigned id)
 {
@@ -404,6 +404,8 @@ void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
    loc_wr_ctx_t *loc_wr = loc_write_begin(f);
    ident_wr_ctx_t ident_ctx = ident_write_begin(f);
 
+   ident_write(db->work_name, ident_ctx);
+
    fbuf_put_uint(f, db->items.count);
    for (int i = 0; i < db->items.count; i++) {
       const cover_item_t *item = &(db->items.items[i]);
@@ -516,12 +518,12 @@ cover_data_t *cover_data_init(cover_mask_t mask, int array_limit, int threshold)
    db->threshold   = threshold;
    db->inst_map    = hash_new(16);
    db->pool        = pool_new();
+   db->work_name   = lib_name(lib_work());
 
-   ident_t root_name = lib_name(lib_work());
    cover_scope_t root = {
       .loc = LOC_INVALID,
-      .name = root_name,
-      .hier = root_name,
+      .name = db->work_name,
+      .hier = db->work_name,
    };
 
    db->root_scope = cover_make_obj(COVER_TAG_SCOPE, 0);
@@ -601,6 +603,8 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
 
    loc_rd_ctx_t *loc_rd = loc_read_begin(f);
    ident_rd_ctx_t ident_ctx = ident_read_begin(f);
+
+   db->work_name = ident_read(ident_ctx);
 
    db->items.count = db->items.limit = fbuf_get_uint(f);
    db->items.items = xcalloc_array(db->items.count, sizeof(cover_item_t));
@@ -1386,6 +1390,14 @@ ident_t cover_get_ident(const cover_data_t *db, cover_obj_t obj,
          case COV_ATTR_QUAL_NAME:  return inst->qual_name;
          case COV_ATTR_HIER:       return inst->hier;
          default:                  return NULL;
+         }
+      }
+   case COVER_TAG_NULL:
+      {
+         switch (attr) {
+         case COV_ATTR_HIER: return db->work_name;
+         case COV_ATTR_NAME: return db->work_name;
+         default:            return NULL;
          }
       }
    default:

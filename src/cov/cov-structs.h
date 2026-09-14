@@ -155,6 +155,7 @@ struct _cover_data {
    cover_mask_t     mask;
    int              array_limit;
    int              threshold;
+   ident_t          work_name;
    cover_spec_t    *spec;
    cover_ef_t      *ef;
    cover_obj_t      root_scope;

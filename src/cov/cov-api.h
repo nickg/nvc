@@ -320,9 +320,9 @@ cover_rpt_t *cover_report_new(cover_data_t *db, int item_limit);
 void cover_report_free(cover_rpt_t *rpt);
 
 void cover_report(const char *path, cover_data_t *data, int item_limit);
-void cover_export_cobertura(cover_data_t *data, FILE *f,
+void cover_export_cobertura(const cover_data_t *db, FILE *f,
                             const char *relative);
-void cover_export_xml(cover_data_t *data, FILE *f, const char *relative);
+void cover_export_xml(const cover_data_t *db, FILE *f, const char *relative);
 
 //
 // Interface to code generator
