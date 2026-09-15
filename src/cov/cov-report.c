@@ -39,9 +39,6 @@ typedef struct _cover_rpt {
    unsigned      item_limit;
 } cover_rpt_t;
 
-static void rpt_visit_children(cover_rpt_t *rpt, rpt_hier_t *h,
-                               cover_obj_t scope);
-
 static rpt_line_t *rpt_get_line(rpt_file_t *f, const loc_t *loc)
 {
    if (loc->first_line - 1 < f->n_lines)
@@ -326,37 +323,13 @@ static rpt_file_t *rpt_visit_file(cover_rpt_t *rpt, cover_obj_t scope)
    return f;
 }
 
-static rpt_hier_t *rpt_visit_hier(cover_rpt_t *rpt, cover_obj_t scope)
-{
-   ident_t hier = cover_get_ident(rpt->data, scope, COV_ATTR_HIER);
-
-   rpt_hier_t *h = pool_calloc(rpt->pool, sizeof(rpt_hier_t));
-   get_hex_hash(istr(hier), h->name_hash);
-
-   rpt_visit_file(rpt, scope);
-
-   cover_obj_t inst = cover_get_obj(rpt->data, scope, COV_ATTR_INST);
-
-   assert(ihash_get(rpt->hier, inst.bits) == NULL);
-   ihash_put(rpt->hier, inst.bits, h);
-
-   rpt_visit_children(rpt, h, scope);
-
-   rpt_merge_stats(&h->nested_stats, &h->flat_stats);
-
-   return h;
-}
-
-static void rpt_visit_sub_scope(cover_rpt_t *rpt, rpt_hier_t *h,
-                                cover_obj_t scope)
+static void rpt_visit_scope(cover_rpt_t *rpt, rpt_hier_t *h, cover_obj_t scope)
 {
    rpt_file_t *f_src = rpt_visit_file(rpt, scope);
    if (f_src != NULL) {
-      const int nitems = cover_count(rpt->data, scope, COV_REL_ITEMS);
-
-      for (int i = 0; i < nitems; i++) {
-         cover_obj_t item = cover_at(rpt->data, scope, COV_REL_ITEMS, i);
-
+      cover_iter_t item_it = cover_begin(rpt->data, scope, COV_REL_ITEMS);
+      cover_obj_t item;
+      while (cover_next(&item_it, &item)) {
          loc_t loc = cover_get_loc(rpt->data, item, COV_ATTR_LOC);
 
          const rpt_line_t *line = rpt_get_line(f_src, &loc);
@@ -380,22 +353,42 @@ static void rpt_visit_sub_scope(cover_rpt_t *rpt, rpt_hier_t *h,
       }
    }
 
-   rpt_visit_children(rpt, h, scope);
-}
+   cover_obj_t inst = cover_get_obj(rpt->data, scope, COV_ATTR_INST);
 
-static void rpt_visit_children(cover_rpt_t *rpt, rpt_hier_t *h,
-                               cover_obj_t scope)
-{
    cover_iter_t it = cover_begin(rpt->data, scope, COV_REL_CHILDREN);
    cover_obj_t child;
    while (cover_next(&it, &child)) {
-      if (cover_is_hier(rpt->data, child)) {
-         rpt_hier_t *sub = rpt_visit_hier(rpt, child);
-         rpt_merge_stats(&h->nested_stats, &sub->nested_stats);
-      }
-      else
-         rpt_visit_sub_scope(rpt, h, child);
+      // TODO: remove this check
+      if (cover_equals(cover_get_obj(rpt->data, child, COV_ATTR_INST), inst))
+         rpt_visit_scope(rpt, h, child);
    }
+}
+
+static rpt_hier_t *rpt_visit_inst(cover_rpt_t *rpt, cover_obj_t inst)
+{
+   ident_t hier = cover_get_ident(rpt->data, inst, COV_ATTR_HIER);
+
+   rpt_hier_t *h = pool_calloc(rpt->pool, sizeof(rpt_hier_t));
+   get_hex_hash(istr(hier), h->name_hash);
+
+   cover_obj_t root = cover_get_obj(rpt->data, inst, COV_ATTR_ROOT);
+   rpt_visit_file(rpt, root);
+
+   assert(ihash_get(rpt->hier, inst.bits) == NULL);
+   ihash_put(rpt->hier, inst.bits, h);
+
+   rpt_visit_scope(rpt, h, root);
+
+   cover_iter_t it = cover_begin(rpt->data, inst, COV_REL_CHILDREN);
+   cover_obj_t child;
+   while (cover_next(&it, &child)) {
+      rpt_hier_t *sub = rpt_visit_inst(rpt, child);
+      rpt_merge_stats(&h->nested_stats, &sub->nested_stats);
+   }
+
+   rpt_merge_stats(&h->nested_stats, &h->flat_stats);
+
+   return h;
 }
 
 static void rpt_gen_file_details(cover_rpt_t *rpt, rpt_file_t *f)
@@ -474,11 +467,10 @@ cover_rpt_t *cover_report_new(cover_data_t *db, int item_limit)
    rpt->hier       = ihash_new(32);
    rpt->item_limit = item_limit;
 
-   const int nchildren = cover_count(db, db->root_scope, COV_REL_CHILDREN);
-   for (int i = 0; i < nchildren; i++) {
-      cover_obj_t child = cover_at(db, db->root_scope, COV_REL_CHILDREN, i);
-      rpt_visit_hier(rpt, child);
-   }
+   cover_iter_t it = cover_begin(db, COVER_NULL_OBJ, COV_REL_CHILDREN);
+   cover_obj_t root;
+   while (cover_next(&it, &root))
+      rpt_visit_inst(rpt, root);
 
    const char *key;
    void *value;
