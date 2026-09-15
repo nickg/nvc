@@ -62,8 +62,6 @@ typedef struct {
 
 #define COV_RPT_TITLE "NVC code coverage report"
 
-static void cover_report_hier_children(html_gen_t *g, int lvl,
-                                       cover_obj_t scope, FILE *summf);
 static void cover_print_html_header(FILE *f);
 static inline void cover_print_char(FILE *f, char c);
 
@@ -1143,8 +1141,9 @@ static void cover_print_hier_nav_tree(html_gen_t *g, FILE *f, cover_obj_t scope)
    fprintf(f, "</nav>\n\n");
 }
 
-static void cover_report_hier(html_gen_t *g, int lvl, cover_obj_t scope)
+static void cover_report_inst(html_gen_t *g, int lvl, cover_obj_t inst)
 {
+   cover_obj_t scope = cover_get_obj(g->data, inst, COV_ATTR_ROOT);
    const rpt_hier_t *h = rpt_get_hier(g->rpt, scope);
 
    FILE *f = create_file("%s/hier/%s.html", g->outdir, h->name_hash);
@@ -1156,10 +1155,24 @@ static void cover_report_hier(html_gen_t *g, int lvl, cover_obj_t scope)
    const rpt_file_t *src = rpt_get_file(g->rpt, scope);
    cover_print_file_name(f, src);
 
-   if (!cover_is_leaf(g->data, scope)) {
+   if (cover_count(g->data, inst, COV_REL_CHILDREN) > 0) {
       cover_print_summary_table_header(f, "sub_inst_table", "Nested Instances");
 
-      cover_report_hier_children(g, lvl, scope, f);
+      cover_iter_t it = cover_begin(g->data, inst, COV_REL_CHILDREN);
+      cover_obj_t child;
+      while (cover_next(&it, &child)) {
+         cover_report_inst(g, lvl + 2, child);
+
+         cover_obj_t root = cover_get_obj(g->data, child, COV_ATTR_ROOT);
+         const rpt_hier_t *h = rpt_get_hier(g->rpt, root);
+
+         ident_t hier = cover_get_ident(g->data, child, COV_ATTR_HIER);
+
+         cover_print_summary_table_row(g, f, &(h->nested_stats),
+                                       ident_rfrom(hier, '.'),
+                                       ident_new(h->name_hash),
+                                       lvl + 2, false, true);
+      }
 
       cover_print_table_footer(f);
    }
@@ -1193,43 +1206,17 @@ static void cover_report_hier(html_gen_t *g, int lvl, cover_obj_t scope)
    fclose(f);
 }
 
-static void cover_report_hier_children(html_gen_t *g, int lvl,
-                                       cover_obj_t scope, FILE *summf)
-{
-   cover_iter_t it = cover_begin(g->data, scope, COV_REL_CHILDREN);
-   cover_obj_t child;
-   while (cover_next(&it, &child)) {
-      if (cover_is_hier(g->data, child)) {
-         cover_report_hier(g, lvl + 2, child);
-
-         const rpt_hier_t *h = rpt_get_hier(g->rpt, child);
-
-         ident_t hier = cover_get_ident(g->data, child, COV_ATTR_HIER);
-
-         cover_print_summary_table_row(g, summf, &(h->nested_stats),
-                                       ident_rfrom(hier, '.'),
-                                       ident_new(h->name_hash),
-                                       lvl + 2, false, true);
-      }
-      else
-         cover_report_hier_children(g, lvl, child, summf);
-   }
-}
-
 static void cover_report_per_hier(html_gen_t *g, FILE *f, cover_rpt_t *rpt)
 {
-   const int nchildren = cover_count(g->data, g->data->root_scope,
-                                     COV_REL_CHILDREN);
-
-   for (int i = 0; i < nchildren; i++) {
-      cover_obj_t child = cover_at(g->data, g->data->root_scope,
-                                   COV_REL_CHILDREN, i);
-
-      cover_report_hier(g, 0, child);
+   cover_iter_t it = cover_begin(g->data, COVER_NULL_OBJ, COV_REL_CHILDREN);
+   cover_obj_t child;
+   while (cover_next(&it, &child)) {
+      cover_report_inst(g, 0, child);
 
       ident_t hier = cover_get_ident(g->data, child, COV_ATTR_HIER);
+      cover_obj_t root = cover_get_obj(g->data, child, COV_ATTR_ROOT);
 
-      const rpt_hier_t *h = rpt_get_hier(rpt, child);
+      const rpt_hier_t *h = rpt_get_hier(rpt, root);
       cover_print_summary_table_row(g, f, &(h->nested_stats), hier,
                                     ident_new(h->name_hash), 0, true, true);
    }

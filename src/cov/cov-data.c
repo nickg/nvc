@@ -821,6 +821,11 @@ static cover_obj_t cover_clone_scope(cover_data_t *dst_db,
                                           COV_ATTR_QUAL_NAME);
       dst_inst = cover_inst_new(dst_db, name, parent_inst, block_name,
                                 qual_name);
+
+      // Adjust the hierarchy to match the source library name
+      cover_inst_data(dst_db, dst_inst)->hier =
+         cover_get_ident(src_db, src_inst, COV_ATTR_HIER);
+
       cover_put_obj(dst_db, dst_inst, COV_ATTR_ROOT, obj);
    }
    copy->inst = dst_inst;
