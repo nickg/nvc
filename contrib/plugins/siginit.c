@@ -465,10 +465,10 @@ static void walk_instances(ctx_t *ctx, vhpiHandleT h)
 static void print_stats(ctx_t *ctx)
 {
     fprintf(ctx->rpt, "Initialization statistics:\n");
-    fprintf(ctx->rpt, "   initialized signals:    %lu\n", ctx->inits);
-    fprintf(ctx->rpt, "   skipped signals:        %lu\n", ctx->skips);
-    fprintf(ctx->rpt, "   errors ocurred:         %lu\n", ctx->errors);
-    fprintf(ctx->rpt, "   warnings ocurred:       %lu\n", ctx->warnings);
+    fprintf(ctx->rpt, "   initialized signals:    %zu\n", ctx->inits);
+    fprintf(ctx->rpt, "   skipped signals:        %zu\n", ctx->skips);
+    fprintf(ctx->rpt, "   errors ocurred:         %zu\n", ctx->errors);
+    fprintf(ctx->rpt, "   warnings ocurred:       %zu\n", ctx->warnings);
 }
 
 static void vhpi_cb(const struct vhpiCbDataS *cb_data)
