@@ -11719,16 +11719,28 @@ static void lower_direct_mapped_port(lower_unit_t *lu, tree_t block, tree_t map,
          tree_t name = tree_name(map);
          tree_kind_t kind = tree_kind(name);
 
-         if (kind == T_RECORD_REF) {
+         int depth = 0;
+         while (kind == T_RECORD_REF) {
             field = tree_pos(tree_ref(name));
             name  = tree_value(name);
             kind  = tree_kind(name);
+            depth++;
          }
 
          if (kind != T_REF)
             return;
 
          port = tree_ref(name);
+
+         if (depth > 1) {
+            // Only single-level fields are direct-mapped below; poison
+            // the port so a sibling single-level association isn't
+            // partially direct-mapped while this one isn't
+            if (*poison == NULL)
+               *poison = hset_new(32);
+            hset_insert(*poison, port);
+            return;
+         }
       }
       break;
    }
