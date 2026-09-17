@@ -2273,21 +2273,6 @@ tree_t resolve_field_name(nametab_t *tab, const loc_t *loc, ident_t name,
    return decl;
 }
 
-static tree_t resolve_ref(nametab_t *tab, tree_t t)
-{
-   const loc_t *loc = tree_loc(t);
-   ident_t name = tree_ident(t);
-
-   type_t signature = get_signature(tab);
-   if (signature != NULL) {
-      // Reference to subprogram or enumeration literal with signature
-      return resolve_subprogram_name(tab, loc, name, signature);
-   }
-
-   // Ordinary reference
-   return resolve_name(tab, loc, name);
-}
-
 static tree_t resolve_record_ref_or_call(nametab_t *tab, tree_t t, bool pcall)
 {
    assert(tree_kind(t) == T_RECORD_REF);
@@ -4655,7 +4640,18 @@ static tree_t solve_ref(nametab_t *tab, tree_t ref)
    if (tree_has_type(ref))
       return ref;
 
-   tree_t decl = resolve_ref(tab, ref);
+   ident_t name = tree_ident(ref);
+   const loc_t *loc = tree_loc(ref);
+
+   tree_t decl;
+   type_t signature = get_signature(tab);
+   if (signature != NULL) {
+      // Reference to subprogram or enumeration literal with signature
+      decl = resolve_subprogram_name(tab, loc, name, signature);
+   }
+   else
+      decl = resolve_name(tab, loc, name);
+
    if (decl == NULL) {
       tree_set_type(ref, type_new(T_NONE));
       return ref;
@@ -4663,17 +4659,16 @@ static tree_t solve_ref(nametab_t *tab, tree_t ref)
 
    type_t type = get_alias_type(decl);
 
-   if (type != NULL && type_is_subprogram(type)) {
-      const bool want_ref = get_signature(tab) != NULL
-         || tab->top_scope->formal_kind != F_NONE;
+   const bool is_zero_args_fcall =
+      signature == NULL && type != NULL && type_is_subprogram(type)
+      && can_call_no_args(decl) && tab->top_scope->formal_kind == F_NONE;
 
-      if (can_call_no_args(decl) && !want_ref) {
-         tree_t fcall = tree_new(T_FCALL);
-         tree_set_loc(fcall, tree_loc(ref));
-         tree_set_ident(fcall, tree_ident(ref));
+   if (is_zero_args_fcall) {
+      tree_t fcall = tree_new(T_FCALL);
+      tree_set_loc(fcall, loc);
+      tree_set_ident(fcall, name);
 
-         return solve_fcall(tab, fcall);
-      }
+      return solve_fcall(tab, fcall);
    }
 
    tree_set_type(ref, type);
@@ -4900,7 +4895,8 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
             tree_t decl;
             if (tree_has_ref(name))
                decl = tree_ref(name);
-            else if ((decl = resolve_ref(tab, name)))
+            else if ((decl = resolve_name(tab, tree_loc(name),
+                                          tree_ident(name))))
                tree_set_ref(name, decl);
 
             if (decl != NULL && class_has_type(class_of(decl))
