@@ -5227,36 +5227,39 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
 
    case C_FUNCTION:
    case C_PROCEDURE:
-      if (!sem_check(value, tab))
-         return false;
+      {
+         type_t type = tree_type(value);
+         if (type_is_none(type))
+            return false;
 
-      if (!type_eq_map(tree_type(value), type, get_generic_map(tab)))
-         sem_error(value, "type of actual %s does not match type %s of formal "
-                   "generic %s", type_pp(tree_type(value)), type_pp(type),
-                   istr(tree_ident(decl)));
+         if (!type_eq_map(tree_type(value), type, get_generic_map(tab)))
+            sem_error(value, "type of actual %pT does not match type %pT of "
+                      "formal generic %pI", tree_type(value), type,
+                      tree_ident(decl));
 
-      assert(tree_kind(value) == T_REF);
+         assert(tree_kind(value) == T_REF);
 
-      if (!tree_has_ref(value))
-         return false;
+         if (!tree_has_ref(value))
+            return false;
 
-      tree_t sub = tree_ref(value);
-      assert(is_subprogram(sub));
+         tree_t sub = tree_ref(value);
+         assert(is_subprogram(sub));
 
-      const bool pure_formal = !(tree_flags(decl) & TREE_F_IMPURE);
-      const bool pure_actual = !(tree_flags(sub) & TREE_F_IMPURE);
+         const bool pure_formal = !(tree_flags(decl) & TREE_F_IMPURE);
+         const bool pure_actual = !(tree_flags(sub) & TREE_F_IMPURE);
 
-      if (pure_formal && !pure_actual) {
-         diag_t *d = pedantic_diag(tree_loc(value));
-         if (d != NULL) {
-            diag_printf(d, "cannot associate impure function %s with pure "
-                        "generic subprogram %s", type_pp(tree_type(value)),
-                        istr(tree_ident(decl)));
-            diag_emit(d);
+         if (pure_formal && !pure_actual) {
+            diag_t *d = pedantic_diag(tree_loc(value));
+            if (d != NULL) {
+               diag_printf(d, "cannot associate impure function %pT with pure "
+                           "generic subprogram %pI", tree_type(value),
+                           tree_ident(decl));
+               diag_emit(d);
+            }
          }
-      }
 
-      map_generic_subprogram(tab, decl, sub);
+         map_generic_subprogram(tab, decl, sub);
+      }
       break;
 
    case C_CONSTANT:

@@ -16,7 +16,8 @@
 - Fixed a bug where toggle coverage of a port could be incorrectly
   excluded as unreachable when `--cover=exclude-unreachable` was used,
   even though the port was actually driven (#1639).
-- Several other minor bugs were resolved (#1638, #1636, #1579, #1647).
+- Several other minor bugs were resolved (#1638, #1636, #1579, #1647,
+  #1658).
 
 ## Version 1.22.1 - 2026-08-01
 - Waveform dumping now dumps multiple top units instead of only the first

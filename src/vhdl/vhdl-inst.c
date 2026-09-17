@@ -176,6 +176,8 @@ static void collect_generics(tree_t t, object_copy_ctx_t *ctx)
          collect_generic_types(tree_type(g), ctx);
          break;
       case C_CONSTANT:
+      case C_FUNCTION:
+      case C_PROCEDURE:
          tree_copy_mark(g, ctx);
          break;
       default:

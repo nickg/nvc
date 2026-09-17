@@ -2235,7 +2235,7 @@ tree_t resolve_subprogram_name(nametab_t *tab, const loc_t *loc, ident_t name,
          if (dd->visibility == HIDDEN)
             continue;
          else if (dd->mask & N_SUBPROGRAM) {
-            type_t signature = tree_type(dd->tree);
+            type_t signature = get_alias_type(dd->tree);
             if (type_eq_map(constraint, signature, tab->top_scope->gmap))
                APUSH(matching, dd->tree);
          }
@@ -4648,6 +4648,16 @@ static tree_t solve_ref(nametab_t *tab, tree_t ref)
    if (signature != NULL) {
       // Reference to subprogram or enumeration literal with signature
       decl = resolve_subprogram_name(tab, loc, name, signature);
+
+      // Resolve chains of aliased subprograms
+      // TODO: revisit get_aliased_subprogram handling of T_PROT_REF
+      while (decl != NULL && tree_kind(decl) == T_ALIAS) {
+         tree_t value = tree_value(decl);
+         if (tree_kind(value) != T_REF || !tree_has_ref(value))
+            break;
+
+         decl = tree_ref(value);
+      }
    }
    else
       decl = resolve_name(tab, loc, name);
