@@ -1766,9 +1766,6 @@ static void instantiate_package(tree_t new, tree_t pack, tree_t body)
    const int ndecls = tree_decls(pack_copy);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(pack_copy, i);
-      if (tree_kind(d) == T_CONST_DECL && !tree_has_value(d))
-         continue;   // Skip deferred constants
-
       tree_add_decl(new, d);
    }
 

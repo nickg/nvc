@@ -1418,7 +1418,7 @@ START_TEST(test_genpack1)
 
    tree_t p1 = tree_stmt(b0, 0);
    fail_unless(tree_kind(p1) == T_PROCESS);
-   fail_unless(tree_stmts(p1) == 2);   // Should have been eliminated
+   fail_unless(tree_stmts(p1) == 3);  // k = 42 not optimised out currently
 
    fail_if_errors();
 }

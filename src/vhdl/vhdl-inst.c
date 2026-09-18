@@ -549,13 +549,11 @@ static tree_t instance_fixup_cb(tree_t t, void *__ctx)
 
    case T_VAR_DECL:
    case T_SIGNAL_DECL:
-   case T_CONST_DECL:
       {
          type_t type = tree_type(t);
          if (type_is_unconstrained(type) && !tree_has_value(t))
-            error_at(tree_loc(t), "declaration of %s %pI cannot have "
-                     "unconstrained type %s", class_str(class_of(t)),
-                     tree_ident(t), type_pp(type));
+            error_at(tree_loc(t), "declaration of %pC %pI cannot have "
+                     "unconstrained type %s", t, tree_ident(t), type_pp(type));
       }
       break;
 
