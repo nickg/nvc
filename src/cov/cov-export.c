@@ -276,6 +276,9 @@ void cover_export_cobertura(const cover_data_t *db, FILE *f,
 
    const char *version = opt_get_str(OPT_COVER_VERSION) ?: PACKAGE_STRING;
 
+   cover_obj_t root0 = cover_at(db, COVER_NULL_OBJ, COV_REL_CHILDREN, 0);
+   ident_t work_name = cover_get_ident(db, root0, COV_ATTR_LIB_NAME);
+
    fprintf(f, "<coverage version=\"%s\" "
            "line-rate=\"%f\" branch-rate=\"%f\" complexity=\"0.0\" "
            "lines-valid=\"%d\" lines-covered=\"%d\" "
@@ -289,8 +292,7 @@ void cover_export_cobertura(const cover_data_t *db, FILE *f,
    fprintf(f, "<packages>\n");
    fprintf(f, "<package name=\"%s\" "
            "line-rate=\"%f\" branch-rate=\"%f\" complexity=\"0.0\">\n",
-           istr(cover_get_ident(db, COVER_NULL_OBJ, COV_ATTR_HIER)),
-           line_rate, branch_rate);
+           istr(work_name), line_rate, branch_rate);
 
    fprintf(f, "<classes>\n");
    for (cobertura_class_t *it = report.classes; it; it = it->next)
@@ -437,7 +439,8 @@ void cover_export_xml(const cover_data_t *db, FILE *f, const char *relative)
 {
    fprintf(f, "<?xml version=\"1.0\"?>\n");
 
-   ident_t work_name = cover_get_ident(db, COVER_NULL_OBJ, COV_ATTR_HIER);
+   cover_obj_t root0 = cover_at(db, COVER_NULL_OBJ, COV_REL_CHILDREN, 0);
+   ident_t work_name = cover_get_ident(db, root0, COV_ATTR_LIB_NAME);
    fprintf(f, "<scope name=\"%s\">\n", istr(work_name));
 
    cover_iter_t it = cover_begin(db, COVER_NULL_OBJ, COV_REL_CHILDREN);

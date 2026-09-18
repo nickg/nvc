@@ -32,6 +32,7 @@ typedef struct {
    cover_obj_t    parent;
    cover_array_t  children;
    ident_t        block_name;
+   ident_t        lib_name;
    ident_t        qual_name;
    ident_t        hier;
    int32_t       *data;
@@ -155,7 +156,6 @@ struct _cover_data {
    cover_mask_t     mask;
    int              array_limit;
    int              threshold;
-   ident_t          work_name;
    cover_spec_t    *spec;
    cover_ef_t      *ef;
    cover_obj_t      root_scope;

@@ -51,7 +51,7 @@ static const struct {
 };
 
 #define COVER_FILE_MAGIC   0x6e636462   // ASCII "ncdb"
-#define COVER_FILE_VERSION 12
+#define COVER_FILE_VERSION 13
 
 static inline cover_obj_t cover_make_obj(unsigned tag, unsigned id)
 {
@@ -213,17 +213,23 @@ cover_obj_t cover_item_new(cover_data_t *db, cover_obj_t scope,
 }
 
 cover_obj_t cover_inst_new(cover_data_t *db, ident_t name, cover_obj_t parent,
-                           ident_t block_name, ident_t qual_name)
+                           ident_t block_name, ident_t lib_name,
+                           ident_t qual_name)
 {
    if (db == NULL)
       return COVER_NULL_OBJ;
 
-   ident_t parent_hier = cover_get_ident(db, parent, COV_ATTR_HIER);
+   ident_t parent_hier;
+   if (cover_is_null(parent))
+      parent_hier = lib_name;
+   else
+      parent_hier = cover_get_ident(db, parent, COV_ATTR_HIER);
 
    cover_inst_t new = {
       .name       = name,
       .parent     = parent,
       .block_name = block_name,
+      .lib_name   = lib_name,
       .qual_name  = qual_name,
       .hier       = ident_prefix(parent_hier, new.name, '.'),
    };
@@ -404,8 +410,6 @@ void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
    loc_wr_ctx_t *loc_wr = loc_write_begin(f);
    ident_wr_ctx_t ident_ctx = ident_write_begin(f);
 
-   ident_write(db->work_name, ident_ctx);
-
    fbuf_put_uint(f, db->items.count);
    for (int i = 0; i < db->items.count; i++) {
       const cover_item_t *item = &(db->items.items[i]);
@@ -460,6 +464,7 @@ void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
 
       ident_write(inst->name, ident_ctx);
       ident_write(inst->block_name, ident_ctx);
+      ident_write(inst->lib_name, ident_ctx);
       ident_write(inst->qual_name, ident_ctx);
       ident_write(inst->hier, ident_ctx);
       fbuf_put_uint(f, inst->next_tag);
@@ -518,12 +523,13 @@ cover_data_t *cover_data_init(cover_mask_t mask, int array_limit, int threshold)
    db->threshold   = threshold;
    db->inst_map    = hash_new(16);
    db->pool        = pool_new();
-   db->work_name   = lib_name(lib_work());
+
+   ident_t work_name = lib_name(lib_work());
 
    cover_scope_t root = {
       .loc = LOC_INVALID,
-      .name = db->work_name,
-      .hier = db->work_name,
+      .name = work_name,
+      .hier = work_name,
    };
 
    db->root_scope = cover_make_obj(COVER_TAG_SCOPE, 0);
@@ -604,8 +610,6 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
    loc_rd_ctx_t *loc_rd = loc_read_begin(f);
    ident_rd_ctx_t ident_ctx = ident_read_begin(f);
 
-   db->work_name = ident_read(ident_ctx);
-
    db->items.count = db->items.limit = fbuf_get_uint(f);
    db->items.items = xcalloc_array(db->items.count, sizeof(cover_item_t));
 
@@ -671,6 +675,7 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
 
       inst->name = ident_read(ident_ctx);
       inst->block_name = ident_read(ident_ctx);
+      inst->lib_name = ident_read(ident_ctx);
       inst->qual_name = ident_read(ident_ctx);
       inst->hier = ident_read(ident_ctx);
       inst->next_tag = fbuf_get_uint(f);
@@ -819,8 +824,10 @@ static cover_obj_t cover_clone_scope(cover_data_t *dst_db,
                                            COV_ATTR_BLOCK_NAME);
       ident_t qual_name = cover_get_ident(src_db, src_inst,
                                           COV_ATTR_QUAL_NAME);
+      ident_t lib_name = cover_get_ident(src_db, src_inst,
+                                         COV_ATTR_LIB_NAME);
       dst_inst = cover_inst_new(dst_db, name, parent_inst, block_name,
-                                qual_name);
+                                lib_name, qual_name);
 
       // Adjust the hierarchy to match the source library name
       cover_inst_data(dst_db, dst_inst)->hier =
@@ -1393,16 +1400,9 @@ ident_t cover_get_ident(const cover_data_t *db, cover_obj_t obj,
          case COV_ATTR_NAME:       return inst->name;
          case COV_ATTR_BLOCK_NAME: return inst->block_name;
          case COV_ATTR_QUAL_NAME:  return inst->qual_name;
+         case COV_ATTR_LIB_NAME:   return inst->lib_name;
          case COV_ATTR_HIER:       return inst->hier;
          default:                  return NULL;
-         }
-      }
-   case COVER_TAG_NULL:
-      {
-         switch (attr) {
-         case COV_ATTR_HIER: return db->work_name;
-         case COV_ATTR_NAME: return db->work_name;
-         default:            return NULL;
          }
       }
    default:

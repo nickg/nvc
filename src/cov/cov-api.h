@@ -140,6 +140,7 @@ typedef enum {
    COV_ATTR_ROOT,
    COV_ATTR_MASK,
    COV_ATTR_QUAL_NAME,
+   COV_ATTR_LIB_NAME,
 } cover_attr_t;
 
 typedef enum {
@@ -258,7 +259,8 @@ cover_obj_t cover_scope_new(cover_data_t *db, cover_obj_t inst,
                             cover_obj_t parent, cover_scope_kind_t kind,
                             ident_t name, loc_t loc);
 cover_obj_t cover_inst_new(cover_data_t *db, ident_t name, cover_obj_t parent,
-                           ident_t block_name, ident_t qual_name);
+                           ident_t block_name, ident_t qual_name,
+                           ident_t lib_name);
 
 void cover_add_ranges(cover_data_t *db, cover_obj_t obj, unsigned count);
 
