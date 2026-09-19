@@ -1,8 +1,10 @@
 ## Unreleased changes
+
+## Version 1.23.0 - 2026-09-19
 - Added basic support for System Verilog assignment pattern expressions.
-- VHDL signals can be now initialized in LRM non-compliant using
-  `--load=siginit` and `+siginit` arguments. This is useful for finding
-  reset issues (from @Blebowski).
+- Added support for randomised signal initialisation using a bundled
+  VHPI plugin.  This is useful for finding reset issues, see the manual
+  for details (from @Blebowski).
 - Added support for System Verilog procedural assertions.
 - Fixed an issue where VHPI could not iterate the constraints of objects
   declared with an unconstrained subtype (#1632).

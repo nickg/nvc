@@ -6,6 +6,8 @@ EXTRA_uninstall_local += uninstall-siginit-plugin
 
 CLEANFILES += $(siginit_plugin)
 
+EXTRA_DIST += contrib/plugins/siginit.c
+
 siginit_XCFLAGS = $(SHLIB_CFLAGS) -I$(top_srcdir)/src/vhpi $(AM_CFLAGS) -Wextra -Wpedantic
 siginit_XLDFLAGS = $(SHLIB_LDFLAGS) $(AM_LDFLAGS)
 siginit_XSOURCES = $(top_srcdir)/contrib/plugins/siginit.c

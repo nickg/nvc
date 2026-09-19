@@ -100,6 +100,7 @@ compile-commands:
 release: update-test-dist
 	echo $(PACKAGE_VERSION) | grep -E "^[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$$"
 	$(AM_V_GEN)( \
+	  set -e; \
 	  v=$(PACKAGE_VERSION); d=$$(date '+%Y-%m-%d'); \
 	  b=$$(echo $(PACKAGE_VERSION) | sed 's/.[0-9]$$//'); \
 	  n=$$(date '+%-d'); l=$$(date '+%B %Y'); \
