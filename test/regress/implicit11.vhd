@@ -6,10 +6,10 @@
 -- a whole).  Three separate generate statements below exercise the
 -- "if", "elsif" and "else" branches respectively.
 
-entity ifgenattr1 is
+entity implicit11 is
 end entity;
 
-architecture test of ifgenattr1 is
+architecture test of implicit11 is
   signal a          : bit := '0';
   signal b, c, d, e : bit;
 begin

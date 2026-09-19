@@ -1471,7 +1471,7 @@ issue1630       cover,shell
 issue1579       vhpi
 issue1640       verilog
 issue1647       verilog
-ifgenattr1      2008
 cover30         cover=toggle+exclude-unreachable,no-collapse,2008
 issue1658       normal,2008
 genpack20       normal,2008
+implicit11      normal,2008
