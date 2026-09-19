@@ -11269,12 +11269,13 @@ static tree_t p_if_generate_statement(ident_t label)
       consume(tCOLON);
    }
 
-   push_scope(nametab);
-   scope_set_container(nametab, g);
-   scope_set_prefix(nametab, alt_label ?: label);
-
    tree_t c0 = tree_new(T_COND_STMT);
    tree_set_ident(c0, alt_label ?: label);
+
+   push_scope(nametab);
+   scope_set_container(nametab, c0);
+   scope_set_prefix(nametab, alt_label ?: label);
+
    tree_set_value(c0, p_condition());
 
    tree_add_cond(g, c0);
@@ -11296,11 +11297,13 @@ static tree_t p_if_generate_statement(ident_t label)
          consume(tCOLON);
       }
 
-      push_scope(nametab);
-      scope_set_prefix(nametab, alt_label ?: label);
-
       tree_t c = tree_new(T_COND_STMT);
       tree_set_ident(c, alt_label ?: label);
+
+      push_scope(nametab);
+      scope_set_container(nametab, c);
+      scope_set_prefix(nametab, alt_label ?: label);
+
       tree_set_value(c, p_condition());
 
       consume(tGENERATE);
@@ -11322,11 +11325,12 @@ static tree_t p_if_generate_statement(ident_t label)
          consume(tCOLON);
       }
 
-      push_scope(nametab);
-      scope_set_prefix(nametab, alt_label ?: label);
-
       tree_t c = tree_new(T_COND_STMT);
       tree_set_ident(c, alt_label ?: label);
+
+      push_scope(nametab);
+      scope_set_container(nametab, c);
+      scope_set_prefix(nametab, alt_label ?: label);
 
       consume(tGENERATE);
 
