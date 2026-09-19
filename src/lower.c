@@ -11473,6 +11473,11 @@ static void lower_inertial_actual_process(lower_unit_t *lu, object_t *obj)
       vcode_reg_t ptr_reg = emit_index(var, VCODE_INVALID_REG);
       lower_copy_record(lu, port_type, ptr_reg, init_reg, locus);
    }
+   else if (!type_is_homogeneous(port_type)) {
+      vcode_reg_t locus = lower_debug_locus(map);
+      vcode_reg_t ptr_reg = emit_index(var, VCODE_INVALID_REG);
+      lower_copy_array(lu, port_type, port_type, ptr_reg, init_reg, locus);
+   }
    else
       emit_store(init_reg, var);
 
@@ -11503,7 +11508,7 @@ static void lower_inertial_actual_process(lower_unit_t *lu, object_t *obj)
    vcode_reg_t value_reg = lower_logical(lu, expr, &nexpr, &gs);
 
    vcode_reg_t nets_reg;
-   if (type_is_record(port_type))
+   if (!type_is_homogeneous(port_type))
       nets_reg = emit_index(var, VCODE_INVALID_REG);
    else
       nets_reg = emit_load(var);
