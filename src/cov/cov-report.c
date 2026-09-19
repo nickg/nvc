@@ -408,9 +408,9 @@ static void rpt_gen_file_details(cover_rpt_t *rpt, rpt_file_t *f)
    }
 }
 
-const rpt_file_t *rpt_get_file(cover_rpt_t *rpt, cover_obj_t scope)
+const rpt_file_t *rpt_get_file(cover_rpt_t *rpt, cover_obj_t obj)
 {
-   loc_t loc = cover_get_loc(rpt->data, scope, COV_ATTR_LOC);
+   loc_t loc = cover_get_loc(rpt->data, obj, COV_ATTR_LOC);
 
    if (loc_invalid_p(&loc))
       return NULL;
@@ -423,11 +423,9 @@ const rpt_file_t *rpt_get_file(cover_rpt_t *rpt, cover_obj_t scope)
    return NULL;
 }
 
-const rpt_hier_t *rpt_get_hier(cover_rpt_t *rpt, cover_obj_t scope)
+const rpt_hier_t *rpt_get_hier(cover_rpt_t *rpt, cover_obj_t inst)
 {
-   assert(cover_is_hier(rpt->data, scope));
-
-   cover_obj_t inst = cover_get_obj(rpt->data, scope, COV_ATTR_INST);
+   assert(inst.tag == COVER_TAG_INST);
 
    rpt_hier_t *h = ihash_get(rpt->hier, inst.bits);
    if (h == NULL)

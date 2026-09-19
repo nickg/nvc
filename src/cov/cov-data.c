@@ -1043,12 +1043,12 @@ void cover_merge(cover_data_t *dst, const cover_data_t *src, merge_mode_t mode)
       cover_debug_dump(dst, COVER_NULL_OBJ, 0);
 }
 
-int32_t *cover_get_counters(cover_data_t *db, ident_t name)
+int32_t *cover_get_counters(cover_data_t *db, ident_t qual)
 {
    if (db == NULL)
       return NULL;
 
-   cover_obj_t inst = { .bits = (uintptr_t)hash_get(db->inst_map, name) };
+   cover_obj_t inst = { .bits = (uintptr_t)hash_get(db->inst_map, qual) };
    if (cover_is_null(inst))
       return NULL;
 
@@ -1062,16 +1062,13 @@ int32_t *cover_get_counters(cover_data_t *db, ident_t name)
    return id->data;
 }
 
-cover_obj_t cover_get_scope(cover_data_t *db, ident_t name)
+cover_obj_t cover_find(const cover_data_t *db, ident_t qual)
 {
    if (db == NULL)
       return COVER_NULL_OBJ;
 
-   cover_obj_t inst = { .bits = (uintptr_t)hash_get(db->inst_map, name) };
-   if (cover_is_null(inst))
-      return COVER_NULL_OBJ;
-
-   return cover_get_obj(db, inst, COV_ATTR_ROOT);
+   cover_obj_t inst = { .bits = (uintptr_t)hash_get(db->inst_map, qual) };
+   return inst;
 }
 
 cover_obj_t cover_get_child(const cover_data_t *db, cover_obj_t scope,
@@ -1130,29 +1127,6 @@ const char *cover_item_kind_str(cover_item_kind_t kind)
    };
    assert(kind < ARRAY_LEN(item_kind_str));
    return item_kind_str[kind];
-}
-
-bool cover_is_hier(const cover_data_t *db, cover_obj_t scope)
-{
-   switch (cover_scope_data_const(db, scope)->kind) {
-   case CSCOPE_INSTANCE:
-   case CSCOPE_PACKAGE:
-      return true;
-   default:
-      return false;
-   }
-}
-
-bool cover_is_leaf(const cover_data_t *db, cover_obj_t scope)
-{
-   const cover_scope_t *s = cover_scope_data_const(db, scope);
-
-   for (int i = 0; i < s->children.count; i++) {
-      if (cover_is_hier(db, s->children.items[i]))
-         return false;
-   }
-
-   return true;
 }
 
 size_t cover_count(const cover_data_t *db, cover_obj_t obj, cover_rel_t rel)

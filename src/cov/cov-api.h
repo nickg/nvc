@@ -245,8 +245,8 @@ void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt);
 cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask);
 void cover_merge(cover_data_t *dst, const cover_data_t *src, merge_mode_t mode);
 
-int32_t *cover_get_counters(cover_data_t *db, ident_t name);
-cover_obj_t cover_get_scope(cover_data_t *db, ident_t name);
+int32_t *cover_get_counters(cover_data_t *db, ident_t qual);
+cover_obj_t cover_find(const cover_data_t *db, ident_t qual);
 
 cover_obj_t cover_get_child(const cover_data_t *db, cover_obj_t scope,
                             ident_t name);

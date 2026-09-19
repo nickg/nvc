@@ -358,17 +358,21 @@ void _nvc_create_cover_scope(jit_scalar_t *args)
    rt_scope_t *rt_scope = get_active_scope(m);
    assert(rt_scope->kind == SCOPE_INSTANCE);
 
-   cover_obj_t parent = cover_get_scope(db, rt_scope->name);
-   if (cover_is_null(parent))
+   cover_obj_t inst = cover_find(db, rt_scope->name);
+   if (cover_is_null(inst))
       return;
 
    LOCAL_TEXT_BUF tb = tb_new();
    sanitise_name(tb, name_bytes, name_len);
 
    const size_t pfxlen = tb_len(tb);
-   const int nchildren = cover_count(db, parent, COV_REL_CHILDREN);
-   for (int i = 0, dup = 0; i < nchildren; i++) {
-      cover_obj_t child = cover_at(db, parent, COV_REL_CHILDREN, i);
+
+   cover_obj_t root = cover_get_obj(db, inst, COV_ATTR_ROOT);
+
+   cover_iter_t it = cover_begin(db, root, COV_REL_CHILDREN);
+   cover_obj_t child;
+   int dup = 0;
+   while (cover_next(&it, &child)) {
       ident_t name = cover_get_ident(db, child, COV_ATTR_NAME);
 
       if (icmp(name, tb_get(tb))) {
@@ -380,12 +384,10 @@ void _nvc_create_cover_scope(jit_scalar_t *args)
    ident_t suffix = ident_new(tb_get(tb));
    ident_t name = ident_prefix(rt_scope->name, suffix, '.');
 
-   cover_obj_t inst = cover_get_obj(db, parent, COV_ATTR_INST);
-
    user_scope_t *us = jit_mspace_alloc(sizeof(user_scope_t));
    us->counters = NULL;
    us->name     = name;
-   us->scope    = cover_scope_new(db, inst, parent, CSCOPE_USER, suffix,
+   us->scope    = cover_scope_new(db, inst, root, CSCOPE_USER, suffix,
                                   *tree_loc(rt_scope->where));
 
    *ptr = us;

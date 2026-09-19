@@ -61,6 +61,13 @@ static cover_data_t *run_cover(tree_t top)
    return db;
 }
 
+static cover_obj_t ck_cover_find(const cover_data_t *db, const char *qual)
+{
+   cover_obj_t obj = cover_find(db, ident_new(qual));
+   ck_assert_msg(!cover_is_null(obj), "%s is null", qual);
+   return obj;
+}
+
 START_TEST(test_perfile1)
 {
    input_from_file(TESTDIR "/cover/perfile1.vhd");
@@ -71,14 +78,15 @@ START_TEST(test_perfile1)
 
    cover_rpt_t *rpt = cover_report_new(db, INT_MAX);
 
-   cover_obj_t u1 = cover_get_scope(db, ident_new("WORK.TOP.U1"));
-   ck_assert(!cover_is_null(u1));
+   cover_obj_t u1_inst = ck_cover_find(db, "WORK.TOP.U1");
 
-   const rpt_hier_t *u1_h = rpt_get_hier(rpt, u1);
+   const rpt_hier_t *u1_h = rpt_get_hier(rpt, u1_inst);
    ck_assert_int_eq(u1_h->flat_stats.total[COV_ITEM_STMT], 3);
    ck_assert_int_eq(u1_h->flat_stats.hit[COV_ITEM_STMT], 2);
 
-   const rpt_file_t *f = rpt_get_file(rpt, u1);
+   cover_obj_t u1_root = cover_get_obj(db, u1_inst, COV_ATTR_ROOT);
+
+   const rpt_file_t *f = rpt_get_file(rpt, u1_root);
    ck_assert_ptr_nonnull(f);
 
    ck_assert_int_eq(f->stats.total[COV_ITEM_STMT], 3);
@@ -111,10 +119,11 @@ START_TEST(test_toggle1)
 
    cover_data_t *db = run_cover(top);
 
-   cover_obj_t u1 = cover_get_scope(db, ident_new("WORK.TOGGLE1"));
-   fail_if(cover_is_null(u1));
+   cover_obj_t u1_inst = ck_cover_find(db, "WORK.TOGGLE1");
 
-   cover_obj_t vect = cover_at(db, u1, COV_REL_CHILDREN, 0);
+   cover_obj_t u1_root = cover_get_obj(db, u1_inst, COV_ATTR_ROOT);
+
+   cover_obj_t vect = cover_at(db, u1_root, COV_REL_CHILDREN, 0);
    ck_assert_ident_eq(cover_get_ident(db, vect, COV_ATTR_NAME), "VECT");
    ck_assert_int_eq(cover_count(db, vect, COV_REL_ITEMS), 1);
 
@@ -139,7 +148,7 @@ START_TEST(test_toggle1)
    ck_assert_int_eq(cover_get_u32(db, vect15_bins[0], COV_ATTR_DATA, -1), 0);
    ck_assert_int_eq(cover_get_u32(db, vect15_bins[1], COV_ATTR_DATA, -1), 0);
 
-   const rpt_hier_t *u1_h = rpt_get_hier(rpt, u1);
+   const rpt_hier_t *u1_h = rpt_get_hier(rpt, u1_inst);
    ck_assert_int_eq(u1_h->flat_stats.total[COV_ITEM_TOGGLE], 32);
    ck_assert_int_eq(u1_h->flat_stats.hit[COV_ITEM_TOGGLE], 2);
 
@@ -189,7 +198,7 @@ START_TEST(test_merge1)
 
    cover_data_free(db2);
 
-   cover_obj_t u1 = cover_get_scope(db1, ident_new("WORK.MERGE1"));
+   cover_obj_t u1 = ck_cover_find(db1, "WORK.MERGE1");
    fail_if(cover_is_null(u1));
 
    cover_rpt_t *rpt = cover_report_new(db1, INT_MAX);
@@ -218,7 +227,7 @@ START_TEST(test_merge1)
                                       COV_ATTR_HIER),
                       "WORK.MERGE1.TGL(1).BIN_0_TO_1");
 
-   cover_obj_t gen1 = cover_get_scope(db1, ident_new("WORK.MERGE1.GEN_ONE"));
+   cover_obj_t gen1 = ck_cover_find(db1, "WORK.MERGE1.GEN_ONE");
    fail_if(cover_is_null(gen1));
 
    cover_report_free(rpt);
@@ -247,7 +256,7 @@ START_TEST(test_merge2)
 
    cover_data_free(db2);
 
-   cover_obj_t u1 = cover_get_scope(db1, ident_new("WORK.MERGE2"));
+   cover_obj_t u1 = ck_cover_find(db1, "WORK.MERGE2");
    fail_if(cover_is_null(u1));
 
    cover_rpt_t *rpt = cover_report_new(db1, INT_MAX);
@@ -290,10 +299,12 @@ START_TEST(test_toggle2)
 
    cover_data_t *db = run_cover(top);
 
-   cover_obj_t u1 = cover_get_scope(db, ident_new("WORK.TOGGLE2"));
-   ck_assert_int_eq(u1.tag, COVER_TAG_SCOPE);
+   cover_obj_t u1_inst = ck_cover_find(db, "WORK.TOGGLE2");
+   ck_assert_int_eq(u1_inst.tag, COVER_TAG_INST);
 
-   cover_obj_t s1 = cover_at(db, u1, COV_REL_CHILDREN, 0);
+   cover_obj_t u1_root = cover_get_obj(db, u1_inst, COV_ATTR_ROOT);
+
+   cover_obj_t s1 = cover_at(db, u1_root, COV_REL_CHILDREN, 0);
    ck_assert_ident_eq(cover_get_ident(db, s1, COV_ATTR_NAME), "S1");
    ck_assert_int_eq(cover_count(db, s1, COV_REL_ITEMS), 1);
 
@@ -315,7 +326,7 @@ START_TEST(test_toggle2)
 
    cover_rpt_t *rpt = cover_report_new(db, INT_MAX);
 
-   const rpt_hier_t *u1_h = rpt_get_hier(rpt, u1);
+   const rpt_hier_t *u1_h = rpt_get_hier(rpt, u1_inst);
    ck_assert_int_eq(u1_h->flat_stats.total[COV_ITEM_TOGGLE], 10);
    ck_assert_int_eq(u1_h->flat_stats.hit[COV_ITEM_TOGGLE], 4);
 
@@ -392,11 +403,12 @@ START_TEST(test_issue1431)
 
    cover_data_t *db = run_cover(top);
 
-   cover_obj_t cs = cover_get_scope(db, ident_new("WORK.ISSUE1431.UUT"));
-   fail_if(cover_is_null(cs));
-   ck_assert_int_eq(cover_count(db, cs, COV_REL_CHILDREN), 1);
+   cover_obj_t uut_inst = ck_cover_find(db, "WORK.ISSUE1431.UUT");
+   cover_obj_t uut_root = cover_get_obj(db, uut_inst, COV_ATTR_ROOT);
 
-   cover_obj_t transfer = cover_at(db, cs, COV_REL_CHILDREN, 0);
+   ck_assert_int_eq(cover_count(db, uut_root, COV_REL_CHILDREN), 1);
+
+   cover_obj_t transfer = cover_at(db, uut_root, COV_REL_CHILDREN, 0);
    ck_assert_ident_eq(cover_get_ident(db, transfer, COV_ATTR_NAME), "TRANSFER");
    ck_assert_int_eq(cover_count(db, transfer, COV_REL_CHILDREN), 1);
 
@@ -433,10 +445,10 @@ START_TEST(test_issue1567)
    cover_data_t *db = run_cover(top);
    cover_rpt_t *rpt = cover_report_new(db, INT_MAX);
 
-   cover_obj_t u1 = cover_get_scope(db, ident_new("WORK.TOP.U1"));
-   fail_if(cover_is_null(u1));
+   cover_obj_t u1_inst = ck_cover_find(db, "WORK.TOP.U1");
+   cover_obj_t u1_root = cover_get_obj(db, u1_inst, COV_ATTR_ROOT);
 
-   const rpt_file_t *f = rpt_get_file(rpt, u1);
+   const rpt_file_t *f = rpt_get_file(rpt, u1_root);
    ck_assert_ptr_nonnull(f);
 
    ck_assert_int_eq(f->stats.total[COV_ITEM_STMT], 1);
@@ -508,8 +520,8 @@ START_TEST(test_merge3)
    cover_merge(dst, src, MERGE_UNION);
    cover_data_free(src);
 
-   cover_obj_t dst_child = cover_get_scope(dst, ident_new("WORK.TOP.CHILD"));
-   ck_assert(!cover_is_null(dst_child));
+   cover_obj_t dst_child_inst = ck_cover_find(dst, "WORK.TOP.CHILD");
+   cover_obj_t dst_child = cover_get_obj(dst, dst_child_inst, COV_ATTR_ROOT);
 
    cover_obj_t item = cover_at(dst, dst_child, COV_REL_ITEMS, 0);
    cover_obj_t bin = cover_at(dst, item, COV_REL_BINS, 0);
