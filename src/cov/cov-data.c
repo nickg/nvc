@@ -809,47 +809,52 @@ static cover_obj_t cover_clone_scope(cover_data_t *dst_db,
    APUSH(dst_db->scopes, *cover_scope_data_const(src_db, src_scope));
 
    cover_scope_t *copy = cover_scope_data(dst_db, obj);
-   const cover_scope_t *src = cover_scope_data_const(src_db, src_scope);
-
    copy->parent = parent_scope;
    copy->items = (cover_array_t)AINIT;
    copy->children = (cover_array_t)AINIT;
+   copy->inst = parent_inst;
 
-   cover_obj_t dst_inst = parent_inst;
-   cover_obj_t src_inst = cover_get_obj(src_db, src_scope, COV_ATTR_INST);
-   cover_obj_t src_root = cover_get_obj(src_db, src_inst, COV_ATTR_ROOT);
-   if (cover_equals(src_scope, src_root)) {
-      ident_t name = cover_get_ident(src_db, src_inst, COV_ATTR_NAME);
-      ident_t block_name = cover_get_ident(src_db, src_inst,
-                                           COV_ATTR_BLOCK_NAME);
-      ident_t qual_name = cover_get_ident(src_db, src_inst,
-                                          COV_ATTR_QUAL_NAME);
-      ident_t lib_name = cover_get_ident(src_db, src_inst,
-                                         COV_ATTR_LIB_NAME);
-      dst_inst = cover_inst_new(dst_db, name, parent_inst, block_name,
-                                lib_name, qual_name);
-
-      // Adjust the hierarchy to match the source library name
-      cover_inst_data(dst_db, dst_inst)->hier =
-         cover_get_ident(src_db, src_inst, COV_ATTR_HIER);
-
-      cover_put_obj(dst_db, dst_inst, COV_ATTR_ROOT, obj);
-   }
-   copy->inst = dst_inst;
-
-   for (int i = 0; i < src->items.count; i++) {
-      cover_obj_t copy = cover_clone_item(dst_db, src_db, src->items.items[i]);
+   cover_iter_t item_it = cover_begin(src_db, src_scope, COV_REL_ITEMS);
+   cover_obj_t item;
+   while (cover_next(&item_it, &item)) {
+      cover_obj_t copy = cover_clone_item(dst_db, src_db, item);
       cover_append(dst_db, obj, COV_REL_ITEMS, copy);
    }
 
-   for (int i = 0; i < src->children.count; i++) {
-      cover_obj_t copy = cover_clone_scope(dst_db, src_db,
-                                           src->children.items[i], obj,
-                                           dst_inst);
+   cover_obj_t src_inst = cover_get_obj(src_db, src_scope, COV_ATTR_INST);
+
+   cover_iter_t child_it = cover_begin(src_db, src_scope, COV_REL_CHILDREN);
+   cover_obj_t child;
+   while (cover_next(&child_it, &child)) {
+      // TODO: remove this check
+      if (!cover_equals(cover_get_obj(src_db, child, COV_ATTR_INST), src_inst))
+         continue;
+
+      cover_obj_t copy = cover_clone_scope(dst_db, src_db, child, obj,
+                                           parent_inst);
       cover_append(dst_db, obj, COV_REL_CHILDREN, copy);
    }
 
    return obj;
+}
+
+static void cover_clone_inst(cover_data_t *dst_db, const cover_data_t *src_db,
+                             cover_obj_t src_inst, cover_obj_t dst_parent)
+{
+   const cover_inst_t *src = cover_inst_data_const(src_db, src_inst);
+
+   cover_obj_t obj = cover_inst_new(dst_db, src->name, dst_parent,
+                                    src->block_name, src->lib_name,
+                                    src->qual_name);
+
+   cover_obj_t root = cover_clone_scope(dst_db, src_db, src->root,
+                                        COVER_NULL_OBJ, obj);
+   cover_put_obj(dst_db, obj, COV_ATTR_ROOT, root);
+
+   cover_iter_t it = cover_begin(src_db, src_inst, COV_REL_CHILDREN);
+   cover_obj_t src_child;
+   while (cover_next(&it, &src_child))
+      cover_clone_inst(dst_db, src_db, src_child, obj);
 }
 
 static bool cover_merge_items(cover_data_t *dst_db, const cover_data_t *src_db,
@@ -941,8 +946,6 @@ static void cover_merge_scope(cover_data_t *dst_db,
                               cover_obj_t src_scope,
                               merge_mode_t mode)
 {
-   cover_obj_t parent_inst = cover_get_obj(dst_db, dst_scope, COV_ATTR_INST);
-
    const int dst_nitems = cover_count(dst_db, dst_scope, COV_REL_ITEMS);
 
    cover_obj_t src, dst;
@@ -970,8 +973,13 @@ static void cover_merge_scope(cover_data_t *dst_db,
       }
    }
 
+   cover_obj_t src_inst = cover_get_obj(src_db, src_scope, COV_ATTR_INST);
    cover_iter_t src_child_it = cover_begin(src_db, src_scope, COV_REL_CHILDREN);
    while (cover_next(&src_child_it, &src)) {
+      // TODO: remove this check
+      if (!cover_equals(cover_get_obj(src_db, src, COV_ATTR_INST), src_inst))
+         continue;
+
       ident_t src_name = cover_get_ident(src_db, src, COV_ATTR_NAME);
 
       bool found = false;
@@ -988,16 +996,48 @@ static void cover_merge_scope(cover_data_t *dst_db,
       }
 
       if (!found && mode == MERGE_UNION) {
+         cover_obj_t dst_inst = cover_get_obj(dst_db, dst_scope, COV_ATTR_INST);
          cover_obj_t copy = cover_clone_scope(dst_db, src_db, src, dst_scope,
-                                              parent_inst);
+                                              dst_inst);
          cover_append(dst_db, dst_scope, COV_REL_CHILDREN, copy);
       }
    }
 }
 
+static void cover_merge_inst(cover_data_t *dst_db,
+                             const cover_data_t *src_db,
+                             cover_obj_t dst_inst,
+                             cover_obj_t src_inst,
+                             merge_mode_t mode)
+{
+   cover_obj_t dst_root = cover_get_obj(dst_db, dst_inst, COV_ATTR_ROOT);
+   cover_obj_t src_root = cover_get_obj(src_db, src_inst, COV_ATTR_ROOT);
+
+   cover_merge_scope(dst_db, src_db, dst_root, src_root, mode);
+
+   cover_iter_t src_it = cover_begin(src_db, src_inst, COV_REL_CHILDREN);
+   cover_obj_t src_child;
+   while (cover_next(&src_it, &src_child)) {
+      ident_t src_name = cover_get_ident(src_db, src_child, COV_ATTR_NAME);
+
+      cover_iter_t dst_it = cover_begin(dst_db, dst_inst, COV_REL_CHILDREN);
+      cover_obj_t dst_child;
+      while (cover_next(&dst_it, &dst_child)) {
+         ident_t dst_name = cover_get_ident(dst_db, dst_child, COV_ATTR_NAME);
+         if (dst_name == src_name) {
+            cover_merge_inst(dst_db, src_db, dst_child, src_child, mode);
+            break;
+         }
+      }
+
+      if (cover_is_null(dst_child) && mode == MERGE_UNION)
+         cover_clone_inst(dst_db, src_db, src_child, dst_inst);
+   }
+}
+
 void cover_merge(cover_data_t *dst, const cover_data_t *src, merge_mode_t mode)
 {
-   cover_merge_scope(dst, src, dst->root_scope, src->root_scope, mode);
+   cover_merge_inst(dst, src, COVER_NULL_OBJ, COVER_NULL_OBJ, mode);
 
    if (opt_get_int(OPT_COVER_VERBOSE))
       cover_debug_dump(dst, COVER_NULL_OBJ, 0);
