@@ -178,6 +178,8 @@ jit_dll_t *ffi_load_dll(const char *path)
          tb_rewind(tb);
          get_lib_dir(tb);
          tb_cat(tb, DIR_SEP);
+         tb_cat(tb, "plugins");
+         tb_cat(tb, DIR_SEP);
          tb_cat(tb, path);
          tb_cat(tb, "." DLL_EXT);
 
@@ -198,6 +200,7 @@ jit_dll_t *ffi_load_dll(const char *path)
 
          tb_rewind(tb);
          get_lib_dir(tb);
+         tb_cat(tb, DIR_SEP "plugins");
          diag_hint(d, NULL, "searched built-in plugin directory %s",
                    tb_get(tb));
 

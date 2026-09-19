@@ -19,8 +19,8 @@ $(siginit_plugin): $(siginit_XSOURCES)
 	$(AM_V_CCLD)$(CC) $(siginit_XCFLAGS) $(siginit_XLDFLAGS) -o $@ $(siginit_XSOURCES)
 
 install-siginit-plugin: $(siginit_plugin)
-	$(AM_V_at)$(MKDIR_P) "$(DESTDIR)$(pkglibdir)"
-	$(AM_V_at)$(INSTALL_PROGRAM) $(siginit_plugin) "$(DESTDIR)$(pkglibdir)/siginit.@DLL_EXT@"
+	$(AM_V_at)$(MKDIR_P) "$(DESTDIR)$(pkglibdir)/plugins"
+	$(AM_V_at)$(INSTALL_PROGRAM) $(siginit_plugin) "$(DESTDIR)$(pkglibdir)/plugins/siginit.@DLL_EXT@"
 
 uninstall-siginit-plugin:
-	$(AM_V_at)rm -f "$(DESTDIR)$(pkglibdir)/siginit.@DLL_EXT@"
+	$(AM_V_at)rm -f "$(DESTDIR)$(pkglibdir)/plugins/siginit.@DLL_EXT@"
