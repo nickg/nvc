@@ -11730,8 +11730,15 @@ static void lower_direct_mapped_port(lower_unit_t *lu, tree_t block, tree_t map,
             kind  = tree_kind(name);
          }
 
-         if (kind != T_REF)
+         if (kind == T_CONV_FUNC || kind == T_TYPE_CONV)
             return;
+         else if (kind != T_REF) {
+            // Cannot use direct mapping for any sub-element of this signal
+            if (*poison == NULL)
+               *poison = hset_new(32);
+            hset_insert(*poison, tree_ref(name_to_ref(name)));
+            return;
+         }
 
          port = tree_ref(name);
       }
