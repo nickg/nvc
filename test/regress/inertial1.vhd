@@ -4,7 +4,7 @@
 -- driver (LRM 6.5.6.3) to copy the whole array via a pointer rather
 -- than treating it as a scalar load/store.
 
-package portagg1_pkg is
+package inertial1_pkg is
   type rec_t is record
     x : integer;
     y : bit_vector(3 downto 0);
@@ -14,9 +14,9 @@ end package;
 
 -------------------------------------------------------------------------------
 
-use work.portagg1_pkg.all;
+use work.inertial1_pkg.all;
 
-entity portagg1_sub is
+entity inertial1_sub is
   generic ( n : natural := 4 );
   port (
     i : in  rec_array_t(0 to n - 1);
@@ -24,23 +24,23 @@ entity portagg1_sub is
   );
 end entity;
 
-architecture rtl of portagg1_sub is
+architecture rtl of inertial1_sub is
 begin
   o <= i(0);
 end architecture;
 
 -------------------------------------------------------------------------------
 
-use work.portagg1_pkg.all;
+use work.inertial1_pkg.all;
 
-entity portagg1 is
+entity inertial1 is
 end entity;
 
-architecture test of portagg1 is
+architecture test of inertial1 is
   signal drive : rec_t := (x => 42, y => "1010");
   signal result : rec_t;
 begin
-  uut : entity work.portagg1_sub
+  uut : entity work.inertial1_sub
     generic map ( n => 4 )
     port map (
       i => (others => drive),
