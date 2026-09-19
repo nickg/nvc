@@ -405,14 +405,27 @@ static void cover_fold_scopes(cover_data_t *db, cover_obj_t tgt_scope,
       }
    }
 
-   // Process sub-scopes
+   cover_obj_t src_inst = cover_get_obj(db, src_scope, COV_ATTR_INST);
+   cover_obj_t tgt_inst = cover_get_obj(db, tgt_scope, COV_ATTR_INST);
+
+   // Process sub-scopes within these instances
    src_it = cover_begin(db, src_scope, COV_REL_CHILDREN);
    while (cover_next(&src_it, &src)) {
+      // TODO: remove this check
+      cover_obj_t child_inst = cover_get_obj(db, src, COV_ATTR_INST);
+      if (!cover_equals(child_inst, src_inst))
+         continue;
+
       ident_t src_hier = cover_get_ident(db, src, COV_ATTR_HIER);
 
       cover_iter_t tgt_it = cover_begin(db, tgt_scope, COV_REL_CHILDREN);
       cover_obj_t tgt;
       while (cover_next(&tgt_it, &tgt)) {
+         // TODO: remove this check
+         cover_obj_t child_inst = cover_get_obj(db, tgt, COV_ATTR_INST);
+         if (!cover_equals(child_inst, tgt_inst))
+            continue;
+
          // Compare hierarchical paths, but strip "tgt_scope" prefix from "tgt",
          // and "src_scope" from "src". Only suffix of hierarchy needs to be the same!
          ident_t tgt_suffix_hier = NULL;
@@ -433,46 +446,94 @@ static void cover_fold_scopes(cover_data_t *db, cover_obj_t tgt_scope,
    }
 }
 
-static void cover_iterate_fold_source(cover_data_t *db,
-                                      cover_obj_t tgt_scope,
-                                      cover_obj_t src_scope,
-                                      cover_fold_cmd_t *cmd)
+static void cover_iterate_fold_source_scope(cover_data_t *db,
+                                            cover_obj_t tgt_scope,
+                                            cover_obj_t src_scope,
+                                            cover_fold_cmd_t *cmd)
 {
    ident_t tgt_hier = cover_get_ident(db, tgt_scope, COV_ATTR_HIER);
+   ident_t src_hier = cover_get_ident(db, src_scope, COV_ATTR_HIER);
 
+   if (src_hier == cmd->source) {
+      cmd->found_source = true;
+      diag_t *d = diag_new(DIAG_DEBUG, NULL);
+      diag_printf(d, "folding coverage scopes:");
+      diag_hint(d, NULL, "        Target - %s", istr(tgt_hier));
+      diag_hint(d, NULL, "        Source - %s", istr(src_hier));
+      diag_emit(d);
+      cover_fold_scopes(db, tgt_scope, src_scope);
+   }
+
+   cover_obj_t src_inst = cover_get_obj(db, src_scope, COV_ATTR_INST);
    cover_iter_t it = cover_begin(db, src_scope, COV_REL_CHILDREN);
    cover_obj_t src_child;
    while (cover_next(&it, &src_child)) {
-      ident_t src_hier = cover_get_ident(db, src_child, COV_ATTR_HIER);
+      cover_obj_t child_inst = cover_get_obj(db, src_child, COV_ATTR_INST);
+      if (!cover_equals(child_inst, src_inst))
+         continue;
 
-      if (src_hier == cmd->source) {
-         cmd->found_source = true;
-         diag_t *d = diag_new(DIAG_DEBUG, NULL);
-         diag_printf(d, "folding coverage scopes:");
-         diag_hint(d, NULL, "        Target - %s", istr(tgt_hier));
-         diag_hint(d, NULL, "        Source - %s", istr(src_hier));
-         diag_emit(d);
-         cover_fold_scopes(db, tgt_scope, src_child);
-      }
-
-      cover_iterate_fold_source(db, tgt_scope, src_child, cmd);
+      cover_iterate_fold_source_scope(db, tgt_scope, src_child, cmd);
    }
 }
 
-static void cover_iterate_fold_target(cover_data_t *db, cover_obj_t tgt_scope,
-                                      cover_fold_cmd_t *cmd)
+static void cover_iterate_fold_source_inst(cover_data_t *db,
+                                           cover_obj_t tgt_scope,
+                                           cover_obj_t src_inst,
+                                           cover_fold_cmd_t *cmd)
+{
+   cover_obj_t src_root = cover_get_obj(db, src_inst, COV_ATTR_ROOT);
+   cover_iterate_fold_source_scope(db, tgt_scope, src_root, cmd);
+
+   cover_iter_t it = cover_begin(db, src_inst, COV_REL_CHILDREN);
+   cover_obj_t src_child;
+   while (cover_next(&it, &src_child))
+      cover_iterate_fold_source_inst(db, tgt_scope, src_child, cmd);
+}
+
+static void cover_iterate_fold_sources(cover_data_t *db,
+                                       cover_obj_t tgt_scope,
+                                       cover_fold_cmd_t *cmd)
+{
+   cover_iter_t it = cover_begin(db, COVER_NULL_OBJ, COV_REL_CHILDREN);
+   cover_obj_t src_inst;
+   while (cover_next(&it, &src_inst))
+      cover_iterate_fold_source_inst(db, tgt_scope, src_inst, cmd);
+}
+
+static void cover_iterate_fold_target_scope(cover_data_t *db,
+                                            cover_obj_t tgt_scope,
+                                            cover_fold_cmd_t *cmd)
 {
    // On target scope name match, go and search for all source scopes
    // and collapse them into the target scope
    if (cover_get_ident(db, tgt_scope, COV_ATTR_HIER) == cmd->target) {
       cmd->found_target = true;
-      cover_iterate_fold_source(db, tgt_scope, db->root_scope, cmd);
+      cover_iterate_fold_sources(db, tgt_scope, cmd);
    }
 
+   cover_obj_t tgt_inst = cover_get_obj(db, tgt_scope, COV_ATTR_INST);
    cover_iter_t it = cover_begin(db, tgt_scope, COV_REL_CHILDREN);
    cover_obj_t child;
+   while (cover_next(&it, &child)) {
+      cover_obj_t child_inst = cover_get_obj(db, child, COV_ATTR_INST);
+      if (!cover_equals(child_inst, tgt_inst))
+         continue;
+
+      cover_iterate_fold_target_scope(db, child, cmd);
+   }
+}
+
+static void cover_iterate_fold_target_inst(cover_data_t *db,
+                                           cover_obj_t tgt_inst,
+                                           cover_fold_cmd_t *cmd)
+{
+   cover_obj_t tgt_root = cover_get_obj(db, tgt_inst, COV_ATTR_ROOT);
+   cover_iterate_fold_target_scope(db, tgt_root, cmd);
+
+   cover_iter_t it = cover_begin(db, tgt_inst, COV_REL_CHILDREN);
+   cover_obj_t child;
    while (cover_next(&it, &child))
-      cover_iterate_fold_target(db, child, cmd);
+      cover_iterate_fold_target_inst(db, child, cmd);
 }
 
 static void cover_apply_fold_cmds(cover_data_t *data)
@@ -487,10 +548,10 @@ static void cover_apply_fold_cmds(cover_data_t *data)
       cmd->found_source = false;
       cmd->found_target = false;
 
-      cover_iter_t it = cover_begin(data, data->root_scope, COV_REL_CHILDREN);
-      cover_obj_t child;
-      while (cover_next(&it, &child))
-         cover_iterate_fold_target(data, child, cmd);
+      cover_iter_t it = cover_begin(data, COVER_NULL_OBJ, COV_REL_CHILDREN);
+      cover_obj_t root_inst;
+      while (cover_next(&it, &root_inst))
+         cover_iterate_fold_target_inst(data, root_inst, cmd);
 
       if (cmd->found_target == false)
          warn_at(&(cmd->loc), "fold target does not match any "
