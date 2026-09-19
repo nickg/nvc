@@ -237,6 +237,22 @@ static void cover_exclude_scope(cover_data_t *db, cover_obj_t scope)
       cover_exclude_scope(db, child);
 }
 
+static void cover_exclude_inst(cover_data_t *db, cover_obj_t scope)
+{
+   cover_obj_t root = cover_get_obj(db, scope, COV_ATTR_ROOT);
+   cover_exclude_scope(db, root);
+
+   cover_obj_t inst = cover_get_obj(db, scope, COV_ATTR_INST);
+
+   cover_iter_t child_it = cover_begin(db, scope, COV_REL_CHILDREN);
+   cover_obj_t child;
+   while (cover_next(&child_it, &child)) {
+      // TODO: remove this check
+      if (cover_equals(cover_get_obj(db, child, COV_ATTR_INST), inst))
+         cover_exclude_scope(db, child);
+   }
+}
+
 static void cover_parse_exclude_file(const char *path, cover_data_t *data)
 {
    FILE *ef = fopen(path, "r");
@@ -335,19 +351,22 @@ static void cover_parse_exclude_file(const char *path, cover_data_t *data)
    fclose(ef);
 }
 
-static void cover_apply_exclude_cmds(cover_data_t *data)
+static void cover_apply_exclude_cmds(cover_data_t *db)
 {
-   assert (data->ef != NULL);
+   assert(db->ef != NULL);
 
-   for (int i = 0; i < data->ef->n_excl_cmds; i++)
-      data->ef->excl[i].found = false;
+   for (int i = 0; i < db->ef->n_excl_cmds; i++)
+      db->ef->excl[i].found = false;
 
-   cover_exclude_scope(data, data->root_scope);
+   cover_iter_t it = cover_begin(db, COVER_NULL_OBJ, COV_REL_CHILDREN);
+   cover_obj_t root;
+   while (cover_next(&it, &root))
+      cover_exclude_inst(db, root);
 
-   for (int i = 0; i < data->ef->n_excl_cmds; i++)
-      if (!data->ef->excl[i].found)
-         warn_at(&data->ef->excl[i].loc, "excluded hierarchy does not match any "
-                 "coverage item: '%s'", istr(data->ef->excl[i].hier));
+   for (int i = 0; i < db->ef->n_excl_cmds; i++)
+      if (!db->ef->excl[i].found)
+         warn_at(&db->ef->excl[i].loc, "excluded hierarchy does not match "
+                 "any coverage item: %pQ", db->ef->excl[i].hier);
 }
 
 static void cover_fold_scopes(cover_data_t *db, cover_obj_t tgt_scope,

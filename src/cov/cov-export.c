@@ -390,8 +390,11 @@ static void dump_scope_xml(const cover_data_t *db, cover_obj_t scope,
 
    cover_iter_t child_it = cover_begin(db, scope, COV_REL_CHILDREN);
    cover_obj_t child;
-   while (cover_next(&child_it, &child))
-      dump_scope_xml(db, child, indent + 2, &scope_loc, relative, f);
+   while (cover_next(&child_it, &child)) {
+      // TODO: remove this check
+      if (cover_equals(cover_get_obj(db, child, COV_ATTR_INST), inst))
+         dump_scope_xml(db, child, indent + 2, &scope_loc, relative, f);
+   }
 
    fprintf(f, "%*s</scope>\n", indent, "");
 }
