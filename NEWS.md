@@ -1,4 +1,5 @@
 ## Unreleased changes
+- Several other minor bugs were resolved (#1663).
 
 ## Version 1.23.0 - 2026-09-19
 - Added basic support for System Verilog assignment pattern expressions.
