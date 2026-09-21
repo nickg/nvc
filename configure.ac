@@ -304,7 +304,7 @@ AM_CONDITIONAL([IMPLIB_REQUIRED], [test x$implib_required = xyes])
 
 case $host_os in
   darwin*)
-    SHLIB_LDFLAGS="-shared -flat_namespace -undefined dynamic_lookup"
+    SHLIB_LDFLAGS="-shared -undefined dynamic_lookup"
 
     AX_CHECK_LINK_FLAG(
       [-Wl,-no_fixup_chains],
