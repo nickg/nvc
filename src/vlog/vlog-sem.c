@@ -1217,6 +1217,81 @@ static type_mask_t vlog_check_expr(vlog_node_t v)
    }
 }
 
+static void vlog_check_tcheck_event(vlog_node_t v)
+{
+   assert(vlog_kind(v) == V_TCHECK_EVENT);
+
+   vlog_node_t val = vlog_param(v, 0);
+   vlog_node_t cond = (vlog_params(v) > 1) ? vlog_param(v, 1) : NULL;
+
+   if (vlog_kind(val) == V_EVENT)
+      val = vlog_value(val);
+
+   assert(vlog_kind(val) == V_REF);
+   vlog_node_t ref = vlog_ref(val);
+   vlog_kind_t ref_kind = vlog_kind(ref);
+
+   switch (ref_kind) {
+   case V_PORT_DECL:
+   case V_VAR_DECL:
+   case V_NET_DECL:
+      break;
+   default:
+      {
+         diag_t *d = diag_new(DIAG_ERROR, vlog_loc(val));
+         diag_printf(d, "invalid specify terminal descriptor kind: %s",
+                     vlog_kind_str(ref_kind));
+         diag_emit(d);
+      }
+   }
+
+   if (cond != NULL)
+      vlog_check_expr(cond);
+}
+
+static void vlog_check_tcheck(vlog_node_t v)
+{
+   vlog_tcheck_kind_t kind = vlog_subkind(v);
+
+   switch (kind) {
+   case V_TCHECK_SETUP:
+   case V_TCHECK_HOLD:
+      vlog_check_tcheck_event(vlog_param(v, 0));
+      vlog_check_tcheck_event(vlog_param(v, 1));
+
+      vlog_node_t limit = vlog_param(v, 2);
+      type_mask_t tmask = vlog_check_expr(limit);
+
+      if ((tmask & TM_CONST) == 0) {
+         diag_t *d = diag_new(DIAG_ERROR, vlog_loc(limit));
+         diag_printf(d, "not a constant expression");
+         diag_hint(d, vlog_loc(limit), "have '%s'", type_mask_str(tmask));
+         diag_emit(d);
+      }
+      break;
+
+   default:
+      break;
+   }
+}
+
+static void vlog_check_specify(vlog_node_t v)
+{
+   const int n_decls = vlog_decls(v);
+
+   for (int i = 0; i < n_decls; i++) {
+      vlog_node_t decl = vlog_decl(v, i);
+
+      switch (vlog_kind(decl)) {
+      case V_TCHECK:
+         vlog_check_tcheck(decl);
+         break;
+      default:
+         break;
+      }
+   }
+}
+
 void vlog_check(vlog_node_t v)
 {
    switch (vlog_kind(v)) {
@@ -1381,6 +1456,8 @@ void vlog_check(vlog_node_t v)
       vlog_check_wait(v);
       break;
    case V_SPECIFY:
+      vlog_check_specify(v);
+      break;
    case V_IMPORT_DECL:
    case V_DISABLE:
    case V_ASSERT:

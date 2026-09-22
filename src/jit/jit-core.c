@@ -501,6 +501,9 @@ static void jit_emit_trace(diag_t *d, const loc_t *loc, object_t *enclosing,
       case V_INST_BODY:
          diag_trace(d, loc, "Instance %pQ", vlog_ident(v));
          break;
+      case V_TCHECK:
+         diag_trace(d, loc, "Timing check");
+         break;
       default:
          diag_trace(d, loc, "%pQ", vlog_ident(v));
       }

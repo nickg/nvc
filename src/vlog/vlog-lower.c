@@ -2188,7 +2188,7 @@ static mir_value_t vlog_lower_trigger(vlog_gen_t *g, vlog_node_t v)
    case V_EVENT:
       {
          const v_event_kind_t kind = vlog_subkind(v);
-         if (kind == V_EVENT_LEVEL)
+         if (kind == V_EVENT_LEVEL || kind == V_EVENT_EDGE)
             return vlog_lower_trigger(g, vlog_value(v));
          else {
             vlog_select_t lvalue = vlog_lower_select(g, vlog_value(v));
@@ -3601,6 +3601,87 @@ static void vlog_lower_port_map(vlog_gen_t *g, vlog_node_t v)
    mir_build_wait(g->mu, start_bb);
 }
 
+static void vlog_lower_tcheck(vlog_gen_t *g, vlog_node_t tcheck)
+{
+   // TODO: Support other timing check kinds
+   vlog_tcheck_kind_t tkind = vlog_subkind(tcheck);
+   if (tkind != V_TCHECK_SETUP && tkind != V_TCHECK_HOLD)
+      return;
+
+   assert(vlog_params(tcheck) >= 3);
+
+   vlog_node_t event0 = vlog_param(tcheck, 0);
+   vlog_node_t event1 = vlog_param(tcheck, 1);
+   vlog_node_t limit  = vlog_param(tcheck, 2);
+
+   assert(vlog_kind(event0) == V_TCHECK_EVENT);
+   assert(vlog_kind(event1) == V_TCHECK_EVENT);
+
+   vlog_node_t sig0 = vlog_param(event0, 0);
+
+   // TODO: Support posedge / negedge on first argument
+   //       needs tracking kind of last event, not just time since last event!
+   if (vlog_kind(sig0) == V_EVENT || vlog_params(event0) > 1)
+      CANNOT_HANDLE(event0);
+
+   mir_block_t start_bb = mir_add_block(g->mu);
+   assert(start_bb.id == 1);
+
+   mir_value_t trigger = vlog_lower_trigger(g, vlog_param(event1, 0));
+   assert(!mir_is_null(trigger));
+
+   mir_type_t t_trigger = mir_trigger_type(g->mu);
+   mir_value_t trigger_var = mir_add_var(g->mu, t_trigger, MIR_NULL_STAMP,
+                              ident_uniq("trigger"), 0);
+   mir_build_store(g->mu, trigger_var, trigger);
+   mir_build_return(g->mu, MIR_NULL_VALUE);
+   mir_set_cursor(g->mu, start_bb, MIR_APPEND);
+
+   mir_value_t t = mir_build_load(g->mu, trigger_var);
+   mir_build_sched_event(g->mu, t, MIR_NULL_VALUE);
+
+   mir_block_t wait_bb = mir_add_block(g->mu);
+   mir_build_wait(g->mu, wait_bb);
+   mir_set_cursor(g->mu, wait_bb, MIR_APPEND);
+
+   mir_value_t t2 = mir_build_load(g->mu, trigger_var);
+   mir_build_clear_event(g->mu, t2, MIR_NULL_VALUE);
+
+   if (vlog_params(event1) > 1) {
+      mir_value_t cond = vlog_lower_rvalue(g, vlog_param(event1, 1));
+      mir_value_t test = vlog_lower_test(g, cond);
+
+      mir_block_t check_bb = mir_add_block(g->mu);
+      mir_build_cond(g->mu, test, check_bb, start_bb);
+
+      mir_set_cursor(g->mu, check_bb, MIR_APPEND);
+   }
+
+   mir_type_t t_offset = mir_offset_type(g->mu);
+
+   vlog_select_t lvalue = vlog_lower_select(g, sig0);
+   const int total_size = lvalue.size * vlog_size(vlog_ref(sig0));
+   mir_value_t count = mir_const(g->mu, t_offset, total_size);
+   mir_value_t last = mir_build_last_event(g->mu, lvalue.obj, count);
+
+   mir_type_t t_time = mir_time_type(g->mu);
+   mir_value_t limit_val = vlog_lower_rvalue(g, limit);
+   mir_value_t limit_time = mir_build_cast(g->mu, t_time, limit_val);
+
+   mir_value_t ok = mir_build_cmp(g->mu, MIR_CMP_GEQ, last, limit_time);
+
+   mir_type_t t_severity = mir_int_type(g->mu, 0, SEVERITY_FAILURE - 1);
+   mir_value_t severity = mir_const(g->mu, t_severity, SEVERITY_ERROR);
+   mir_value_t locus = mir_build_debug_locus(g->mu, vlog_to_object(tcheck));
+
+   // TODO: Custom message showing "expected min/max value" vs "observed one" ?
+
+   mir_build_assert(g->mu, ok, MIR_NULL_VALUE, MIR_NULL_VALUE, severity,
+                    locus, MIR_NULL_VALUE, MIR_NULL_VALUE);
+
+   mir_build_jump(g->mu, start_bb);
+}
+
 static void vlog_lower_cleanup(vlog_gen_t *g)
 {
    if (g->temps != NULL)
@@ -3638,6 +3719,9 @@ static void vlog_lower_deferred(mir_unit_t *mu, object_t *obj)
       break;
    case V_PORT_MAP:
       vlog_lower_port_map(&g, v);
+      break;
+   case V_TCHECK:
+      vlog_lower_tcheck(&g, v);
       break;
    default:
       CANNOT_HANDLE(v);
@@ -4280,6 +4364,37 @@ void vlog_lower_instance(mir_context_t *mc, vlog_node_t body, ident_t parent,
             mir_build_process_init(mu, closure, locus);
          }
          break;
+
+      case V_TCHECK:
+         {
+            mir_type_t t_offset = mir_offset_type(mu);
+
+            ident_t name;
+            switch (vlog_subkind(s)) {
+            case V_TCHECK_SETUP:
+               name = ident_uniq("$setup");
+               break;
+            case V_TCHECK_HOLD:
+               name = ident_uniq("$hold");
+               break;
+            default:
+               should_not_reach_here();
+               break;
+            }
+
+            ident_t sym = ident_prefix(qual, name, '.');
+            mir_defer(mc, sym, qual, MIR_UNIT_PROCESS,
+                     vlog_lower_deferred, vlog_to_object(s));
+
+            mir_value_t self = mir_build_context_upref(mu, 0);
+            mir_value_t args[] = { self };
+            mir_value_t closure = mir_build_closure(mu, sym, t_offset, args, 1);
+            mir_value_t locus = mir_build_debug_locus(mu, tree_to_object(wrap));
+
+            mir_build_process_init(mu, closure, locus);
+         }
+         break;
+
       default:
          break;
       }
