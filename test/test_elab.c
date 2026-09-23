@@ -2239,7 +2239,6 @@ START_TEST(test_issue1333)
 
    const error_t expect[] = {
       { 20, "missing port connection for 'Y'" },
-      { 11, "specify blocks are not currently supported and will be ignored" },
       { -1, NULL }
    };
    expect_errors(expect);

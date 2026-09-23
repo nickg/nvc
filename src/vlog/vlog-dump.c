@@ -1034,6 +1034,71 @@ static void vlog_dump_type_decl(vlog_node_t v, int indent)
    print_syntax(" %pi;\n", vlog_ident(v));
 }
 
+static void vlog_dump_specify(vlog_node_t v, int indent)
+{
+   print_syntax("#specify\n");
+   int n_decls = vlog_decls(v);
+
+   for (int i = 0; i < n_decls; i++) {
+      tab(indent + 2);
+      vlog_dump(vlog_decl(v, i), indent + 2);
+   }
+
+   tab(indent);
+   print_syntax("#endspecify\n");
+}
+
+static void vlog_dump_tcheck(vlog_node_t v)
+{
+   vlog_tcheck_kind_t tkind = vlog_subkind(v);
+
+   switch (tkind) {
+   case V_TCHECK_SETUP:
+      print_syntax("$setup(");
+      break;
+   case V_TCHECK_HOLD:
+      print_syntax("$hold(");
+      break;
+   default:
+      should_not_reach_here();
+   }
+
+   int n_params = vlog_params(v);
+   for (int i = 0; i < n_params; i++) {
+      vlog_dump(vlog_param(v, i), 0);
+      if (i < n_params - 1)
+         print_syntax(", ");
+   }
+
+   print_syntax(");\n");
+}
+
+static void vlog_dump_tcheck_event(vlog_node_t v)
+{
+   v_event_kind_t kind = vlog_subkind(v);
+
+   switch (kind) {
+   case V_EVENT_EDGE:
+      print_syntax("#edge ");
+      break;
+   case V_EVENT_NEGEDGE:
+      print_syntax("#negedge ");
+      break;
+   case V_EVENT_POSEDGE:
+      print_syntax("#posedge ");
+      break;
+   default:
+      break;
+   }
+
+   vlog_dump(vlog_param(v, 0), 0);
+
+   if (vlog_params(v) > 1) {
+      print_syntax(" &&& ");
+      vlog_dump(vlog_param(v, 1), 0);
+   }
+}
+
 void vlog_dump(vlog_node_t v, int indent)
 {
    switch (vlog_kind(v)) {
@@ -1236,6 +1301,15 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_TYPE_DECL:
       vlog_dump_type_decl(v, indent);
+      break;
+   case V_SPECIFY:
+      vlog_dump_specify(v, indent);
+      break;
+   case V_TCHECK:
+      vlog_dump_tcheck(v);
+      break;
+   case V_TCHECK_EVENT:
+      vlog_dump_tcheck_event(v);
       break;
    default:
       print_syntax("\n");

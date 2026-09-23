@@ -6001,6 +6001,8 @@ static vlog_node_t p_specify_terminal_descriptor(void)
    vlog_set_ident(v, p_identifier());
    vlog_set_loc(v, CURRENT_LOC);
 
+   vlog_symtab_lookup(symtab, v);
+
    if (optional(tLSQUARE)) {
       (void)p_constant_range_expression();
       consume(tRSQUARE);
@@ -6271,16 +6273,27 @@ static vlog_node_t p_path_declaration(void)
    return NULL;
 }
 
-static void p_timing_check_event_control(void)
+static vlog_node_t p_timing_check_event_control(void)
 {
    // posedge | negedge | edge | edge_control_specifier
 
    BEGIN("timing check event control");
 
-   one_of(tPOSEDGE, tNEGEDGE, tEDGE);
+   vlog_node_t v = vlog_new(V_EVENT);
+
+   if (optional(tPOSEDGE))
+      vlog_set_subkind(v, V_EVENT_POSEDGE);
+   else if (optional(tNEGEDGE))
+      vlog_set_subkind(v, V_EVENT_NEGEDGE);
+   else if (optional(tEDGE))
+      vlog_set_subkind(v, V_EVENT_EDGE);
+   else
+      vlog_set_subkind(v, V_EVENT_LEVEL);
+
+   return v;
 }
 
-static void p_scalar_timing_check_condition(void)
+static vlog_node_t p_scalar_timing_check_condition(void)
 {
    //    expression
    // | ~ expression
@@ -6291,10 +6304,10 @@ static void p_scalar_timing_check_condition(void)
 
    BEGIN("scalar timing check condition")
 
-   p_expression();
+   return p_expression();
 }
 
-static void p_timing_check_condition(void)
+static vlog_node_t p_timing_check_condition(void)
 {
    //     scalar_timing_check_condition
    // | ( scalar_timing_check_condition )
@@ -6302,11 +6315,12 @@ static void p_timing_check_condition(void)
    BEGIN("timing check condition");
 
    if (optional(tLPAREN)) {
-      p_scalar_timing_check_condition();
+      vlog_node_t cond = p_scalar_timing_check_condition();
       consume(tRPAREN);
+      return cond;
    }
    else
-      p_scalar_timing_check_condition();
+      return p_scalar_timing_check_condition();
 }
 
 static vlog_node_t p_timing_check_event(void)
@@ -6316,15 +6330,21 @@ static vlog_node_t p_timing_check_event(void)
 
    BEGIN("timing check event");
 
-   if (scan(tEDGE, tPOSEDGE, tNEGEDGE))
-      p_timing_check_event_control();
+   vlog_node_t v = vlog_new(V_TCHECK_EVENT);
 
-   (void)p_specify_terminal_descriptor();
+   if (scan(tPOSEDGE, tNEGEDGE, tEDGE)) {
+      vlog_node_t v_e = p_timing_check_event_control();
+      vlog_set_value(v_e, p_specify_terminal_descriptor());
+      vlog_set_loc(v_e, CURRENT_LOC);
+      vlog_add_param(v, v_e);
+   }
+   else
+      vlog_add_param(v, p_specify_terminal_descriptor());
 
    if (optional(tTRPLAMP))
-      p_timing_check_condition();
+      vlog_add_param(v, p_timing_check_condition());
 
-   return NULL;
+   return v;
 }
 
 static vlog_node_t p_controlled_timing_check_event(void)
@@ -6354,18 +6374,25 @@ static vlog_node_t p_setup_or_hold_timing_check(void)
 
    BEGIN("setup/hold timing check");
 
-   one_of(tDLRSETUP, tDLRHOLD);
+   vlog_tcheck_kind_t subkind;
+   switch (one_of(tDLRSETUP, tDLRHOLD)) {
+   case tDLRSETUP:
+      subkind = V_TCHECK_SETUP;
+      break;
+   default:
+      subkind = V_TCHECK_HOLD;
+      break;
+   }
    consume(tLPAREN);
 
-   (void)p_timing_check_event();
+   vlog_node_t v = vlog_new(V_TCHECK);
+   vlog_set_subkind(v, subkind);
 
+   vlog_add_param(v, p_timing_check_event());
    consume(tCOMMA);
-
-   (void)p_timing_check_event();
-
+   vlog_add_param(v, p_timing_check_event());
    consume(tCOMMA);
-
-   (void)p_expression();
+   vlog_add_param(v, p_expression());
 
    if (optional(tCOMMA)) {
       if (peek() == tID)
@@ -6375,7 +6402,9 @@ static vlog_node_t p_setup_or_hold_timing_check(void)
    consume(tRPAREN);
    consume(tSEMI);
 
-   return NULL;
+   vlog_set_loc(v, CURRENT_LOC);
+
+   return v;
 }
 
 static vlog_node_t p_recovery_or_removal_timing_check(void)
@@ -6668,7 +6697,12 @@ static void p_specify_item(vlog_node_t parent)
    case tDLRRECREM:
    case tDLRWIDTH:
    case tDLRPERIOD:
-      (void)p_system_timing_check();
+      {
+         vlog_node_t tcheck = p_system_timing_check();
+         // TODO: Remove once all timing checks are supported.
+         if (tcheck != NULL)
+            vlog_add_decl(parent, tcheck);
+      }
       break;
    default:
       one_of(tSPECPARAM, tLPAREN, tIF, tIFNONE, tDLRSETUP, tDLRHOLD,
