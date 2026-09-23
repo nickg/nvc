@@ -11108,20 +11108,25 @@ static void p_block_header(tree_t block)
          p_generic_map_aspect(block, block);
          consume(tSEMI);
       }
-
-      insert_generics(nametab, block);
    }
 
    if (peek() == tPORT) {
+      // Generics must not be visible in port map aspect
+      push_scope(nametab);
+      insert_generics(nametab, block);
+
       p_port_clause(block);
+
+      pop_scope(nametab);
 
       if (peek() == tPORT) {
          p_port_map_aspect(block, block);
          consume(tSEMI);
       }
-
-      insert_ports(nametab, block);
    }
+
+   insert_ports(nametab, block);
+   insert_generics(nametab, block);
 }
 
 static tree_t p_block_statement(ident_t label)
