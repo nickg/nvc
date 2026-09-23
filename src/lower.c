@@ -11445,56 +11445,26 @@ static void lower_inertial_actual_process(lower_unit_t *lu, object_t *obj)
    vcode_block_t main_bb = emit_block();
    assert(main_bb == 1);
 
-   tree_t expr = tree_value(inertial), target;
+   tree_t expr = tree_value(inertial);
+   type_t expr_type = tree_type(expr), port_type = type_base_recur(expr_type);
 
-   vcode_reg_t init_reg;
-   switch (tree_subkind(map)) {
-   case P_POS:
-      target = tree_port(lu->parent->container, tree_pos(map));
-      init_reg = lower_port_ref(lu, target);
-      break;
-   case P_NAMED:
-      target = tree_name(map);
-      init_reg = lower_lvalue(lu, target);
-      break;
-   default:
-      should_not_reach_here();
-   }
-
-   type_t port_type = tree_type(target), expr_type = tree_type(expr);
-
-   vcode_type_t signal_type = lower_signal_type(port_type);
+   vcode_type_t param_type = lower_param_type(port_type, C_SIGNAL, PORT_IN);
    vcode_stamp_t vbounds = lower_bounds(port_type);
-   ident_t name = ident_new("port");
-   vcode_var_t var = emit_var(signal_type, vbounds, name, VAR_SIGNAL);
 
-   if (type_is_record(port_type)) {
-      vcode_reg_t locus = lower_debug_locus(map);
-      vcode_reg_t ptr_reg = emit_index(var, VCODE_INVALID_REG);
-      lower_copy_record(lu, port_type, ptr_reg, init_reg, locus);
-   }
-   else if (!type_is_homogeneous(port_type)) {
-      vcode_reg_t locus = lower_debug_locus(map);
-      vcode_reg_t ptr_reg = emit_index(var, VCODE_INVALID_REG);
-      lower_copy_array(lu, port_type, port_type, ptr_reg, init_reg, locus);
-   }
-   else
-      emit_store(init_reg, var);
+   vcode_reg_t port_reg = emit_param(param_type, vbounds, ident_new("port"));
 
    if (tree_global_flags(inertial) & TREE_GF_EXTERNAL_NAME)
       tree_visit_only(inertial, lower_external_name_cache, lu, T_EXTERNAL_NAME);
 
    if (type_is_homogeneous(port_type)) {
-      vcode_reg_t count_reg = lower_type_width(lu, port_type, init_reg);
-      vcode_reg_t data_reg = lower_array_data(init_reg);
+      vcode_reg_t count_reg = lower_type_width(lu, port_type, port_reg);
+      vcode_reg_t data_reg = lower_array_data(port_reg);
 
       emit_drive_signal(data_reg, count_reg);
    }
-   else {
-      vcode_reg_t ptr_reg = emit_index(var, VCODE_INVALID_REG);
-      lower_for_each_field(lu, port_type, ptr_reg, VCODE_INVALID_REG,
+   else
+      lower_for_each_field(lu, port_type, port_reg, VCODE_INVALID_REG,
                            lower_driver_field_cb, NULL);
-   }
 
    build_wait(expr, lower_build_wait_cb, lu);
 
@@ -11507,60 +11477,67 @@ static void lower_inertial_actual_process(lower_unit_t *lu, object_t *obj)
    int nexpr = 0;
    vcode_reg_t value_reg = lower_logical(lu, expr, &nexpr, &gs);
 
-   vcode_reg_t nets_reg;
-   if (!type_is_homogeneous(port_type))
-      nets_reg = emit_index(var, VCODE_INVALID_REG);
-   else
-      nets_reg = emit_load(var);
-
    if (type_is_array(port_type)) {
       vcode_reg_t locus = lower_debug_locus(map);
-      lower_check_array_sizes(lu, port_type, expr_type, nets_reg,
+      lower_check_array_sizes(lu, port_type, expr_type, port_reg,
                               value_reg, locus);
    }
    else if (type_is_scalar(port_type))
-      lower_check_scalar_bounds(lu, value_reg, port_type, map, target);
+      lower_check_scalar_bounds(lu, value_reg, port_type, map, map);
 
    if (!type_is_homogeneous(port_type)) {
       vcode_reg_t args[2] = { zero_time_reg, zero_time_reg };
       vcode_reg_t locus = lower_debug_locus(map);
-      lower_for_each_field_2(lu, port_type, expr_type, nets_reg, value_reg,
+      lower_for_each_field_2(lu, port_type, expr_type, port_reg, value_reg,
                              locus, lower_signal_target_field_cb, &args);
    }
    else if (type_is_array(port_type)) {
       vcode_reg_t src_reg = lower_resolved(lu, expr_type, value_reg);
       vcode_reg_t data_reg = lower_array_data(src_reg);
-      vcode_reg_t count_reg = lower_array_total_len(lu, port_type, nets_reg);
-      vcode_reg_t nets_raw = lower_array_data(nets_reg);
+      vcode_reg_t count_reg = lower_array_total_len(lu, port_type, port_reg);
+      vcode_reg_t nets_raw = lower_array_data(port_reg);
 
       emit_sched_waveform(nets_raw, count_reg, data_reg, zero_time_reg,
                           zero_time_reg);
    }
    else {
       vcode_reg_t data_reg = lower_resolved(lu, expr_type, value_reg);
-      emit_sched_waveform(nets_reg, emit_const(vtype_offset(), 1),
+      emit_sched_waveform(port_reg, emit_const(vtype_offset(), 1),
                           data_reg, zero_time_reg, zero_time_reg);
    }
 
    emit_return(VCODE_INVALID_REG);
 }
 
-static void lower_inertial_actual(lower_unit_t *parent, tree_t dst, tree_t map)
+static void lower_inertial_actual(lower_unit_t *lu, tree_t dst, tree_t map)
 {
    assert(standard() >= STD_08);
 
    tree_t inertial = tree_value(map);
    assert(tree_kind(inertial) == T_INERTIAL);
 
-   ident_t qual = ident_prefix(parent->name, tree_ident(inertial), '.');
-   unit_registry_defer(parent->registry, qual, parent, emit_process,
-                       lower_inertial_actual_process, parent->cover,
+   // TODO: this should be in lu->parent not lu
+   ident_t qual = ident_prefix(lu->name, tree_ident(inertial), '.');
+   unit_registry_defer(lu->registry, qual, lu, emit_process,
+                       lower_inertial_actual_process, lu->cover,
                        tree_to_object(map));
+
+   vcode_reg_t port_reg;
+   if (tree_kind(dst) == T_PORT_DECL)
+      port_reg = lower_port_ref(lu, dst);
+   else
+      port_reg = lower_lvalue(lu, dst);
+
+   type_t type = tree_type(dst), base = type_base_recur(type);
+
+   vcode_reg_t wrap_reg = port_reg;
+   if (type_is_array(base))
+      wrap_reg = lower_coerce_arrays(lu, type, base, port_reg);
 
    vcode_reg_t vdummy = vtype_opaque();
    vcode_reg_t context_reg = emit_context_upref(0);
-   vcode_reg_t args[1] = { context_reg };
-   vcode_reg_t closure_reg = emit_closure(qual, vdummy, args, 1);
+   vcode_reg_t args[2] = { context_reg, wrap_reg };
+   vcode_reg_t closure_reg = emit_closure(qual, vdummy, args, ARRAY_LEN(args));
 
    emit_process_init(closure_reg, lower_debug_locus(inertial));
 }
