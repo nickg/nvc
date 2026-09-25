@@ -717,7 +717,7 @@ START_TEST(test_issue800)
    const error_t expect[] = {
       { 10, "call to predefined operator \"=\" always returns FALSE" },
       {  0, "left length is 3 but right length is 2" },
-      { 11, "call to predefined operator \"/=\" always returns FALSE" },
+      { 11, "call to predefined operator \"/=\" always returns TRUE" },
       {  0, "left length is 3 but right length is 9" },
       { 14, "call to predefined operator \"=\" always returns FALSE" },
       {  0, "left length is 3 but right length is 1" },
@@ -1025,6 +1025,45 @@ START_TEST(test_gtype1)
 }
 END_TEST
 
+START_TEST(test_issue1666)
+{
+   input_from_file(TESTDIR "/bounds/issue1666.vhd");
+
+   const error_t expect[] = {
+      {  5, "arguments in call to predefined operator \"or\" have "
+            "different lengths" },
+      {  6, "arguments in call to predefined operator \"nor\" have "
+            "different lengths" },
+      {  7, "arguments in call to predefined operator \"and\" have "
+            "different lengths" },
+      {  8, "arguments in call to predefined operator \"nand\" have "
+            "different lengths" },
+      {  9, "arguments in call to predefined operator \"xor\" have "
+            "different lengths" },
+      { 10, "arguments in call to predefined operator \"xnor\" have "
+            "different lengths" },
+      { 21, "arguments in call to predefined operator \"or\" have "
+            "different lengths" },
+      { 22, "arguments in call to predefined operator \"nor\" have "
+            "different lengths" },
+      { 23, "arguments in call to predefined operator \"and\" have "
+            "different lengths" },
+      { 24, "arguments in call to predefined operator \"nand\" have "
+            "different lengths" },
+      { 25, "arguments in call to predefined operator \"xor\" have "
+            "different lengths" },
+      { 26, "arguments in call to predefined operator \"xnor\" have "
+            "different lengths" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_check_and_simplify(T_PACKAGE);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -1077,6 +1116,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_map2);
    tcase_add_test(tc_core, test_issue1460);
    tcase_add_test(tc_core, test_gtype1);
+   tcase_add_test(tc_core, test_issue1666);
    suite_add_tcase(s, tc_core);
 
    return s;
