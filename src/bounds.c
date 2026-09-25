@@ -249,8 +249,8 @@ static tree_t bounds_check_call_args(tree_t t)
 
          if (left_len != right_len) {
             diag_t *d = diag_new(DIAG_WARN, tree_loc(t));
-            diag_printf(d, "call to predefined operator %pI always returns "
-                        "FALSE", tree_ident(t));
+            diag_printf(d, "call to predefined operator %pI always returns %s",
+                        tree_ident(t), kind == S_ARRAY_EQ ? "FALSE" : "TRUE");
             diag_hint(d, tree_loc(t), "left length is %"PRIi64" but right "
                       "length is %"PRIi64, left_len, right_len);
             diag_emit(d);
