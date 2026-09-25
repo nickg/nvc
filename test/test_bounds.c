@@ -717,7 +717,7 @@ START_TEST(test_issue800)
    const error_t expect[] = {
       { 10, "call to predefined operator \"=\" always returns FALSE" },
       {  0, "left length is 3 but right length is 2" },
-      { 11, "call to predefined operator \"/=\" always returns FALSE" },
+      { 11, "call to predefined operator \"/=\" always returns TRUE" },
       {  0, "left length is 3 but right length is 9" },
       { 14, "call to predefined operator \"=\" always returns FALSE" },
       {  0, "left length is 3 but right length is 1" },
