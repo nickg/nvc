@@ -155,6 +155,72 @@ static void bounds_check_array(tree_t value, type_t type, tree_t hint)
    }
 }
 
+static void bounds_check_predef_op(tree_t t)
+{
+   bool is_equality;
+
+   const subprogram_kind_t kind = tree_subkind(tree_ref(t));
+   switch (kind) {
+   case S_ARRAY_EQ:
+   case S_ARRAY_NEQ:
+      // Warn if calling the predefined array equality operators and the
+      // left and right hand sides have different lengths as this always
+      // returns FALSE
+      is_equality = true;
+      break;
+
+   case S_ARRAY_AND:
+   case S_ARRAY_OR:
+   case S_ARRAY_XOR:
+   case S_ARRAY_NAND:
+   case S_ARRAY_NOR:
+   case S_ARRAY_XNOR:
+      // Logical operators require operands of the same length.
+      is_equality = false;
+      break;
+
+   default:
+      return;
+   }
+
+   assert(tree_params(t) == 2);
+
+   type_t ltype = tree_type(tree_value(tree_param(t, 0)));
+   type_t rtype = tree_type(tree_value(tree_param(t, 1)));
+
+   const int ndims = dimension_of(ltype);
+   for (int i = 0; i < ndims; i++) {
+      tree_t left_r = range_of(ltype, i);
+      tree_t right_r = range_of(rtype, i);
+
+      int64_t left_len;
+      if (!folded_length(left_r, &left_len))
+         continue;
+
+      int64_t right_len;
+      if (!folded_length(right_r, &right_len))
+         continue;
+
+      if (left_len != right_len) {
+         diag_t *d;
+         if (is_equality) {
+            d = diag_new(DIAG_WARN, tree_loc(t));
+            diag_printf(d, "call to predefined operator %pI always returns %s",
+                        tree_ident(t), kind == S_ARRAY_EQ ? "FALSE" : "TRUE");
+         }
+         else {
+            d = diag_new(DIAG_ERROR, tree_loc(t));
+            diag_printf(d, "arguments in call to predefined operator %pI have "
+                        "different lengths", tree_ident(t));
+         }
+         diag_hint(d, tree_loc(t), "left length is %"PRIi64" but right "
+                   "length is %"PRIi64, left_len, right_len);
+         diag_emit(d);
+         break;
+      }
+   }
+}
+
 static tree_t bounds_check_call_args(tree_t t)
 {
    tree_t decl = tree_ref(t);
@@ -225,39 +291,8 @@ static tree_t bounds_check_call_args(tree_t t)
    if (tree_kind(decl) == T_GENERIC_DECL)
       return t;
 
-   const subprogram_kind_t kind = tree_subkind(decl);
-   if (known_arg_length && (kind == S_ARRAY_EQ || kind == S_ARRAY_NEQ)) {
-      // Warn if calling the predefined array equality operators and the
-      // left and right hand sides have different lengths as this always
-      // returns FALSE
-
-      type_t ltype = tree_type(tree_value(tree_param(t, 0)));
-      type_t rtype = tree_type(tree_value(tree_param(t, 1)));
-
-      const int ndims = dimension_of(ltype);
-      for (int i = 0; i < ndims; i++) {
-         tree_t left_r = range_of(ltype, i);
-         tree_t right_r = range_of(rtype, i);
-
-         int64_t left_len;
-         if (!folded_length(left_r, &left_len))
-            continue;
-
-         int64_t right_len;
-         if (!folded_length(right_r, &right_len))
-            continue;
-
-         if (left_len != right_len) {
-            diag_t *d = diag_new(DIAG_WARN, tree_loc(t));
-            diag_printf(d, "call to predefined operator %pI always returns %s",
-                        tree_ident(t), kind == S_ARRAY_EQ ? "FALSE" : "TRUE");
-            diag_hint(d, tree_loc(t), "left length is %"PRIi64" but right "
-                      "length is %"PRIi64, left_len, right_len);
-            diag_emit(d);
-            break;
-         }
-      }
-   }
+   if (known_arg_length)
+      bounds_check_predef_op(t);
 
    return t;
 }
