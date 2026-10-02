@@ -262,20 +262,36 @@ static void do_file_list(const char *file, cmd_state_t *state)
 
       for (char *p = line; *p;) {
          if (*p == '$') {  // Interpolate environment variable
-            const char *start = ++p;
+            p++;
+            // Check environment variables with braces
+            bool envvar_with_braces = (*p == '{');
+            if (envvar_with_braces) // Skip opening brace
+               p++;
+            const char *start = p;
+
             while (isalnum_iso88591(*p) || *p == '_') p++;
             const char tail = *p;
             *p++ = '\0';
+            if (envvar_with_braces && (tail != '}')) {
+               warnf("missing closing brace for environment variable"
+                     " %s\n", start);
+            }
+            else if (!envvar_with_braces && (tail == '}')) {
+               warnf("missing opening brace for environment variable"
+                     " %s\n", start);
+            }
 
             const char *envvar = getenv(start);
             if (envvar == NULL) {
                warnf("environment variable $%s not set", start);
-               tb_cat(tb, start - 1);
+               tb_cat(tb, start - (envvar_with_braces ? 2 : 1));
             }
             else
                tb_cat(tb, envvar);
 
-            tb_append(tb, tail);
+            // Do not append the closing brace for valid envvars with braces
+            if ((envvar == NULL) || (tail != '}'))
+               tb_append(tb, tail);
          }
          else
             tb_append(tb, *p++);
