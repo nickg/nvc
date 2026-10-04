@@ -1489,11 +1489,15 @@ static void declare_ieee_intrinsics(tree_t unit)
    };
 
    for (int i = 0; i < ARRAY_LEN(ops); i++) {
-      tree_t sub = get_local_decl(nametab, unit, ident_new(ops[i].name), 0);
-      assert(sub != NULL);
-      assert(tree_kind(sub) == T_FUNC_DECL);
+      tree_t scalar = get_local_decl(nametab, unit, ident_new(ops[i].name), 0);
+      assert(scalar != NULL);
+      assert(tree_kind(scalar) == T_FUNC_DECL);
+      tree_set_subkind(scalar, ops[i].kind);
 
-      tree_set_subkind(sub, ops[i].kind);
+      tree_t vector = get_local_decl(nametab, unit, ident_new(ops[i].name), 1);
+      assert(vector != NULL);
+      assert(tree_kind(vector) == T_FUNC_DECL);
+      tree_set_subkind(vector, S_IEEE_VECTOR);
    }
 }
 

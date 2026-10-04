@@ -5,6 +5,8 @@
   static themselves (#1683).
 - Fixed connecting VHDL `std_logic_vector` signals to System Verilog
   `input logic` ports in mixed language simulation (#1681).
+- Logical operators on arrays and IEEE vectors now emit a warning if
+  their operands differ in length (from @NikLeberg) (#1667).
 - Several other minor bugs were resolved (#1663, #1672, #1668, #1670,
   #1678).
 
