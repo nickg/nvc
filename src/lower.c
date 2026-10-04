@@ -10273,7 +10273,8 @@ static void lower_decls(lower_unit_t *lu, tree_t scope, gen_stack_t *gs)
               lower_put_vcode_obj(d, 0, lu);   // Dummy value
               continue;
            }
-           else if (is_open_coded_builtin(kind) || kind == S_IEEE_MISC)
+           else if (is_open_coded_builtin(kind) || kind == S_IEEE_MISC
+                    || kind == S_IEEE_VECTOR)
               continue;
 
            switch (kind) {

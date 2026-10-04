@@ -216,6 +216,7 @@ typedef enum {
    S_IEEE_NOR,
    S_IEEE_XNOR,
    S_IEEE_NOT,
+   S_IEEE_VECTOR,
 } subprogram_kind_t;
 
 typedef enum {

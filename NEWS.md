@@ -1,4 +1,6 @@
 ## Unreleased changes
+- Logical operators on arrays and IEEE vectors now emit a warning if their
+  operands differ in length (from @NikLeberg) (#1667).
 - Several other minor bugs were resolved (#1663).
 
 ## Version 1.23.0 - 2026-09-19
