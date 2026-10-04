@@ -157,9 +157,10 @@ static void bounds_check_array(tree_t value, type_t type, tree_t hint)
 
 static void bounds_check_predef_op(tree_t t)
 {
+   tree_t decl = tree_ref(t);
    bool is_equality;
 
-   const subprogram_kind_t kind = tree_subkind(tree_ref(t));
+   const subprogram_kind_t kind = tree_subkind(decl);
    switch (kind) {
    case S_ARRAY_EQ:
    case S_ARRAY_NEQ:
@@ -168,6 +169,22 @@ static void bounds_check_predef_op(tree_t t)
       // returns FALSE
       is_equality = true;
       break;
+
+   case S_IEEE_VECTOR: {
+      const well_known_t wk = is_well_known(tree_ident(decl));
+      switch (wk) {
+      case W_OP_AND:
+      case W_OP_OR:
+      case W_OP_NAND:
+      case W_OP_NOR:
+      case W_OP_XOR:
+      case W_OP_XNOR:
+         break;
+      default:
+         return;
+      }
+   }
+   // Fall-through
 
    case S_ARRAY_AND:
    case S_ARRAY_OR:
@@ -209,8 +226,10 @@ static void bounds_check_predef_op(tree_t t)
                         tree_ident(t), kind == S_ARRAY_EQ ? "FALSE" : "TRUE");
          }
          else {
-            diag_printf(d, "arguments in call to predefined operator %pI have "
-                        "different lengths", tree_ident(t));
+            diag_printf(d, "arguments in call to %soperator %pI have "
+                        "different lengths",
+                        kind != S_IEEE_VECTOR ? "predefined " : "",
+                        tree_ident(t));
          }
          diag_hint(d, tree_loc(t), "left length is %"PRIi64" but right "
                    "length is %"PRIi64, left_len, right_len);

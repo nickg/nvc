@@ -9,7 +9,6 @@ package pkg is
     constant c_bit_xor  : bit_vector(1 downto 0) := "00" xor  "000";
     constant c_bit_xnor : bit_vector(1 downto 0) := "00" xnor "000";
 
-    -- TODO: These should also produce errors while parsing.
     constant c_slv_or   : std_logic_vector(1 downto 0) := "00" or   "000";
     constant c_slv_nor  : std_logic_vector(1 downto 0) := "00" nor  "000";
     constant c_slv_and  : std_logic_vector(1 downto 0) := "00" and  "000";

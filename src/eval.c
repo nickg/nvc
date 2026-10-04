@@ -308,6 +308,7 @@ bool eval_possible(tree_t t, unit_registry_t *ur, mir_context_t *mc)
                return eval_not_possible(t, "subprogram not in package");
             break;
          case S_IEEE_MISC:
+         case S_IEEE_VECTOR:
             break;
          default:
             if (!is_open_coded_builtin(kind)

@@ -1042,17 +1042,23 @@ START_TEST(test_issue1666)
             "different lengths" },
       { 10, "arguments in call to predefined operator \"xnor\" have "
             "different lengths" },
-      { 21, "arguments in call to predefined operator \"or\" have "
+      { 12, "arguments in call to operator \"or\" have different lengths" },
+      { 13, "arguments in call to operator \"nor\" have different lengths" },
+      { 14, "arguments in call to operator \"and\" have different lengths" },
+      { 15, "arguments in call to operator \"nand\" have different lengths" },
+      { 16, "arguments in call to operator \"xor\" have different lengths" },
+      { 17, "arguments in call to operator \"xnor\" have different lengths" },
+      { 20, "arguments in call to predefined operator \"or\" have "
             "different lengths" },
-      { 22, "arguments in call to predefined operator \"nor\" have "
+      { 21, "arguments in call to predefined operator \"nor\" have "
             "different lengths" },
-      { 23, "arguments in call to predefined operator \"and\" have "
+      { 22, "arguments in call to predefined operator \"and\" have "
             "different lengths" },
-      { 24, "arguments in call to predefined operator \"nand\" have "
+      { 23, "arguments in call to predefined operator \"nand\" have "
             "different lengths" },
-      { 25, "arguments in call to predefined operator \"xor\" have "
+      { 24, "arguments in call to predefined operator \"xor\" have "
             "different lengths" },
-      { 26, "arguments in call to predefined operator \"xnor\" have "
+      { 25, "arguments in call to predefined operator \"xnor\" have "
             "different lengths" },
       { -1, NULL }
    };
