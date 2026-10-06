@@ -120,6 +120,8 @@ static tree_t simp_call_args(tree_t t)
 
                if (name_kind == T_RECORD_REF)
                   tree_set_name(a, make_ref(tree_ref(name)));
+               else if (name_kind == T_ARRAY_SLICE)
+                  tree_set_name(a, tree_value(name));
                else
                   tree_set_name(a, tree_value(tree_param(name, 0)));
 
