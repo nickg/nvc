@@ -4031,8 +4031,12 @@ static type_t p_element_constraint(type_t base)
    else
       type_set_base(sub, base);
 
-   if (type_is_record(base))
-      type_set_constraint(sub, p_record_constraint(sub));
+   if (type_is_record(base)) {
+      type_set_constraint(sub, p_record_constraint(base));
+
+      if (type_is_unconstrained(sub) && is_anonymous_subtype(base))
+         sub = merge_constraints(sub, base);
+   }
    else
       p_array_constraint(sub, base);
 
