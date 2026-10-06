@@ -1,4 +1,6 @@
 ## Unreleased changes
+- Fixed a crash after a severity `failure` assertion failure during
+  elaboration.
 - Several other minor bugs were resolved (#1663, #1672, #1668, #1670).
 
 ## Version 1.23.0 - 2026-09-19

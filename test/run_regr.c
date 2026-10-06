@@ -1391,6 +1391,7 @@ static bool run_test(test_t *test)
 
       while (fgets(out_line, sizeof(out_line), outf)) {
          if (strstr(out_line, "*** Caught signal") != NULL
+             || strstr(out_line, "*** Caught exception") != NULL
              || strstr(out_line, "fatal_trace") != NULL) {
             failed("crashed!");
             result = false;

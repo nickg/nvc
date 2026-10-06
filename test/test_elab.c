@@ -1682,6 +1682,7 @@ START_TEST(test_bounds42)
 
    const error_t expect[] = {
       { 27, "actual length 5 does not match formal length 2" },
+      { 31, "actual length 5 does not match formal length 3" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2414,6 +2415,28 @@ START_TEST(test_issue1638)
 }
 END_TEST
 
+START_TEST(test_assert8)
+{
+   set_standard(STD_08);
+   elab_set_generic("G", "20");
+
+   input_from_file(TESTDIR "/elab/assert8.vhd");
+
+   const error_t expect[] = {
+      { 22, "G = 20 is too large" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   rt_model_t *m = model_new(get_jit(), NULL);
+   (void)run_elab_with_model(m);
+   ck_assert_int_eq(model_exit_status(m), EXIT_FAILURE);
+   model_free(m);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -2536,6 +2559,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue1569);
    tcase_add_test(tc, test_issue1615);
    tcase_add_test(tc, test_issue1638);
+   tcase_add_test(tc, test_assert8);
    suite_add_tcase(s, tc);
 
    return s;
