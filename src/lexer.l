@@ -144,7 +144,7 @@ TRANSLATE_ON    {PRAGMA}(?i:pragma)[ \t]+(?i:translate_on).*
 PSL_COMMENT     {PRAGMA}(?i:psl)
 PSL_CONT        ^{SPACE}*({PSL_COMMENT}|"--")
 UTF8_MB         [\x80-\xff][\x80-\xbf]{1,3}
-VLOG_NUMBER     ({INTEGER}{SPACE}*)?\'s?[bhdoBHDO]{SPACE}*{VLOG_DIGITS}
+VLOG_NUMBER     ({INTEGER}{SPACE}*)?\'[sS]?[bhdoBHDO]{SPACE}*{VLOG_DIGITS}
 VLOG_REAL       ({INTEGER}\.{INTEGER}{EXPONENT}?|{INTEGER}{EXPONENT})
 UDP_LEVEL       [01xX?bB]
 UDP_EDGE        [rRfFpPnN*]
