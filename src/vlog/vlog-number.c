@@ -275,7 +275,7 @@ number_t number_new(const char *str, const loc_t *loc)
          issigned = false;
       }
 
-      if (*p == 's') {
+      if (*p == 's' || *p == 'S') {
          issigned = true;
          p++;
       }
