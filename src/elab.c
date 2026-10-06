@@ -2198,11 +2198,13 @@ static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)
    elab_decls(ei->block, &new_ctx);
    elab_vhdl_processes(ei->block, &new_ctx);
 
-   if (error_count() == 0) {
+   if (elab_new_errors(&new_ctx) == 0) {
       vhdl_cover_block(b, new_ctx.cover, new_ctx.cscope);
       elab_lower(b, &new_ctx);
-      elab_vhdl_sub_blocks(ei->block, &new_ctx);
    }
+
+   if (elab_new_errors(&new_ctx) == 0)
+      elab_vhdl_sub_blocks(ei->block, &new_ctx);
 
    elab_pop_scope(&new_ctx);
 }
