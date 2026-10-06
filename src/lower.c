@@ -5140,11 +5140,15 @@ static vcode_reg_t lower_attr_ref(lower_unit_t *lu, tree_t expr)
 
    case ATTR_ELEMENT:
       {
-         vcode_reg_t array_reg = lower_attr_prefix(lu, name);
-         type_t type = tree_type(name);
-         type_t elem = type_elem_recur(type);
-         vcode_reg_t null_reg = emit_null(vtype_pointer(lower_type(elem)));
-         return lower_wrap_element(lu, type, array_reg, null_reg);
+         type_t type = tree_type(name), elem = type_elem(type);
+
+         if (type_is_record(elem))
+            return lower_default_value(lu, elem, VCODE_INVALID_REG);
+         else {
+            vcode_reg_t array_reg = lower_attr_prefix(lu, name);
+            vcode_reg_t null_reg = emit_null(vtype_pointer(lower_type(elem)));
+            return lower_wrap_element(lu, type, array_reg, null_reg);
+         }
       }
 
    case ATTR_ASCENDING:
