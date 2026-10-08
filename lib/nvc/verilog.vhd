@@ -67,6 +67,7 @@ package verilog is
 
     function to_verilog (value : std_ulogic) return t_logic;
     function to_verilog (value : std_ulogic) return t_net_value;
+    function to_verilog (value : std_ulogic_vector) return t_logic_array;
     function to_verilog (value : std_ulogic_vector) return t_net_array;
 
     function to_string (value : t_logic_array) return string;

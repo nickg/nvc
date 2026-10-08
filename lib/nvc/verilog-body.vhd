@@ -326,6 +326,16 @@ package body verilog is
         return result;
     end function;
 
+    function to_verilog (value : std_ulogic_vector) return t_logic_array is
+        alias xvalue : std_ulogic_vector(1 to value'length) is value;
+        variable result : t_logic_array(1 to value'length);
+    begin
+        for i in 1 to value'length loop
+            result(i) := to_verilog(xvalue(i));
+        end loop;
+        return result;
+    end function;
+
     function to_verilog (value : std_ulogic_vector) return t_net_array is
         alias xvalue : std_ulogic_vector(1 to value'length) is value;
         variable result : t_net_array(1 to value'length);
