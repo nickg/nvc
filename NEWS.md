@@ -1,6 +1,8 @@
 ## Unreleased changes
 - Fixed a crash after a severity `failure` assertion failure during
   elaboration.
+- Aliases of globally static names are now correctly treated as globally
+  static themselves (#1683).
 - Several other minor bugs were resolved (#1663, #1672, #1668, #1670).
 
 ## Version 1.23.0 - 2026-09-19
