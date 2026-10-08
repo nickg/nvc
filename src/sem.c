@@ -5751,28 +5751,25 @@ static bool sem_globally_static(tree_t t)
    if (sem_locally_static(t))
       return true;
 
-   // A generic constant, generate parameter, or constant
-
    if (kind == T_REF) {
       tree_t decl = tree_ref(t);
       switch (tree_kind(decl)) {
       case T_GENERIC_DECL:
+         // A generic constant, generate parameter, or constant
          return true;
       case T_CONST_DECL:
          // Do not treat all constants as globally static, this is a
          // defect in the LRM
          return !!(tree_flags(decl) & TREE_F_GLOBALLY_STATIC);
+      case T_ALIAS:
+         // An alias whose aliased name is globally static
+         return sem_globally_static(tree_value(decl));
       default:
          return false;
       }
    }
    else if (kind == T_EXTERNAL_NAME)
       return tree_class(t) == C_CONSTANT;
-
-   // An alias whose aliased name is globally static
-
-   if (kind == T_ALIAS)
-      return sem_globally_static(tree_value(t));
 
    if (kind == T_RANGE) {
       if (tree_subkind(t) == RANGE_EXPR)
