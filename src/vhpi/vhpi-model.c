@@ -551,6 +551,7 @@ typedef struct _vhpi_context {
    mem_pool_t      *pool;
    vhpiObjectListT  recycle;
    vhpiPhaseT       phase;
+   uint64_t         armed_phases;
 } vhpi_context_t;
 
 typedef enum {
@@ -2400,6 +2401,60 @@ int vhpi_compare_handles(vhpiHandleT handle1, vhpiHandleT handle2)
    return slot1 != NULL && slot2 != NULL && slot1->obj == slot2->obj;
 }
 
+static void vhpi_phase_cb(rt_model_t *m, void *arg);
+
+// Arm the model phase callback for `reason` unless it is already armed.
+// The five per-delta-cycle reasons are armed ON DEMAND rather than at
+// initialisation: a plugin that never registers one of them must not pay a
+// malloc/free round-trip and a dispatch for it on every delta cycle.
+static void vhpi_arm_phase(vhpi_context_t *c, int32_t reason)
+{
+   const model_phase_t phase = vhpi_get_phase(reason);
+   assert(phase < 64);
+   if (c->armed_phases & (UINT64_C(1) << phase))
+      return;
+   c->armed_phases |= UINT64_C(1) << phase;
+   model_set_phase_cb(c->model, phase, vhpi_phase_cb,
+                      (void *)(uintptr_t)reason);
+}
+
+// Arm the phase for `reason` only when it is one of the per-delta-cycle
+// reasons this optimisation defers. vhpi_get_phase already folds the
+// vhpiCbRep* variants onto the same phase, so both spellings arrive here.
+static void vhpi_arm_phase_for_reason(vhpi_context_t *c, int32_t reason)
+{
+   // The phase callback must be armed with the BASE reason, never the
+   // vhpiCbRep* spelling: vhpi_run_callbacks derives its `rep` mapping by
+   // switching on the reason it is handed, so a Rep reason arrives with
+   // rep==0, matches `cb->Reason == reason`, and the callback is consumed
+   // as a ONE-SHOT. Measured: a plugin registering vhpiCbRepEndOfTimeStep
+   // fired exactly once instead of every time step.
+   switch (reason) {
+   case vhpiCbNextTimeStep:
+   case vhpiCbRepNextTimeStep:
+      vhpi_arm_phase(c, vhpiCbNextTimeStep);
+      break;
+   case vhpiCbEndOfTimeStep:
+   case vhpiCbRepEndOfTimeStep:
+      vhpi_arm_phase(c, vhpiCbEndOfTimeStep);
+      break;
+   case vhpiCbStartOfNextCycle:
+   case vhpiCbRepStartOfNextCycle:
+      vhpi_arm_phase(c, vhpiCbStartOfNextCycle);
+      break;
+   case vhpiCbLastKnownDeltaCycle:
+   case vhpiCbRepLastKnownDeltaCycle:
+      vhpi_arm_phase(c, vhpiCbLastKnownDeltaCycle);
+      break;
+   case vhpiCbEndOfProcesses:
+   case vhpiCbRepEndOfProcesses:
+      vhpi_arm_phase(c, vhpiCbEndOfProcesses);
+      break;
+   default:
+      break;
+   }
+}
+
 DLLEXPORT
 vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 {
@@ -2454,6 +2509,12 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 
          cb->handle = internal_handle_for(&(cb->refcounted.object));
          APUSH(vhpi_context()->callbacks, cb->handle);
+
+         // Late registration must take effect: arm this reason's phase now
+         // if the model is already up (it is, for anything registered from a
+         // plugin startup routine onwards).
+         if (vhpi_context()->model != NULL)
+            vhpi_arm_phase_for_reason(vhpi_context(), cb_data_p->reason);
 
          if (flags & vhpiReturnCb)
             return user_handle_for(&(cb->refcounted.object));
@@ -5304,19 +5365,25 @@ void vhpi_context_initialise(vhpi_context_t *c, tree_t top, rt_model_t *model,
 
    model_set_phase_cb(model, END_OF_INITIALISATION, vhpi_initialise_cb, c);
 
-   static const int32_t reasons[] = {
+   // One-shot reasons cost nothing per cycle: always armed.
+   static const int32_t oneshot[] = {
       vhpiCbStartOfSimulation,
       vhpiCbEndOfSimulation,
-      vhpiCbNextTimeStep,
-      vhpiCbEndOfTimeStep,
-      vhpiCbStartOfNextCycle,
-      vhpiCbLastKnownDeltaCycle,
-      vhpiCbEndOfProcesses
    };
 
-   for (size_t i = 0; i < ARRAY_LEN(reasons); i++)
-      model_set_phase_cb(model, vhpi_get_phase(reasons[i]),
-                          vhpi_phase_cb, (void *)(uintptr_t)reasons[i]);
+   for (size_t i = 0; i < ARRAY_LEN(oneshot); i++)
+      vhpi_arm_phase(c, oneshot[i]);
+
+   // A plugin's startup routine may already have registered per-cycle
+   // callbacks before the model existed; arm whatever they asked for.
+   for (int i = 0; i < c->callbacks.count; i++) {
+      handle_slot_t *slot = decode_handle(c, c->callbacks.items[i]);
+      if (slot == NULL)
+         continue;
+      c_callback *cb = is_callback(slot->obj);
+      if (cb != NULL)
+         vhpi_arm_phase_for_reason(c, cb->Reason);
+   }
 }
 
 void vhpi_set_plusargs(vhpi_context_t *c, int argc, char **argv)
