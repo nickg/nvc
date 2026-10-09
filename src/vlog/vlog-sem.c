@@ -1256,17 +1256,19 @@ static void vlog_check_tcheck(vlog_node_t v)
    switch (kind) {
    case V_TCHECK_SETUP:
    case V_TCHECK_HOLD:
-      vlog_check_tcheck_event(vlog_param(v, 0));
-      vlog_check_tcheck_event(vlog_param(v, 1));
+      {
+         vlog_check_tcheck_event(vlog_param(v, 0));
+         vlog_check_tcheck_event(vlog_param(v, 1));
 
-      vlog_node_t limit = vlog_param(v, 2);
-      type_mask_t tmask = vlog_check_expr(limit);
+         vlog_node_t limit = vlog_param(v, 2);
+         type_mask_t tmask = vlog_check_expr(limit);
 
-      if ((tmask & TM_CONST) == 0) {
-         diag_t *d = diag_new(DIAG_ERROR, vlog_loc(limit));
-         diag_printf(d, "not a constant expression");
-         diag_hint(d, vlog_loc(limit), "have '%s'", type_mask_str(tmask));
-         diag_emit(d);
+         if ((tmask & TM_CONST) == 0) {
+            diag_t *d = diag_new(DIAG_ERROR, vlog_loc(limit));
+            diag_printf(d, "not a constant expression");
+            diag_hint(d, vlog_loc(limit), "have '%s'", type_mask_str(tmask));
+            diag_emit(d);
+         }
       }
       break;
 
@@ -1277,14 +1279,14 @@ static void vlog_check_tcheck(vlog_node_t v)
 
 static void vlog_check_specify(vlog_node_t v)
 {
-   const int n_decls = vlog_decls(v);
+   const int n_stmts = vlog_stmts(v);
 
-   for (int i = 0; i < n_decls; i++) {
-      vlog_node_t decl = vlog_decl(v, i);
+   for (int i = 0; i < n_stmts; i++) {
+      vlog_node_t stmt = vlog_stmt(v, i);
 
-      switch (vlog_kind(decl)) {
+      switch (vlog_kind(stmt)) {
       case V_TCHECK:
-         vlog_check_tcheck(decl);
+         vlog_check_tcheck(stmt);
          break;
       default:
          break;

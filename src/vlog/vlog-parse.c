@@ -6708,7 +6708,7 @@ static void p_specify_item(vlog_node_t parent)
          vlog_node_t tcheck = p_system_timing_check();
          // TODO: Remove once all timing checks are supported.
          if (tcheck != NULL)
-            vlog_add_decl(parent, tcheck);
+            vlog_add_stmt(parent, tcheck);
       }
       break;
    default:

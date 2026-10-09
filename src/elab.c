@@ -1894,15 +1894,14 @@ static void elab_verilog_processes(vlog_node_t v, const elab_ctx_t *ctx)
          break;
       case V_SPECIFY:
          {
-            int n_decls = vlog_decls(s);
-            for (int i = 0; i < n_decls; i++) {
-               vlog_node_t decl = vlog_decl(s, i);
+            int n_stmts = vlog_stmts(s);
+            for (int i = 0; i < n_stmts; i++) {
+               vlog_node_t stmt = vlog_stmt(s, i);
 
-               if (vlog_kind(decl) == V_TCHECK) {
+               if (vlog_kind(stmt) == V_TCHECK) {
                   tree_t wrap = tree_new(T_VERILOG);
-                  //tree_set_ident(wrap, id);
-                  tree_set_loc(wrap, vlog_loc(decl));
-                  tree_set_vlog(wrap, decl);
+                  tree_set_loc(wrap, vlog_loc(stmt));
+                  tree_set_vlog(wrap, stmt);
                   tree_add_stmt(ctx->out, wrap);
                }
             }

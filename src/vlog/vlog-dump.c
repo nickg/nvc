@@ -1037,11 +1037,11 @@ static void vlog_dump_type_decl(vlog_node_t v, int indent)
 static void vlog_dump_specify(vlog_node_t v, int indent)
 {
    print_syntax("#specify\n");
-   int n_decls = vlog_decls(v);
+   int n_stmts = vlog_stmts(v);
 
-   for (int i = 0; i < n_decls; i++) {
+   for (int i = 0; i < n_stmts; i++) {
       tab(indent + 2);
-      vlog_dump(vlog_decl(v, i), indent + 2);
+      vlog_dump(vlog_stmt(v, i), indent + 2);
    }
 
    tab(indent);
@@ -1075,23 +1075,29 @@ static void vlog_dump_tcheck(vlog_node_t v)
 
 static void vlog_dump_tcheck_event(vlog_node_t v)
 {
-   v_event_kind_t kind = vlog_subkind(v);
+   vlog_node_t ev = vlog_param(v, 0);
+   vlog_node_t sig = ev;
 
-   switch (kind) {
-   case V_EVENT_EDGE:
-      print_syntax("#edge ");
-      break;
-   case V_EVENT_NEGEDGE:
-      print_syntax("#negedge ");
-      break;
-   case V_EVENT_POSEDGE:
-      print_syntax("#posedge ");
-      break;
-   default:
-      break;
+   if (vlog_kind(ev) == V_EVENT) {
+      v_event_kind_t kind = vlog_subkind(ev);
+
+      switch (kind) {
+      case V_EVENT_EDGE:
+         print_syntax("#edge ");
+         break;
+      case V_EVENT_NEGEDGE:
+         print_syntax("#negedge ");
+         break;
+      case V_EVENT_POSEDGE:
+         print_syntax("#posedge ");
+         break;
+      default:
+         break;
+      }
+      sig = vlog_value(ev);
    }
 
-   vlog_dump(vlog_param(v, 0), 0);
+   vlog_dump(sig, 0);
 
    if (vlog_params(v) > 1) {
       print_syntax(" &&& ");

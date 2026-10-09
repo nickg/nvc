@@ -82,3 +82,16 @@ module mod3;   // Check operator precedence
   for (i = 1; i <= 4; i = i + 1) begin
   end
 endmodule // mod3
+
+module mod4;   // Check specify
+  wire d;
+  wire clk;
+  wire en;
+
+  specify
+    $setup(d, clk, 10);
+    $setup(edge d, clk, 10);
+    $setup(negedge d, posedge clk, 5);
+    $hold(posedge clk &&& en, negedge d &&& en, 3);
+  endspecify
+endmodule // mod4
