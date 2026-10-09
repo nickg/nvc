@@ -3626,23 +3626,33 @@ static void vlog_lower_tcheck(vlog_gen_t *g, vlog_node_t tcheck)
    assert(vlog_kind(event1) == V_TCHECK_EVENT);
 
    vlog_node_t sig0 = vlog_param(event0, 0);
+   vlog_node_t sig1 = vlog_param(event1, 0);
 
-   // TODO: Support posedge / negedge on first argument
-   //       needs tracking kind of last event, not just time since last event!
-   if (vlog_kind(sig0) == V_EVENT || vlog_params(event0) > 1)
-      CANNOT_HANDLE(event0);
+   if (vlog_kind(sig0) == V_EVENT)
+      sig0 = vlog_value(sig0);
+   if (vlog_kind(sig1) == V_EVENT)
+      sig1 = vlog_value(sig1);
 
-   mir_block_t start_bb = mir_add_block(g->mu);
-   assert(start_bb.id == 1);
-
-   mir_value_t trigger = vlog_lower_trigger(g, vlog_param(event1, 0));
+   mir_value_t trig0 = vlog_lower_trigger(g, vlog_param(event0, 0));
+   mir_value_t trig1 = vlog_lower_trigger(g, vlog_param(event1, 0));
+   mir_value_t trigger = vlog_or_triggers(g, 2, trig0, trig1);
    assert(!mir_is_null(trigger));
 
    mir_type_t t_trigger = mir_trigger_type(g->mu);
    mir_value_t trigger_var = mir_add_var(g->mu, t_trigger, MIR_NULL_STAMP,
-                              ident_uniq("trigger"), 0);
+                              ident_new("trigger"), 0);
    mir_build_store(g->mu, trigger_var, trigger);
+
+   mir_type_t t_time = mir_time_type(g->mu);
+   mir_value_t last_ev0_time_var = mir_add_var(g->mu, t_time, MIR_NULL_STAMP,
+                                    ident_new("last_ref_time"), 0);
+   mir_value_t t_zero = mir_const(g->mu, t_time, 0);
+   mir_build_store(g->mu, last_ev0_time_var, t_zero);
    mir_build_return(g->mu, MIR_NULL_VALUE);
+
+   mir_block_t start_bb = mir_add_block(g->mu);
+   assert(start_bb.id == 1);
+
    mir_set_cursor(g->mu, start_bb, MIR_APPEND);
 
    mir_value_t t = mir_build_load(g->mu, trigger_var);
@@ -3655,28 +3665,61 @@ static void vlog_lower_tcheck(vlog_gen_t *g, vlog_node_t tcheck)
    mir_value_t t2 = mir_build_load(g->mu, trigger_var);
    mir_build_clear_event(g->mu, t2, MIR_NULL_VALUE);
 
-   if (vlog_params(event1) > 1) {
-      mir_value_t cond = vlog_lower_rvalue(g, vlog_param(event1, 1));
-      mir_value_t test = vlog_lower_test(g, cond);
+   // Store time when ungated ev0 event occurs
+   mir_type_t t_offset = mir_offset_type(g->mu);
+   vlog_select_t lvalue = vlog_lower_select(g, sig0);
+   int total_size = lvalue.size * vlog_size(vlog_ref(sig0));
+   mir_value_t count = mir_const(g->mu, t_offset, total_size);
+   mir_value_t last_ev0 = mir_build_last_event(g->mu, lvalue.obj, count);
+   mir_value_t cond0 = mir_build_cmp(g->mu, MIR_CMP_EQ, last_ev0, t_zero);
 
-      mir_block_t check_bb = mir_add_block(g->mu);
-      mir_build_cond(g->mu, test, check_bb, start_bb);
-
-      mir_set_cursor(g->mu, check_bb, MIR_APPEND);
+   if (vlog_params(event0) > 1) {
+      mir_value_t scond = vlog_lower_rvalue(g, vlog_param(event0, 1));
+      mir_value_t test = vlog_lower_test(g, scond);
+      cond0 = mir_build_and(g->mu, cond0, test);
    }
 
-   mir_type_t t_offset = mir_offset_type(g->mu);
+   mir_block_t ref_capt_bb = mir_add_block(g->mu);
+   mir_block_t check_ev1_bb = mir_add_block(g->mu);
+   mir_build_cond(g->mu, cond0, ref_capt_bb, check_ev1_bb);
 
-   vlog_select_t lvalue = vlog_lower_select(g, sig0);
-   const int total_size = lvalue.size * vlog_size(vlog_ref(sig0));
-   mir_value_t count = mir_const(g->mu, t_offset, total_size);
-   mir_value_t last = mir_build_last_event(g->mu, lvalue.obj, count);
+   mir_set_cursor(g->mu, ref_capt_bb, MIR_APPEND);
 
-   mir_type_t t_time = mir_time_type(g->mu);
+   ident_t now_func = ident_new("STD.STANDARD.NOW()25STD.STANDARD.DELAY_LENGTH");
+   mir_value_t pkg = mir_build_link_package(g->mu, well_known(W_STD_STANDARD));
+   mir_value_t args[1] = { pkg };
+   mir_value_t now = mir_build_fcall(g->mu, now_func, t_time, MIR_NULL_STAMP, args, ARRAY_LEN(args));
+   mir_build_store(g->mu, last_ev0_time_var, now);
+   mir_build_jump(g->mu, check_ev1_bb);
+
+   // Check un-gated event on ev1
+   mir_set_cursor(g->mu, check_ev1_bb, MIR_APPEND);
+
+   lvalue = vlog_lower_select(g, sig1);
+   total_size = lvalue.size * vlog_size(vlog_ref(sig1));
+   count = mir_const(g->mu, t_offset, total_size);
+   mir_value_t last_ev1 = mir_build_last_event(g->mu, lvalue.obj, count);
+   mir_value_t cond1 = mir_build_cmp(g->mu, MIR_CMP_EQ, last_ev1, t_zero);
+
+   if (vlog_params(event1) > 1) {
+      mir_value_t scond = vlog_lower_rvalue(g, vlog_param(event1, 1));
+      mir_value_t test = vlog_lower_test(g, scond);
+      cond1 = mir_build_and(g->mu, cond1, test);
+   }
+
+   mir_block_t check_limit_bb = mir_add_block(g->mu);
+   mir_build_cond(g->mu, cond1, check_limit_bb, start_bb);
+
+   // Check time limit
+   mir_set_cursor(g->mu, check_limit_bb, MIR_APPEND);
+
+   now = mir_build_fcall(g->mu, now_func, t_time, MIR_NULL_STAMP, args, ARRAY_LEN(args));
+   mir_value_t last_ref_time = mir_build_load(g->mu, last_ev0_time_var);
+   mir_value_t diff_time = mir_build_sub(g->mu, t_time, now, last_ref_time);
+
    mir_value_t limit_val = vlog_lower_rvalue(g, limit);
    mir_value_t limit_time = mir_build_cast(g->mu, t_time, limit_val);
-
-   mir_value_t ok = mir_build_cmp(g->mu, MIR_CMP_GEQ, last, limit_time);
+   mir_value_t ok = mir_build_cmp(g->mu, MIR_CMP_GEQ, diff_time, limit_time);
 
    mir_type_t t_severity = mir_int_type(g->mu, 0, SEVERITY_FAILURE - 1);
    mir_value_t severity = mir_const(g->mu, t_severity, SEVERITY_ERROR);
