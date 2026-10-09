@@ -1,0 +1,4 @@
+** Error: 6fs+1: Timing check violation.
+** Error: 10fs+0: Timing check violation.
+** Error: 12fs+1: Timing check violation.
+** Note: 22fs+0: $finish called

@@ -349,6 +349,22 @@ void vlog_trans(vlog_node_t mod, tree_t out)
             tree_add_stmt(out, wrap);
          }
          break;
+      case V_SPECIFY:
+         {
+            int n_stmts = vlog_stmts(s);
+            for (int i = 0; i < n_stmts; i++) {
+               vlog_node_t stmt = vlog_stmt(s, i);
+               if (vlog_kind(stmt) != V_TCHECK)
+                  continue;
+
+               tree_t wrap = tree_new(T_VERILOG);
+               tree_set_vlog(wrap, stmt);
+               tree_set_loc(wrap, vlog_loc(stmt));
+
+               tree_add_stmt(out, wrap);
+            }
+         }
+         break;
       default:
          break;
       }

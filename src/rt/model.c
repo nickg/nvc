@@ -1745,6 +1745,10 @@ static void setup_process(rt_proc_t *p, const char *path)
          case V_FINAL:
             p->name = ident_sprintf("%s:%s", path, istr(tree_ident(p->where)));
             break;
+         case V_TCHECK:
+            // TODO: Should names here be unique ?
+            p->name = ident_sprintf("%s", path);
+            break;
          default:
             should_not_reach_here();
          }

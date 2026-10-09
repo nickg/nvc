@@ -24,6 +24,7 @@ typedef enum {
    V_EVENT_LEVEL,
    V_EVENT_POSEDGE,
    V_EVENT_NEGEDGE,
+   V_EVENT_EDGE
 } v_event_kind_t;
 
 typedef enum {
@@ -65,6 +66,11 @@ typedef enum {
    V_CASE_X,
    V_CASE_Z,
 } vlog_case_kind_t;
+
+typedef enum {
+   V_TCHECK_SETUP,
+   V_TCHECK_HOLD
+} vlog_tcheck_kind_t;
 
 typedef enum {
    V_MODULE,
@@ -175,6 +181,8 @@ typedef enum {
    V_PATTERN_EXPR,
    V_PATTERN_ITEM,
    V_CAST,
+   V_TCHECK,
+   V_TCHECK_EVENT,
 
    V_LAST_NODE_KIND
 } vlog_kind_t;

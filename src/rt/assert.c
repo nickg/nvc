@@ -26,6 +26,7 @@
 #include "rt/model.h"
 #include "rt/structs.h"
 #include "tree.h"
+#include "vlog/vlog-node.h"
 
 #include <string.h>
 #include <assert.h>
@@ -444,10 +445,17 @@ void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
       apply_format(d, format[severity], severity, msg, msg_len);
    else if (msg == NULL) {
       psl_node_t p = psl_from_object(where);
-      if (p == NULL)
-         diag_printf(d, "Assertion violation.");
-      else
+      if (p != NULL) {
          diag_printf(d, "PSL assertion failed");
+      }
+      else {
+         vlog_node_t v = vlog_from_object(where);
+         if (v != NULL && vlog_kind(v) == V_TCHECK)
+            diag_printf(d, "Timing check violation.");
+         else
+            diag_printf(d, "Assertion violation.");
+      }
+
    }
    else {
       diag_write(d, (const char *)msg, msg_len);
