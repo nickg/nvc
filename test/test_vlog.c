@@ -1926,7 +1926,7 @@ START_TEST(test_pp13)
    LOCAL_TEXT_BUF tb = tb_new();
    vlog_preprocess(tb, false);
 
-   ck_assert_str_eq(tb_get(tb), "\n\n\n8\n");
+   ck_assert_str_eq(tb_get(tb), "\n\n\n\n8\n");
 
    fail_if_errors();
 }
@@ -2240,6 +2240,7 @@ START_TEST(test_pp18)
 
    ck_assert_str_eq(
       tb_get(tb),
+      "\n"
       "\n"
       "\n"
       "\n"
