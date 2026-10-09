@@ -618,7 +618,8 @@ static void p_inactive_include_directive(void)
    while (not_at_token(tEOF, tNEWLINE))
       consume(peek());
 
-   optional(tNEWLINE);
+   if (optional(tNEWLINE))
+      tb_append(output, '\n');
 }
 
 static void p_expression(text_buf_t *tb)
