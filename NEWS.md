@@ -5,7 +5,8 @@
   static themselves (#1683).
 - Fixed connecting VHDL `std_logic_vector` signals to System Verilog
   `input logic` ports in mixed language simulation (#1681).
-- Several other minor bugs were resolved (#1663, #1672, #1668, #1670).
+- Several other minor bugs were resolved (#1663, #1672, #1668, #1670,
+  #1678).
 
 ## Version 1.23.0 - 2026-09-19
 - Added basic support for System Verilog assignment pattern expressions.

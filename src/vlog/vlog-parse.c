@@ -64,6 +64,7 @@ extern loc_t yylloc;
 static vlog_node_t p_statement_or_null(void);
 static vlog_node_t p_expression(void);
 static vlog_node_t p_constant_expression(void);
+static vlog_node_t p_mintypmax_expression(void);
 static vlog_node_t p_primary(void);
 static vlog_node_t p_data_type(void);
 static void p_list_of_variable_decl_assignments(vlog_node_t parent,
@@ -296,7 +297,7 @@ static bool scan_tf_item_declaration(void)
    if (scan_type_declaration())
       return true;
 
-   return scan(tINPUT, tOUTPUT, tLOCALPARAM, tPARAMETER);
+   return scan(tINPUT, tOUTPUT, tINOUT, tLOCALPARAM, tPARAMETER);
 }
 
 static ident_t p_identifier(void)
@@ -604,7 +605,8 @@ static vlog_node_t p_constant_mintypmax_expression(void)
    // constant_expression
    //   | constant_expression : constant_expression : constant_expression
 
-   return p_constant_expression();
+   // Checked for constant-ness later
+   return p_mintypmax_expression();
 }
 
 static vlog_node_t p_packed_dimension(void)
@@ -4226,6 +4228,7 @@ static void p_tf_item_declaration(vlog_node_t tf)
    switch (peek()) {
    case tINPUT:
    case tOUTPUT:
+   case tINOUT:
    case tCONST:
       p_tf_port_declaration(tf);
       break;
@@ -5963,7 +5966,7 @@ static void p_path_delay_expression(void)
 
    BEGIN("path delay expression");
 
-   (void)p_constant_expression();
+   (void)p_constant_mintypmax_expression();
 }
 
 static void p_list_of_path_delay_expressions(void)
@@ -6579,16 +6582,20 @@ static vlog_node_t p_pulse_control_specparam(void)
    vlog_node_t v = vlog_new(V_SPECPARAM);
 
    consume(tPATHPULSE);
-
    consume(tEQ);
-   consume(tLPAREN);
 
-   vlog_set_value(v, p_constant_mintypmax_expression());
+   if (optional(tLPAREN)) {
+      vlog_set_value(v, p_constant_mintypmax_expression());
 
-   if (optional(tCOMMA))
-      (void)p_constant_mintypmax_expression();
+      if (optional(tCOMMA))
+         (void)p_constant_mintypmax_expression();
 
-   consume(tRPAREN);
+      consume(tRPAREN);
+   }
+   else {
+      // Accepted by other simulators and present in Xilinx models
+      vlog_set_value(v, p_constant_mintypmax_expression());
+   }
 
    vlog_set_loc(v, CURRENT_LOC);
    return v;

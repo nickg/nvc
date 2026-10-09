@@ -73,4 +73,9 @@ module tfcall2;
     r = optarg2(, 3); // OK
   endtask // task5
 
+  task task6;
+    inout [7:0] x;
+    x = 0;
+  endtask // task6
+
 endmodule // tfcall1

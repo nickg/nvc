@@ -2072,6 +2072,18 @@ START_TEST(test_issue1596)
 }
 END_TEST
 
+START_TEST(test_issue1678)
+{
+   input_from_file(TESTDIR "/vlog/issue1678.v");
+
+   do_parse_check(V_MODULE);
+
+   fail_unless(vlog_parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 START_TEST(test_pp15)
 {
    input_from_file(TESTDIR "/vlog/pp15.v");
@@ -2334,6 +2346,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_constfunc2);
    tcase_add_test(tc, test_disable1);
    tcase_add_test(tc, test_issue1596);
+   tcase_add_test(tc, test_issue1678);
    tcase_add_test(tc, test_pp15);
    tcase_add_test(tc, test_prop1);
    tcase_add_test(tc, test_pattern1);
