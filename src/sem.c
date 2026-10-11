@@ -4212,11 +4212,11 @@ static bool sem_check_dimension_attr(tree_t t, nametab_t *tab)
    }
 
    if (!sem_locally_static(dim))
-      sem_error(dim, "dimension parameter of attribute %pT must be a locally "
+      sem_error(dim, "dimension parameter of attribute %pI must be a locally "
                 "static expression", tree_ident(t));
 
    if (!type_is_array(tree_type(tree_name(t))))
-      sem_error(t, "prefix of attribute %pT with dimension is not an array",
+      sem_error(t, "prefix of attribute %pI with dimension is not an array",
                 tree_ident(t));
 
    return true;
