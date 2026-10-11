@@ -605,6 +605,25 @@ START_TEST(test_vlog1)
              "endmodule // mod3\n\n");
    tb_rewind(tb);
 
+   vlog_node_t m5 = vlog_parse();
+   fail_if(m5 == NULL);
+
+   vlog_dump(m5, 0);
+   diff_dump(tb_get(tb),
+             "module mod4;\n"
+             "  wire /* implicit */ d;\n"
+             "  wire /* implicit */ clk;\n"
+             "  wire /* implicit */ en;\n"
+             "  specify\n"
+             "    $setup(d, clk, 10);\n"
+             "    $setup(edge d, clk, 10);\n"
+             "    $setup(negedge d, posedge clk, 5);\n"
+             "    $hold(posedge clk &&& en, negedge d &&& en, 3);\n"
+             "  endspecify\n"
+             "endmodule // mod4\n"
+             "\n");
+   tb_rewind(tb);
+
    fail_if_errors();
 }
 END_TEST

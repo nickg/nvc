@@ -1483,3 +1483,8 @@ issue1670       normal,2008
 issue1681       mixed,2008
 vlog48          verilog
 issue1687       normal
+specify1        verilog,fail,gold
+specify2        verilog,fail,gold
+specify3        verilog,fail,gold
+specify4        verilog,fail,gold
+specify5        verilog,fail,gold

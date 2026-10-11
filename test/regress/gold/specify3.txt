@@ -1,0 +1,10 @@
+** Error: 6fs+0: Timing check violation
+      Info: $hold(5fs, 6fs, 2fs)
+      At:   :specify3:i_sub
+** Error: 10fs+0: Timing check violation
+      Info: $hold(6fs, 10fs, 5fs)
+      At:   :specify3:i_sub
+** Error: 12fs+0: Timing check violation
+      Info: $hold(5fs, 12fs, 8fs)
+      At:   :specify3:i_sub
+** Note: 22fs+0: $finish called

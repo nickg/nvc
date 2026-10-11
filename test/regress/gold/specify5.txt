@@ -1,0 +1,10 @@
+** Error: 5fs+0: Timing check violation
+      Info: $recovery(3fs, 5fs, 3fs)
+      At:   :specify5:i_sub
+** Error: 10fs+0: Timing check violation
+      Info: $removal(7fs, 10fs, 4fs)
+      At:   :specify5:i_sub
+** Error: 15fs+0: Timing check violation
+      Info: $recovery(13fs, 15fs, 3fs)
+      At:   :specify5:i_sub
+** Note: 25fs+0: $finish called

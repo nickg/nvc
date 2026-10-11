@@ -419,6 +419,16 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
+   case JIT_EXIT_TCHECK:
+      {
+         int64_t   stamp = args[0].integer;
+         int64_t   limit = args[1].integer;
+         object_t *where = args[2].pointer;
+
+         x_timing_check(stamp, limit, where);
+      }
+      break;
+
    case JIT_EXIT_INIT_SIGNAL:
       {
          int64_t      count  = args[0].integer;
