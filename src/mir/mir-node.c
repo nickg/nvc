@@ -3346,6 +3346,18 @@ void mir_build_report(mir_unit_t *mu, mir_value_t message, mir_value_t length,
               "locus argument to report must be a debug locus");
 }
 
+void mir_build_tcheck(mir_unit_t *mu, mir_value_t stamp,
+                      mir_value_t limit, mir_value_t locus)
+{
+   mir_build_3(mu, MIR_OP_TCHECK, MIR_NULL_TYPE, MIR_NULL_STAMP,
+               stamp, limit, locus);
+
+   MIR_ASSERT(mir_is_time(mu, stamp), "stamp must be time");
+   MIR_ASSERT(mir_is_time(mu, limit), "limit must be time");
+   MIR_ASSERT(mir_is(mu, locus, MIR_TYPE_LOCUS),
+              "locus argument to report must be a debug locus");
+}
+
 mir_value_t mir_build_instance_name(mir_unit_t *mu, mir_value_t kind)
 {
    mir_type_t type = mir_string_type(mu);
