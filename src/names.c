@@ -4824,7 +4824,10 @@ static tree_t solve_array_ref(nametab_t *tab, tree_t t)
    const int nparams = tree_params(t);
    for (int i = 0; i < nparams; i++) {
       tree_t p = tree_param(t, i);
-      assert(tree_subkind(p) == P_POS);
+      if (tree_subkind(p) != P_POS) {
+         error_at(tree_loc(p), "named association not allowed in indexed name");
+         tree_set_subkind(p, P_POS);
+      }
 
       type_t index_type = index_type_of(base_type, i);
       if (index_type == NULL)

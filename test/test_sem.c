@@ -4084,6 +4084,25 @@ START_TEST(test_issue1683)
 }
 END_TEST
 
+START_TEST(test_issue1686)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/sem/issue1686.vhd");
+
+   const error_t expect[] = {
+      { 10, "named association not allowed in indexed name" },
+      { 23, "prefix of attribute LEFT with dimension is not an array" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -4276,6 +4295,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_lcs2016_99);
    tcase_add_test(tc_core, test_issue1594);
    tcase_add_test(tc_core, test_issue1683);
+   tcase_add_test(tc_core, test_issue1686);
    suite_add_tcase(s, tc_core);
 
    return s;
