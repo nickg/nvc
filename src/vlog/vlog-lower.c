@@ -2108,7 +2108,11 @@ static void vlog_lower_edge_fn(mir_unit_t *mu, vlog_edge_t edge)
 
    mir_value_t edge_val = mir_const(mu, t_uint8, edge);
    mir_value_t cmp = mir_build_cmp(mu, MIR_CMP_EQ, entry, edge_val);
-   mir_build_return(mu, cmp);
+   mir_value_t count = mir_const(mu, t_offset, 1);
+   mir_value_t event = mir_build_event_flag(mu, nets, count);
+   mir_value_t and = mir_build_and(mu, cmp, event);
+
+   mir_build_return(mu, and);
 
    mir_optimise(mu, MIR_PASS_O0);
 }
