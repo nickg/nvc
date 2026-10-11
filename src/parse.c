@@ -1477,27 +1477,30 @@ static void declare_ieee_intrinsics(tree_t unit)
 {
    static const struct {
       const char *name;
-      subprogram_kind_t kind;
+      subprogram_kind_t scalar;
+      subprogram_kind_t vector;
    } ops[] = {
-      { "\"and\"",  S_IEEE_AND },
-      { "\"or\"",   S_IEEE_OR },
-      { "\"xor\"",  S_IEEE_XOR },
-      { "\"nand\"", S_IEEE_NAND },
-      { "\"nor\"",  S_IEEE_NOR },
-      { "\"xnor\"", S_IEEE_XNOR },
-      { "\"not\"",  S_IEEE_NOT },
+      { "\"and\"",  S_IEEE_AND,  S_IEEE_LOGICAL },
+      { "\"or\"",   S_IEEE_OR,   S_IEEE_LOGICAL },
+      { "\"xor\"",  S_IEEE_XOR,  S_IEEE_LOGICAL },
+      { "\"nand\"", S_IEEE_NAND, S_IEEE_LOGICAL },
+      { "\"nor\"",  S_IEEE_NOR,  S_IEEE_LOGICAL },
+      { "\"xnor\"", S_IEEE_XNOR, S_IEEE_LOGICAL },
+      { "\"not\"",  S_IEEE_NOT,  S_IEEE_MISC    },
    };
 
    for (int i = 0; i < ARRAY_LEN(ops); i++) {
-      tree_t scalar = get_local_decl(nametab, unit, ident_new(ops[i].name), 0);
+      ident_t name = ident_new(ops[i].name);
+
+      tree_t scalar = get_local_decl(nametab, unit, name, 0);
       assert(scalar != NULL);
       assert(tree_kind(scalar) == T_FUNC_DECL);
-      tree_set_subkind(scalar, ops[i].kind);
+      tree_set_subkind(scalar, ops[i].scalar);
 
-      tree_t vector = get_local_decl(nametab, unit, ident_new(ops[i].name), 1);
+      tree_t vector = get_local_decl(nametab, unit, name, 1);
       assert(vector != NULL);
       assert(tree_kind(vector) == T_FUNC_DECL);
-      tree_set_subkind(vector, S_IEEE_VECTOR);
+      tree_set_subkind(vector, ops[i].vector);
    }
 }
 
