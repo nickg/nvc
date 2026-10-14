@@ -114,7 +114,7 @@ EOF
     fi
 
     if [ -f "$src/cycloneive_atoms.vhd" ]; then
-      analyse_list cycloneiv$(std_suffix $STD) <<EOF
+      analyse_list cycloneive$(std_suffix $STD) <<EOF
 $src/cycloneive_atoms.vhd
 $src/cycloneive_components.vhd
 EOF
@@ -232,7 +232,7 @@ EOF
     fi
 
     if [ -d "$src/cycloneive" ]; then
-      analyse_list cycloneiv$(std_suffix $STD) <<EOF
+      analyse_list cycloneive$(std_suffix $STD) <<EOF
 $src/cycloneive/cycloneive_atoms.vhd
 $src/cycloneive/cycloneive_components.vhd
 EOF
