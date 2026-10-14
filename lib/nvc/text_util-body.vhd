@@ -362,8 +362,9 @@ package body text_util is
             elsif ss(pos) = '+' then
                 pos := pos + 1;
             end if;
-            char := ss(pos);
-            while pos <= length and isdigit(char) loop
+            while pos <= length loop
+                char := ss(pos);
+                exit when not isdigit(char);
                 exp := exp * 10 + (character'pos(char) - ascii_zero);
                 pos := pos + 1;
             end loop;
