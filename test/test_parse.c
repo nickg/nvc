@@ -7786,6 +7786,23 @@ START_TEST(test_visibility13)
 }
 END_TEST
 
+START_TEST(test_issue1692)
+{
+   input_from_file(TESTDIR "/parse/issue1692.vhd");
+
+   const error_t expect[] = {
+      { 5, "type mark BIT_VECTOR does not denote a type or a subtype" },
+      { 0, "BIT_VECTOR is a entity name" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -7996,6 +8013,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue1612);
    tcase_add_test(tc_core, test_issue1614);
    tcase_add_test(tc_core, test_visibility13);
+   tcase_add_test(tc_core, test_issue1692);
    suite_add_tcase(s, tc_core);
 
    return s;
