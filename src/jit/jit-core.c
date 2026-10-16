@@ -710,7 +710,9 @@ bool jit_vfastcall(jit_t *j, jit_handle_t handle, const jit_scalar_t *inargs,
    if (!jit_try_vcall(j, f, args, tlab))
       return false;
 
-   memcpy(results, args, nresults * sizeof(jit_scalar_t));
+   if (nresults > 0)
+      memcpy(results, args, nresults * sizeof(jit_scalar_t));
+
    return true;
 }
 
