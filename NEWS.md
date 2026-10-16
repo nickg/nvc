@@ -8,7 +8,7 @@
 - Logical operators on arrays and IEEE vectors now emit a warning if
   their operands differ in length (from @NikLeberg) (#1667).
 - Several other minor bugs were resolved (#1663, #1672, #1668, #1670,
-  #1678, #1686, #1687).
+  #1678, #1686, #1687, #1692).
 
 ## Version 1.23.0 - 2026-09-19
 - Added basic support for System Verilog assignment pattern expressions.

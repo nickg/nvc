@@ -3942,8 +3942,10 @@ static type_t p_type_mark(tree_t head)
          // latter if current prefix cannot be interpreted as a type mark
          prefix = solve_types(nametab, prefix, NULL);
 
-         type_t type = tree_type(prefix);
-         if (type_is_none(type))
+         type_t type = get_type_or_null(prefix);
+         if (type == NULL)
+            break;
+         else if (type_is_none(type))
             return type;
 
          if (tree_kind(prefix) == T_REF && tree_has_ref(prefix)) {
