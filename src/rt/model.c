@@ -25,6 +25,7 @@
 #include "jit/jit.h"
 #include "lib.h"
 #include "option.h"
+#include "object.h"
 #include "printf.h"
 #include "psl/psl-node.h"
 #include "rt/assert.h"
@@ -1744,6 +1745,11 @@ static void setup_process(rt_proc_t *p, const char *path)
          case V_INITIAL:
          case V_FINAL:
             p->name = ident_sprintf("%s:%s", path, istr(tree_ident(p->where)));
+            break;
+         case V_TCHECK:
+            // TODO: Should names here be unique ?
+            p->name = ident_sprintf("%s", path);
+            p->wakeable.postponed = true;
             break;
          default:
             should_not_reach_here();
@@ -3950,6 +3956,12 @@ void get_instance_name(rt_scope_t *s, text_buf_t *tb)
       tb_printf(tb, ":%s", istr(tree_ident(s->where)));
       break;
 
+   // TODO: Should Verilog hierarchy have the same format as VHDL ?
+   case T_VERILOG:
+      get_instance_name(s->parent, tb);
+      tb_printf(tb, ":%s", istr(tree_ident(s->where)));
+      break;
+
    default:
       should_not_reach_here();
    }
@@ -4885,4 +4897,37 @@ int32_t *x_get_counters(jit_handle_t handle)
    ident_t name = jit_get_name(m->jit, handle);
 
    return cover_get_counters(m->cover, name);
+}
+
+void x_timing_check(int64_t stamp, int64_t limit, object_t *where)
+{
+   diag_t *d = diag_new(DIAG_ERROR, &(where->loc));
+
+   vlog_node_t v = vlog_from_object(where);
+   assert(v != NULL);
+   assert(vlog_kind(v) == V_TCHECK);
+
+   static const char *names[] = {
+      [V_TCHECK_SETUP]    = "$setup",
+      [V_TCHECK_HOLD]     = "$hold",
+      [V_TCHECK_RECOVERY] = "$recovery",
+      [V_TCHECK_REMOVAL]  = "$removal",
+   };
+
+   rt_model_t *m = get_model();
+   text_buf_t *tb = tb_new();
+   get_instance_name(get_active_scope(m), tb);
+
+   char stamp_buf[32], now_buf[32], limit_buf[32];
+   fmt_time_r(stamp_buf, sizeof(stamp_buf), stamp, "");
+   fmt_time_r(now_buf, sizeof(now_buf), model_now(m, NULL), "");
+   fmt_time_r(limit_buf, sizeof(limit_buf), limit, "");
+
+   diag_printf(d, "Timing check violation\n"
+                  "      Info: %s(%s, %s, %s)\n"
+                  "      At:   %s",
+               names[vlog_subkind(v)], stamp_buf, now_buf, limit_buf, tb_get(tb));
+   tb_free(tb);
+
+   emit_vhdl_diag(d, SEVERITY_ERROR);
 }

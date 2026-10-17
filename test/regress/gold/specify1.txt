@@ -1,0 +1,10 @@
+** Error: 5fs+0: Timing check violation
+      Info: $setup(4fs, 5fs, 2fs)
+      At:   :specify1:i_sub
+** Error: 10fs+0: Timing check violation
+      Info: $setup(8fs, 10fs, 3fs)
+      At:   :specify1:i_sub
+** Error: 10fs+0: Timing check violation
+      Info: $setup(4fs, 10fs, 7fs)
+      At:   :specify1:i_sub
+** Note: 18fs+0: $finish called

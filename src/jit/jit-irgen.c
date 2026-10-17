@@ -3247,6 +3247,18 @@ static void irgen_op_report(jit_irgen_t *g, mir_value_t n)
    macro_exit(g, JIT_EXIT_REPORT);
 }
 
+static void irgen_op_tcheck(jit_irgen_t *g, mir_value_t n)
+{
+   jit_value_t stamp = irgen_get_arg(g, n, 0);
+   jit_value_t limit = irgen_get_arg(g, n, 1);
+   jit_value_t locus = irgen_get_arg(g, n, 2);
+
+   j_send(g, 0, stamp);
+   j_send(g, 1, limit);
+   j_send(g, 2, locus);
+   macro_exit(g, JIT_EXIT_TCHECK);
+}
+
 static void irgen_op_assert(jit_irgen_t *g, mir_value_t n)
 {
    jit_value_t severity = irgen_get_arg(g, n, 1);
@@ -5056,6 +5068,9 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          break;
       case MIR_OP_REPORT:
          irgen_op_report(g, n);
+         break;
+      case MIR_OP_TCHECK:
+         irgen_op_tcheck(g, n);
          break;
       case MIR_OP_ASSERT:
          irgen_op_assert(g, n);

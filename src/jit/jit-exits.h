@@ -61,6 +61,7 @@ void x_div_zero(tree_t where);
 void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
                    int64_t hint_left, int64_t hint_right, int8_t hint_valid,
                    object_t *where);
+void x_timing_check(int64_t stamp, int64_t limit, object_t *where);
 void x_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
               object_t *where);
 int64_t x_last_event(sig_shared_t *ss, uint32_t offset, int32_t count);

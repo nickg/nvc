@@ -1892,11 +1892,25 @@ static void elab_verilog_processes(vlog_node_t v, const elab_ctx_t *ctx)
             tree_add_stmt(ctx->out, w);
          }
          break;
+      case V_SPECIFY:
+         {
+            int n_stmts = vlog_stmts(s);
+            for (int i = 0; i < n_stmts; i++) {
+               vlog_node_t stmt = vlog_stmt(s, i);
+
+               if (vlog_kind(stmt) == V_TCHECK) {
+                  tree_t wrap = tree_new(T_VERILOG);
+                  tree_set_loc(wrap, vlog_loc(stmt));
+                  tree_set_vlog(wrap, stmt);
+                  tree_add_stmt(ctx->out, wrap);
+               }
+            }
+         }
+         break;
       case V_INST_LIST:
       case V_GEN_BLOCK:
       case V_IF_GENERATE:
       case V_FOR_GENERATE:
-      case V_SPECIFY:
          break;
       default:
          fatal_at(vlog_loc(s), "sorry, this Verilog statement is not "
@@ -1924,10 +1938,6 @@ static void elab_verilog_sub_blocks(vlog_node_t v, const elab_ctx_t *ctx)
          break;
       case V_FOR_GENERATE:
          elab_verilog_for_generate(s, ctx);
-         break;
-      case V_SPECIFY:
-         INIT_ONCE(warn_at(vlog_loc(s), "specify blocks are not currently "
-                           "supported and will be ignored"));
          break;
       default:
          break;
