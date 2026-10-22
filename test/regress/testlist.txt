@@ -1483,3 +1483,4 @@ issue1670       normal,2008
 issue1681       mixed,2008
 vlog48          verilog
 issue1687       normal
+issue1693       normal,psl,2008

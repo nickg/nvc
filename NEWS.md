@@ -5,6 +5,8 @@
   static themselves (#1683).
 - Fixed connecting VHDL `std_logic_vector` signals to System Verilog
   `input logic` ports in mixed language simulation (#1681).
+- Fixed a crash when a PSL directive has an inline clock expression
+  (#1693).
 - Several other minor bugs were resolved (#1663, #1672, #1668, #1670,
   #1686, #1687, #1692).
 
