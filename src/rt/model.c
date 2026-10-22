@@ -4915,7 +4915,8 @@ void x_timing_check(int64_t stamp, int64_t limit, object_t *where)
    };
 
    rt_model_t *m = get_model();
-   text_buf_t *tb = tb_new();
+
+   LOCAL_TEXT_BUF tb = tb_new();
    get_instance_name(get_active_scope(m), tb);
 
    char stamp_buf[32], now_buf[32], limit_buf[32];
@@ -4923,10 +4924,9 @@ void x_timing_check(int64_t stamp, int64_t limit, object_t *where)
    fmt_time_r(now_buf, sizeof(now_buf), model_now(m, NULL), "");
    fmt_time_r(limit_buf, sizeof(limit_buf), limit, "");
 
-   diag_printf(d, "Timing check violation: %s(%s, %s, %s)",
+   diag_printf(d, "timing check violation: %s(%s, %s, %s)",
                names[vlog_subkind(v)], stamp_buf, now_buf, limit_buf);
    diag_hint(d, NULL, "instance '%s'", tb_get(tb));
-   tb_free(tb);
 
    emit_vhdl_diag(d, SEVERITY_ERROR);
 }
