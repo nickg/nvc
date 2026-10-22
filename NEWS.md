@@ -7,6 +7,8 @@
   `input logic` ports in mixed language simulation (#1681).
 - Logical operators on arrays and IEEE vectors now emit a warning if
   their operands differ in length (from @NikLeberg) (#1667).
+- Added basic support for Verilog `$setup`, `$hold`, `$recovery`, and
+  `$removal` timing checks (from @Blebowski).
 - Several other minor bugs were resolved (#1663, #1672, #1668, #1670,
   #1678, #1686, #1687).
 
