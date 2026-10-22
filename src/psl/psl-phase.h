@@ -29,7 +29,8 @@ void psl_check(psl_node_t p, nametab_t *tab);
 void psl_dump(psl_node_t p);
 
 // Convert PSL verification directive to vcode unit.
-void psl_lower_directive(lower_unit_t *lu, object_t *obj);
+void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
+                         cover_data_t *cover, tree_t wrapper, ident_t name);
 
 // Convert PSL declaration to vcode variable
 void psl_lower_decl(unit_registry_t *ur, lower_unit_t *parent, psl_node_t p,

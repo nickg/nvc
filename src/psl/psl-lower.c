@@ -526,7 +526,7 @@ vcode_reg_t psl_lower_fcall(lower_unit_t *lu, psl_node_t p)
    }
 }
 
-void psl_lower_directive(lower_unit_t *lu, object_t *obj)
+static void psl_lower_property(lower_unit_t *lu, object_t *obj)
 {
    tree_t wrapper = tree_from_object(obj);
    assert(tree_kind(wrapper) == T_PSL_DIRECT);
@@ -562,10 +562,8 @@ void psl_lower_directive(lower_unit_t *lu, object_t *obj)
    // Only handle a single clock for the whole property
    psl_node_t top = psl_value(p);
    assert(psl_kind(top) == P_CLOCKED);
-   assert(psl_has_ref(top));
-
-   psl_node_t clk = psl_ref(top);
-   tree_t clk_expr = psl_tree(psl_ref(top));
+   psl_node_t clk = psl_has_ref(top) ? psl_ref(top) : top;
+   tree_t clk_expr = psl_tree(clk);
 
    int hops;
    vcode_var_t trigger_var = lower_search_vcode_obj(clk, lu, &hops);
@@ -645,7 +643,7 @@ void psl_lower_directive(lower_unit_t *lu, object_t *obj)
 static void psl_lower_clock_func(lower_unit_t *lu, object_t *obj)
 {
    psl_node_t p = psl_from_object(obj);
-   assert(psl_kind(p) == P_CLOCK_DECL);
+   assert(psl_kind(p) == P_CLOCK_DECL || psl_kind(p) == P_CLOCKED);
 
    vcode_unit_t context = vcode_unit_context(lu->vunit);
    ident_t prefix = vcode_unit_name(context);
@@ -679,6 +677,25 @@ static void psl_lower_clock_decl(unit_registry_t *ur, lower_unit_t *parent,
    emit_store(trigger_reg, var);
 
    lower_put_vcode_obj(p, var, parent);
+}
+
+void psl_lower_directive(unit_registry_t *ur, lower_unit_t *parent,
+                         cover_data_t *cover, tree_t wrapper, ident_t name)
+{
+   assert(tree_kind(wrapper) == T_PSL_DIRECT);
+
+   psl_node_t top = psl_value(tree_psl(wrapper));
+   assert(psl_kind(top) == P_CLOCKED);
+
+   if (!psl_has_ref(top)) {
+      // Inline clock
+      ident_t label = ident_sprintf("%s$clock", istr(tree_ident(wrapper)));
+      psl_lower_clock_decl(ur, parent, top, label);
+   }
+
+   unit_registry_defer(ur, name,
+                       parent, emit_property, psl_lower_property,
+                       cover, tree_to_object(wrapper));
 }
 
 void psl_lower_decl(unit_registry_t *ur, lower_unit_t *parent, psl_node_t p,

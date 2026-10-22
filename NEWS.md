@@ -9,6 +9,8 @@
   their operands differ in length (from @NikLeberg) (#1667).
 - Added basic support for Verilog `$setup`, `$hold`, `$recovery`, and
   `$removal` timing checks (from @Blebowski).
+- Fixed a crash when a PSL directive has an inline clock expression
+  (#1693).
 - Several other minor bugs were resolved (#1663, #1672, #1668, #1670,
   #1678, #1686, #1687, #1692).
 
