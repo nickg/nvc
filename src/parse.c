@@ -11203,9 +11203,19 @@ static void p_generate_statement_body(tree_t container, ident_t alt_label)
 
    BEGIN("generate statement body");
 
-   if (scan(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
-            tPURE, tALIAS, tATTRIBUTE, tBEGIN, tPROCEDURE, tFOR, tCOMPONENT,
-            tUSE, tSHARED)) {
+   bool has_decls = false;
+   if (peek() == tSTARTPSL) {
+      const token_t after_psl = peek_nth(2);
+      has_decls = after_psl == tDEFAULT || after_psl == tSEQUENCE
+         || after_psl == tPROPERTY || after_psl == tENDPOINT;
+   }
+   else
+      has_decls = scan(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION,
+                       tIMPURE, tPURE, tALIAS, tATTRIBUTE, tBEGIN, tPROCEDURE,
+                       tFOR, tCOMPONENT, tUSE, tSHARED, tDEFAULT, tSEQUENCE,
+                       tPROPERTY, tENDPOINT);
+
+   if (has_decls) {
       while (not_at_token(tBEGIN))
          p_block_declarative_item(container);
       consume(tBEGIN);

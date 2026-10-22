@@ -403,6 +403,20 @@ START_TEST(test_sem2)
 }
 END_TEST
 
+START_TEST(test_issue1694)
+{
+   set_standard(STD_08);
+
+   opt_set_int(OPT_PSL_COMMENTS, 1);
+
+   input_from_file(TESTDIR "/psl/issue1694.vhd");
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_psl_tests(void)
 {
    Suite *s = suite_create("psl");
@@ -418,6 +432,7 @@ Suite *get_psl_tests(void)
    tcase_add_test(tc_core, test_issue1001);
    tcase_add_test(tc_core, test_clock1);
    tcase_add_test(tc_core, test_sem2);
+   tcase_add_test(tc_core, test_issue1694);
    suite_add_tcase(s, tc_core);
 
    return s;
