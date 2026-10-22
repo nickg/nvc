@@ -12859,9 +12859,8 @@ lower_unit_t *lower_instance(unit_registry_t *ur, lower_unit_t *parent,
          }
          break;
       case T_PSL_DIRECT:
-         unit_registry_defer(ur, ident_prefix(sym_prefix, tree_ident(s), '.'),
-                             lu, emit_property, psl_lower_directive,
-                             cover, tree_to_object(s));
+         psl_lower_directive(ur, lu, cover, s,
+                             ident_prefix(sym_prefix, tree_ident(s), '.'));
          break;
       case T_BLOCK:
          break;

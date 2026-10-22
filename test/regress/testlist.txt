@@ -1488,3 +1488,4 @@ specify2        verilog,fail,gold
 specify3        verilog,fail,gold
 specify4        verilog,fail,gold
 specify5        verilog,fail,gold
+issue1693       normal,psl,2008
