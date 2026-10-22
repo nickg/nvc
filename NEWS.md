@@ -11,6 +11,7 @@
   `$removal` timing checks (from @Blebowski).
 - Fixed a crash when a PSL directive has an inline clock expression
   (#1693).
+- PSL declarations are now accepted in generate blocks (#1694).
 - Several other minor bugs were resolved (#1663, #1672, #1668, #1670,
   #1678, #1686, #1687, #1692).
 
