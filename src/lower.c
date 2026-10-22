@@ -10178,6 +10178,26 @@ static void lower_subprogram_default(lower_unit_t *lu, object_t *obj)
       emit_return(result_reg);
 }
 
+static void lower_subprogram_defaults(lower_unit_t *lu, tree_t d)
+{
+   const int nports = tree_ports(d);
+   for (int i = 0; i < nports; i++) {
+      tree_t p = tree_port(d, i);
+      if (!tree_has_value(p))
+         continue;
+
+      tree_t value = tree_value(p);
+      if (is_literal(value) || tree_kind(value) == T_STRING)
+         continue;
+
+      ident_t def_func = ident_sprintf("%s$default_%s", istr(tree_ident2(d)),
+                                       istr(tree_ident(p)));
+      unit_registry_defer(lu->registry, def_func, lu,
+                          emit_function, lower_subprogram_default,
+                          lu->cover, tree_to_object(p));
+   }
+}
+
 static void lower_decls(lower_unit_t *lu, tree_t scope, gen_stack_t *gs)
 {
    const bool use_mir = opt_get_int(OPT_LOWER_MIR);
@@ -10203,6 +10223,7 @@ static void lower_decls(lower_unit_t *lu, tree_t scope, gen_stack_t *gs)
 
             // May need to access generics in outer scope
             lower_generics(lu, d, src);
+            lower_subprogram_defaults(lu, d);
          }
          // Fall-through
       case T_FUNC_BODY:
@@ -10228,6 +10249,7 @@ static void lower_decls(lower_unit_t *lu, tree_t scope, gen_stack_t *gs)
 
             // May need to access generics in outer scope
             lower_generics(lu, d, src);
+            lower_subprogram_defaults(lu, d);
          }
          // Fall-through
       case T_PROC_BODY:
@@ -10256,23 +10278,7 @@ static void lower_decls(lower_unit_t *lu, tree_t scope, gen_stack_t *gs)
         {
            const subprogram_kind_t kind = tree_subkind(d);
            if (kind == S_USER) {
-              const int nports = tree_ports(d);
-              for (int i = 0; i < nports; i++) {
-                 tree_t p = tree_port(d, i);
-                 if (!tree_has_value(p))
-                    continue;
-
-                 tree_t value = tree_value(p);
-                 if (is_literal(value) || tree_kind(value) == T_STRING)
-                    continue;
-
-                 ident_t def_func = ident_sprintf("%s$default_%s",
-                                                  istr(tree_ident2(d)),
-                                                  istr(tree_ident(p)));
-                 unit_registry_defer(lu->registry, def_func, lu,
-                                     emit_function, lower_subprogram_default,
-                                     lu->cover, tree_to_object(p));
-              }
+              lower_subprogram_defaults(lu, d);
 
               lower_put_vcode_obj(d, 0, lu);   // Dummy value
               continue;
