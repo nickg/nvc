@@ -13,7 +13,7 @@
   (#1693).
 - PSL declarations are now accepted in generate blocks (#1694).
 - Several other minor bugs were resolved (#1663, #1672, #1668, #1670,
-  #1678, #1686, #1687, #1692).
+  #1678, #1686, #1687, #1692, #1695).
 
 ## Version 1.23.0 - 2026-09-19
 - Added basic support for System Verilog assignment pattern expressions.
