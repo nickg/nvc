@@ -289,6 +289,7 @@ typedef enum {
    W_DLR_CEIL,
    W_DLR_FLOOR,
    W_COUNTERS,
+   W_TIMING_CHECKS_ON,
 
    NUM_WELL_KNOWN
 } well_known_t;

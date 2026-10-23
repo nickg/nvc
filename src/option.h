@@ -82,6 +82,7 @@ typedef enum {
    OPT_RA_VERBOSE,
    OPT_EXCL_VERBOSE,
    OPT_LOWER_MIR,
+   OPT_NO_TCHECKS,
 
    OPT_LAST_NAME
 } opt_name_t;
