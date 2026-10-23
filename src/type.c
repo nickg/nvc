@@ -1002,9 +1002,9 @@ int type_bit_width(type_t type)
    case T_INTEGER:
    case T_PHYSICAL:
       {
-         tree_t r = range_of(type, 0);
-         return bits_for_range(assume_int(tree_left(r)),
-                               assume_int(tree_right(r)));
+         int64_t low, high;
+         range_bounds(range_of(type, 0), &low, &high);
+         return bits_for_range(low, high);
       }
    case T_REAL:
        // All real types are doubles at the moment

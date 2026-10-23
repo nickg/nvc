@@ -1490,4 +1490,5 @@ specify4        verilog,fail,gold
 specify5        verilog,fail,gold
 issue1693       normal,psl,2008
 issue1695       normal,2008
+signal38        normal,2008
 vhpi23          vhpi
