@@ -28,6 +28,7 @@
 #include "rt/assert.h"
 #include "rt/defs.h"
 #include "type.h"
+#include "option.h"
 #include "vlog/vlog-defs.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
@@ -3635,6 +3636,9 @@ static mir_value_t vlog_lower_tcheck_event(vlog_gen_t *g, vlog_node_t v)
 
 static void vlog_lower_tcheck(vlog_gen_t *g, vlog_node_t tcheck)
 {
+   if (opt_get_int(OPT_NO_TCHECKS) == 1)
+      return;
+
    vlog_tcheck_kind_t tkind = vlog_subkind(tcheck);
 
    switch (tkind) {

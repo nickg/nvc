@@ -4901,6 +4901,9 @@ int32_t *x_get_counters(jit_handle_t handle)
 
 void x_timing_check(int64_t stamp, int64_t limit, object_t *where)
 {
+   if (opt_get_int(OPT_NO_TCHECKS) == 1)
+      return;
+
    diag_t *d = diag_new(DIAG_ERROR, &(where->loc));
 
    vlog_node_t v = vlog_from_object(where);

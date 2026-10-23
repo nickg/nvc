@@ -20,6 +20,7 @@
 #include "ident.h"
 #include "lib.h"
 #include "object.h"
+#include "option.h"
 #include "parse.h"
 #include "scan.h"
 #include "vlog/vlog-node.h"
@@ -6719,8 +6720,12 @@ static void p_specify_item(vlog_node_t parent)
    case tDLRPERIOD:
       {
          vlog_node_t tcheck = p_system_timing_check();
+
          // TODO: Remove once all timing checks are supported.
-         if (tcheck != NULL)
+         if (tcheck == NULL)
+            return;
+
+         if (opt_get_int(OPT_NO_TCHECKS) == 0)
             vlog_add_stmt(parent, tcheck);
       }
       break;

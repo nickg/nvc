@@ -1174,6 +1174,29 @@ static tree_t elab_parse_generic_string(tree_t generic, const char *str)
             type);
 }
 
+static bool elab_override_vital_tcheck_on(tree_t g)
+{
+   if (opt_get_int(OPT_NO_TCHECKS) == 0)
+      return false;
+
+   if (!type_eq(tree_type(g), std_type(NULL, STD_BOOLEAN)))
+      return false;
+
+   return ident_casecmp(tree_ident(g), well_known(W_TIMING_CHECKS_ON));
+}
+
+static tree_t elab_vital_tchecks_false(tree_t g)
+{
+   INIT_ONCE(note_at(tree_loc(g), "disabling VITAL timing check"));
+
+   tree_t f = tree_new(T_LITERAL);
+   tree_set_subkind(f, L_INT);
+   tree_set_type(f, std_type(NULL, STD_BOOLEAN));
+   tree_set_ival(f, 0);
+   tree_set_loc(f, tree_loc(g));
+   return f;
+}
+
 static tree_t elab_find_generic_override(tree_t g, const elab_ctx_t *ctx)
 {
    if (generic_override == NULL)
@@ -1201,7 +1224,7 @@ static tree_t elab_find_generic_override(tree_t g, const elab_ctx_t *ctx)
 
 static tree_t elab_override_instance_generics(tree_t t, const elab_ctx_t *ctx)
 {
-   if (generic_override == NULL)
+   if (generic_override == NULL && opt_get_int(OPT_NO_TCHECKS) != 1)
       return t;
 
    ident_t prefix = tree_ident(t);
@@ -1233,6 +1256,17 @@ static tree_t elab_override_instance_generics(tree_t t, const elab_ctx_t *ctx)
            *it && !ident_casecmp((*it)->name, qual);
            it = &((*it)->next))
          ;
+
+      if (*it == NULL && elab_override_vital_tcheck_on(g)) {
+         tree_t m2 = tree_new(T_PARAM);
+         tree_set_loc(m2, tree_loc(g));
+         tree_set_subkind(m2, P_POS);
+         tree_set_pos(m2, i);
+         tree_set_value(m2, elab_vital_tchecks_false(g));
+
+         tree_add_genmap(new, m2);
+         continue;
+      }
 
       if (*it == NULL)
          tree_add_genmap(new, m);
@@ -1271,6 +1305,13 @@ static void elab_generics(tree_t entity, tree_t bind, elab_ctx_t *ctx)
          map = tree_genmap(bind, i);
          assert(tree_subkind(map) == P_POS);
          assert(tree_pos(map) == i);
+      }
+      else if (elab_override_vital_tcheck_on(g)) {
+         map = tree_new(T_PARAM);
+         tree_set_loc(map, tree_loc(g));
+         tree_set_subkind(map, P_POS);
+         tree_set_pos(map, i);
+         tree_set_value(map, elab_vital_tchecks_false(g));
       }
       else if (tree_has_value(g)) {
          map = tree_new(T_PARAM);
@@ -2759,6 +2800,9 @@ static tree_t elab_top_level_binding(tree_t arch, const elab_ctx_t *ctx)
       }
 
       tree_t value = elab_find_generic_override(g, ctx);
+      if (value == NULL && elab_override_vital_tcheck_on(g))
+         value = elab_vital_tchecks_false(g);
+
       if (value == NULL && tree_has_value(g))
          value = tree_value(g);
       else if (value == NULL) {
