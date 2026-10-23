@@ -3412,6 +3412,42 @@ static bool vhpi_scalar_fits_format(vhpiFormatT format, int size)
    }
 }
 
+static void vhpi_read_ints(type_t t, const void *data, uint32_t offset,
+                           int count, vhpiIntT *out)
+{
+   // Must match the representation chosen by lower_type
+   int64_t low = INT64_MIN, high = INT64_MAX;
+   folded_bounds(type_dim(type_base_recur(t), 0), &low, &high);
+
+#define READ_INTS(type) do {                            \
+      const type *p = (const type *)data + offset;      \
+      for (int i = 0; i < count; i++)                   \
+         out[i] = p[i];                                 \
+   } while (0)
+
+   switch (bits_for_range(low, high)) {
+   case 1:
+   case 8:
+      if (low < 0)
+         READ_INTS(int8_t);
+      else
+         READ_INTS(uint8_t);
+      break;
+   case 16:
+      if (low < 0)
+         READ_INTS(int16_t);
+      else
+         READ_INTS(uint16_t);
+      break;
+   case 32:
+      READ_INTS(int32_t);
+      break;
+   default:
+      READ_INTS(int64_t);
+      break;
+   }
+}
+
 static int vhpi_to_string(c_typeDecl *td, int64_t scalar, int num_elems,
                           const void *ptr, uint32_t offset, vhpiValueT *value_p)
 {
@@ -3534,7 +3570,11 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       FOR_ALL_SIZES(td->elem_bytes, READ_ENUM);
       break;
    case vhpiIntVal:
-      scalar = ((const vhpiIntT *)ptr.data)[ptr.offset];
+      {
+         vhpiIntT value;
+         vhpi_read_ints(td->type, ptr.data, ptr.offset, 1, &value);
+         scalar = value;
+      }
       break;
    case vhpiLongIntVal:
       scalar = ((const vhpiLongIntT *)ptr.data)[ptr.offset];
@@ -3679,13 +3719,8 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
          value_p->numElems = num_elems;
 
-#define READ_INTGS(type) do {                                         \
-            const type *p = ((const type *)ptr.data) + ptr.offset;    \
-            for (int i = 0; i < value_p->numElems; i++)               \
-               value_p->value.intgs[i] = *p++;                        \
-         } while (0)
-
-         FOR_ALL_SIZES(td->elem_bytes, READ_INTGS);
+         vhpi_read_ints(type_elem_recur(td->type), ptr.data, ptr.offset,
+                        num_elems, value_p->value.intgs);
 
          return 0;
       }
