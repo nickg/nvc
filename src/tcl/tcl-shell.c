@@ -635,6 +635,9 @@ static int shell_cmd_exit(ClientData cd, Tcl_Interp *interp,
    if (pos != objc)
       goto usage;
 
+   if (sh->model != NULL)
+      model_end(sh->model);
+
    if (sh->handler.exit != NULL)
       (*sh->handler.exit)(status, sh->handler.context);
 
@@ -925,6 +928,9 @@ tcl_shell_t *shell_new(tree_t top, jit_t *jit, rt_model_t *m)
 
 void shell_free(tcl_shell_t *sh)
 {
+   if (sh->model != NULL)
+      model_end(sh->model);
+
    hash_free(sh->namemap);
    printer_free(sh->printer);
    Tcl_DeleteInterp(sh->interp);

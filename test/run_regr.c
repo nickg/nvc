@@ -937,6 +937,9 @@ static bool run_test(test_t *test)
       if (test->heapsz != NULL)
          push_arg(&args, "-H%s", test->heapsz);
 
+      if (test->plugin != NULL)
+         push_arg(&args, "--load=%s", test->plugin);
+
       if (file_exists("%s/regress/%s.vhd", test_dir, test->name)) {
          push_arg(&args, "-a");
          push_arg(&args, "%s/regress/%s.vhd", test_dir, test->name);

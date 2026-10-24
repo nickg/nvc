@@ -12,6 +12,8 @@
 - Fixed a crash when a PSL directive has an inline clock expression
   (#1693).
 - PSL declarations are now accepted in generate blocks (#1694).
+- VHPI `vhpiCbEndOfSimulation` callbacks now run once when the
+  simulation ends rather than after every `run` command in the TCL shell.
 - Several other minor bugs were resolved (#1663, #1672, #1668, #1670,
   #1678, #1686, #1687, #1692, #1695).
 

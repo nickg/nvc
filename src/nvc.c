@@ -1154,6 +1154,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
                          enable_ieee_warnings_cb, state);
 
    model_run(state->model, stop_time);
+   model_end(state->model);
 
    set_ctrl_c_handler(NULL, NULL);
 
