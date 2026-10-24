@@ -455,6 +455,8 @@ typedef struct {
 typedef struct {
    c_designInstUnit designInstUnit;
    c_stmt           stmt;
+   tree_t           outer;   // the instance block itself; region.object.tree is the inner block
+   vhpiCharT       *CompName;
 } c_compInstStmt;
 
 DEF_CLASS(compInstStmt, vhpiCompInstStmtK, designInstUnit.region.object);
@@ -2343,6 +2345,14 @@ static c_abstractRegion *vhpi_get_region(rt_scope_t *s)
             c_abstractRegion *r = is_abstractRegion(list->items[i]);
             if (r != NULL && r->object.tree == s->where)
                return r;
+
+            // A component instance has two runtime scopes, the instance block
+            // and the inner entity block, but one region whose tree is the
+            // inner block: match the outer scope to that region too, so
+            // lookups from inside component instances succeed.
+            c_compInstStmt *ci = is_compInstStmt(list->items[i]);
+            if (ci != NULL && ci->outer == s->where)
+               return &(ci->designInstUnit.region);
          }
 
          return NULL;
@@ -3243,6 +3253,14 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
          c_designUnit *du = is_designUnit(obj);
          if (du != NULL)
             return du->UnitName;
+
+         goto missing_property;
+      }
+   case vhpiCompNameP:
+      {
+         c_compInstStmt *ci = is_compInstStmt(obj);
+         if (ci != NULL && ci->CompName != NULL)
+            return ci->CompName;
 
          goto missing_property;
       }
@@ -4644,6 +4662,11 @@ static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
    c_compInstStmt *c = new_object(sizeof(c_compInstStmt), vhpiCompInstStmtK);
    init_designInstUnit(&(c->designInstUnit), region, t, du);
    init_stmt(&(c->stmt), t);
+   c->outer = t;
+
+   // The component's name is what an unbound instance can be identified by
+   if (tree_kind(inst) == T_COMPONENT)
+      c->CompName = new_string(istr(tree_ident(inst)));
 
    // Make sure all lookups happen in the implicit inner region
    (void)vhpi_get_name(&c->designInstUnit.region.object);
