@@ -716,6 +716,7 @@ static int wrap_get_value(ClientData cd, Tcl_Interp *interp,
    case vhpiLogicVecVal:
    case vhpiSmallEnumVal:
    case vhpiEnumVal:
+   case vhpiStrVal:
       {
          vhpiCharT smallbuf[16];
          val.value.str = smallbuf;
@@ -742,6 +743,12 @@ static int wrap_get_value(ClientData cd, Tcl_Interp *interp,
    case vhpiLongIntVal:
       {
          Tcl_Obj *obj = Tcl_NewIntObj(val.value.longintg);
+         Tcl_SetObjResult(interp, obj);
+         return TCL_OK;
+      }
+   case vhpiRealVal:
+      {
+         Tcl_Obj *obj = Tcl_NewDoubleObj(val.value.real);
          Tcl_SetObjResult(interp, obj);
          return TCL_OK;
       }
