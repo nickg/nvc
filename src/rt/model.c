@@ -116,6 +116,8 @@ typedef struct _rt_model {
    bool               next_is_delta;
    bool               force_stop;
    bool               blocking_update;
+   bool               started;
+   bool               ended;
    unsigned           n_signals;
    heap_t            *eventq_heap;
    ihash_t           *res_memo;
@@ -3413,10 +3415,26 @@ void model_run(rt_model_t *m, uint64_t stop_time)
    if (m->force_stop)
       return;   // Was error during intialisation
 
-   run_callbacks(m, START_OF_SIMULATION);
+   if (!m->started) {
+      m->started = true;
+      run_callbacks(m, START_OF_SIMULATION);
+   }
 
    while (!should_stop_now(m, stop_time))
       model_cycle(m);
+}
+
+void model_end(rt_model_t *m)
+{
+   MODEL_ENTRY(m);
+
+   // A simulation may be run in several steps, for example by repeated
+   // "run" commands in the shell: it ends once, when its host is done
+   // with it, not each time model_run returns
+   if (!m->started || m->ended)
+      return;
+
+   m->ended = true;
 
    run_callbacks(m, END_OF_SIMULATION);
 
