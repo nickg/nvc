@@ -457,6 +457,7 @@ typedef struct {
    c_designInstUnit designInstUnit;
    c_stmt           stmt;
    tree_t           outer;
+   vhpiCharT       *CompName;
 } c_compInstStmt;
 
 DEF_CLASS(compInstStmt, vhpiCompInstStmtK, designInstUnit.region.object);
@@ -3252,6 +3253,14 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
 
          goto missing_property;
       }
+   case vhpiCompNameP:
+      {
+         c_compInstStmt *ci = is_compInstStmt(obj);
+         if (ci != NULL && ci->CompName != NULL)
+            return ci->CompName;
+
+         goto missing_property;
+      }
    case vhpiStrValP:
       {
          c_argv *arg = is_argv(obj);
@@ -4677,6 +4686,10 @@ static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
    init_designInstUnit(&(c->designInstUnit), region, t, du);
    init_stmt(&(c->stmt), t);
    c->outer = t;
+
+   // The component's name is what an unbound instance can be identified by
+   if (tree_kind(inst) == T_COMPONENT)
+      c->CompName = new_string(istr(tree_ident(inst)));
 
    // Make sure all lookups happen in the implicit inner region
    (void)vhpi_get_name(&c->designInstUnit.region.object);
