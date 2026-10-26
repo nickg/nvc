@@ -877,9 +877,6 @@ tcl_shell_t *shell_new(tree_t top, jit_t *jit, rt_model_t *m)
    if (Tcl_Init(sh->interp) != 0)
       fatal("%s", Tcl_GetStringResult(sh->interp));
 
-   // The variables tclsh sets, for packages that expect them (tcllib's
-   // cmdline builds its usage text from argv0); nvc owns its own command
-   // line so there are no script arguments
    Tcl_SetVar2(sh->interp, "argv0", NULL, "nvc", TCL_GLOBAL_ONLY);
    Tcl_SetVar2(sh->interp, "argc", NULL, "0", TCL_GLOBAL_ONLY);
    Tcl_SetVar2(sh->interp, "argv", NULL, "", TCL_GLOBAL_ONLY);
