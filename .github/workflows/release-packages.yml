@@ -39,6 +39,43 @@ jobs:
           name: 'ubuntu-${{matrix.version}} package'
           path: nvc_${{ env.VERSION }}-1_amd64_ubuntu-${{ matrix.version }}.deb
 
+  pkg-debian:
+    name: Package for Debian
+    strategy:
+      matrix:
+        include:
+          - { version: 12 }
+          - { version: 13 }
+    runs-on: ubuntu-latest
+    container:
+      image: debian:${{matrix.version}}
+    steps:
+      - name: Install packaging tools
+        run: |
+          apt-get -y update
+          DEBIAN_FRONTEND=noninteractive apt-get -y install \
+            --no-install-recommends git ca-certificates dpkg-dev
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - name: Get version
+        id: version
+        run: |
+          vers=$(sed -n '1s/AC_INIT(\[.*\], \[\([0-9\.]*\).*\].*/\1/p' configure.ac)
+          echo "VERSION=$vers" >> $GITHUB_ENV
+      - name: Build Debian package
+        run: |
+          ln -s contrib/debian debian
+          DEBIAN_FRONTEND=noninteractive apt-get -y build-dep ./
+          sed -i 's/nvc (.*)/nvc (${{ env.VERSION }}-1)/' debian/changelog
+          dpkg-buildpackage -uc -us -b
+          mv ../nvc_${{ env.VERSION }}-1_amd64.deb nvc_${{ env.VERSION }}-1_amd64_debian-${{ matrix.version }}.deb
+      - name: 'Upload artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: 'debian-${{matrix.version}} package'
+          path: nvc_${{ env.VERSION }}-1_amd64_debian-${{ matrix.version }}.deb
+
   msi-installer:
     name: Windows installer
     runs-on: windows-2022
