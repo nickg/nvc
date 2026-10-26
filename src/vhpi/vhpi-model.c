@@ -149,6 +149,7 @@ typedef struct tag_typeDecl {
    ptrdiff_t       offset;
    vhpiFormatT     format;
    bool            homogeneous;
+   bool            issigned;
    uint8_t         elem_bytes;
    const char     *map_str;
    vhpiBooleanT    IsComposite;
@@ -3417,6 +3418,25 @@ static bool vhpi_scalar_fits_format(vhpiFormatT format, int size)
    }
 }
 
+static void vhpi_read_ints(c_typeDecl *td, const void *data, uint32_t offset,
+                           int count, vhpiIntT *out)
+{
+   c_typeDecl *base = vhpi_get_base_type(&td->decl.object);
+   assert(base != NULL);
+
+#define READ_INT(type) out[i] = *((const type *)data + offset + i);
+#define READ_UINT(type) out[i] = *((const u##type *)data + offset + i);
+
+   if (base->issigned) {
+      for (int i = 0; i < count; i++)
+         FOR_ALL_SIZES(base->elem_bytes, READ_INT);
+   }
+   else {
+      for (int i = 0; i < count; i++)
+         FOR_ALL_SIZES(base->elem_bytes, READ_UINT);
+   }
+}
+
 static int vhpi_to_string(c_typeDecl *td, int64_t scalar, int num_elems,
                           const void *ptr, uint32_t offset, vhpiValueT *value_p)
 {
@@ -3539,7 +3559,11 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       FOR_ALL_SIZES(td->elem_bytes, READ_ENUM);
       break;
    case vhpiIntVal:
-      scalar = ((const vhpiIntT *)ptr.data)[ptr.offset];
+      {
+         vhpiIntT value;
+         vhpi_read_ints(td, ptr.data, ptr.offset, 1, &value);
+         scalar = value;
+      }
       break;
    case vhpiLongIntVal:
       scalar = ((const vhpiLongIntT *)ptr.data)[ptr.offset];
@@ -3684,13 +3708,9 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
          value_p->numElems = num_elems;
 
-#define READ_INTGS(type) do {                                         \
-            const type *p = ((const type *)ptr.data) + ptr.offset;    \
-            for (int i = 0; i < value_p->numElems; i++)               \
-               value_p->value.intgs[i] = *p++;                        \
-         } while (0)
-
-         FOR_ALL_SIZES(td->elem_bytes, READ_INTGS);
+         c_typeDecl *etd = vhpi_get_elem_type(&td->decl.object);
+         vhpi_read_ints(etd, ptr.data, ptr.offset, num_elems,
+                        value_p->value.intgs);
 
          return 0;
       }
@@ -4327,7 +4347,14 @@ static c_typeDecl *build_typeDecl(tree_t decl, c_abstractRegion *region)
          c_vhpiObject *tobj = &(td->scalar.typeDecl.decl.object);
          vhpi_list_add(&(region->Decls.list), tobj);
 
-         td->constraint = &(build_int_range(range_of(type, 0))->range);
+         tree_t r = range_of(type, 0);
+         td->constraint = &(build_int_range(r)->range);
+
+         int64_t low, high;
+         if (folded_bounds(r, &low, &high))
+            td->scalar.typeDecl.issigned = low < 0;
+         else
+            td->scalar.typeDecl.issigned = true;
 
          return &(td->scalar.typeDecl);
       }
