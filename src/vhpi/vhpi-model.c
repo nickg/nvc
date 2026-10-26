@@ -455,7 +455,7 @@ typedef struct {
 typedef struct {
    c_designInstUnit designInstUnit;
    c_stmt           stmt;
-   tree_t           outer;  // instance; region.object.tree is the inner block
+   tree_t           outer;
 } c_compInstStmt;
 
 DEF_CLASS(compInstStmt, vhpiCompInstStmtK, designInstUnit.region.object);
@@ -2345,10 +2345,6 @@ static c_abstractRegion *vhpi_get_region(rt_scope_t *s)
             if (r != NULL && r->object.tree == s->where)
                return r;
 
-            // A component instance has two runtime scopes, the instance block
-            // and the inner entity block, but one region whose tree is the
-            // inner block: match the outer scope to that region too, so
-            // lookups from inside component instances succeed.
             c_compInstStmt *ci = is_compInstStmt(list->items[i]);
             if (ci != NULL && ci->outer == s->where)
                return &(ci->designInstUnit.region);
