@@ -34,6 +34,15 @@ START_TEST(test_sanity)
    fail_unless(shell_eval(sh, "set tcl_interactive", &result));
    ck_assert_str_eq(result, "0");
 
+   fail_unless(shell_eval(sh, "set argv0", &result));
+   ck_assert_str_eq(result, "nvc");
+
+   fail_unless(shell_eval(sh, "set argc", &result));
+   ck_assert_str_eq(result, "0");
+
+   fail_unless(shell_eval(sh, "set argv", &result));
+   ck_assert_str_eq(result, "");
+
    shell_free(sh);
 }
 END_TEST
