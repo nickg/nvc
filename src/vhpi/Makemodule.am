@@ -10,4 +10,4 @@ lib_libnvc_a_SOURCES += \
 include_HEADERS += src/vhpi/vhpi_user.h src/vhpi/vhpi_ext_nvc.h
 
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = src/vhpi/nvc.pc
+pkgconfig_DATA = contrib/nvc.pc

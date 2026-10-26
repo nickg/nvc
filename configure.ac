@@ -493,5 +493,5 @@ ARFLAGS="${ARFLAGS:-cr}"
 AC_SUBST(ARFLAGS)
 
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_FILES([Makefile src/vhpi/nvc.pc])
+AC_CONFIG_FILES([Makefile contrib/nvc.pc])
 AC_OUTPUT
