@@ -1487,3 +1487,4 @@ issue1693       normal,psl,2008
 issue1695       normal,2008
 signal38        normal,2008
 issue1700       normal,2019
+vhpi25          vhpi
