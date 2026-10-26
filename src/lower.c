@@ -6997,18 +6997,18 @@ static void lower_for(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
       vcode_select_block(loop.test_bb);
    }
 
-   vcode_reg_t rightn_reg = right_reg;
-   if (right_var != VCODE_INVALID_VAR)
-      rightn_reg = emit_load(right_var);
-
-   vcode_reg_t stepn_reg = step_reg;
-   if (step_var != VCODE_INVALID_VAR)
-      stepn_reg = emit_load(step_var);
-
-   if (ireg == VCODE_INVALID_REG)
-      ireg = emit_load(ivar);
-
    if (!vcode_block_finished()) {
+      vcode_reg_t rightn_reg = right_reg;
+      if (right_var != VCODE_INVALID_VAR)
+         rightn_reg = emit_load(right_var);
+
+      vcode_reg_t stepn_reg = step_reg;
+      if (step_var != VCODE_INVALID_VAR)
+         stepn_reg = emit_load(step_var);
+
+      if (ireg == VCODE_INVALID_REG)
+         ireg = emit_load(ivar);
+
       vcode_reg_t next_reg = emit_add(ireg, stepn_reg);
       emit_store(next_reg, ivar);
 

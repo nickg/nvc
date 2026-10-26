@@ -7194,6 +7194,24 @@ START_TEST(test_issue1503)
 }
 END_TEST
 
+START_TEST(test_issue1707)
+{
+   input_from_file(TESTDIR "/lower/issue1707.vhd");
+
+   run_elab();
+
+   mir_unit_t *mu = find_unit2("WORK.REPRO.OUTER_PROC");
+
+   static const mir_match_t bb8[] = {
+      { MIR_OP_RESUME, LINK("WORK.REPRO.WAITS_A_BIT") },
+      { MIR_OP_RETURN },
+   };
+   mir_match(mu, 8, bb8);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -7359,6 +7377,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue1425);
    tcase_add_test(tc, test_types1);
    tcase_add_test(tc, test_issue1503);
+   tcase_add_test(tc, test_issue1707);
    suite_add_tcase(s, tc);
 
    return s;
