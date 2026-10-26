@@ -341,7 +341,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           repository: VUnit/vunit
-          ref: master
+          ref: v5.0.0-dev.15
           path: vunit
           submodules: recursive
           fetch-depth: 1
