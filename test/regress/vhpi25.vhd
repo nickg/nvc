@@ -1,7 +1,7 @@
-entity vhpi23 is
+entity vhpi25 is
 end entity;
 
-architecture test of vhpi23 is
+architecture test of vhpi25 is
     type u1_t is range 0 to 1;
     type u8_t is range 0 to 255;
     type s8_t is range -128 to 127;

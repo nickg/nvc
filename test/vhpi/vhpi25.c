@@ -70,7 +70,7 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
    vhpi_release_handle(root);
 }
 
-void vhpi23_startup(void)
+void vhpi25_startup(void)
 {
    vhpiCbDataT cb_data = {
       .reason = vhpiCbStartOfSimulation,
