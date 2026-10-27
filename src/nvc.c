@@ -409,6 +409,12 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
    if (state->registry == NULL)
       state->registry = unit_registry_new(state->mir);
 
+   if (state->model != NULL) {
+      // The model of an earlier elaboration or run lives in the JIT
+      model_free(state->model);
+      state->model = NULL;
+   }
+
    if (state->jit != NULL)
       jit_free(state->jit);
 
