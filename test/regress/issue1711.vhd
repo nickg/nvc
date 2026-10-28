@@ -10,6 +10,7 @@ begin
         variable s : string(1 to 0);
         constant k : string := s & s;
         constant m : string := "ab" & s;
+        constant n : string := s & "ab";
     begin
         c := a & b;
         assert c'length = 0;
@@ -17,6 +18,7 @@ begin
         assert f'length = 0;
         assert k'length = 0;
         assert m = "ab";
+        assert n = "ab";
         wait;
     end process;
 end architecture;
