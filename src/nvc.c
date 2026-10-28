@@ -66,7 +66,7 @@ typedef struct {
    bool             user_set_std;
    vhpi_context_t  *vhpi;
    vpi_context_t   *vpi;
-   const char      *plugins;
+   char            *plugins;
    rt_model_t      *model;
    cover_data_t    *cover;
    ident_t          top_level;
@@ -805,6 +805,16 @@ static vhdl_severity_t parse_severity(const char *str)
       fatal("invalid severity level: %s", str);
 }
 
+static char *append_plugin(char *plugins, const char *arg)
+{
+   if (plugins == NULL)
+      return xstrdup(arg);
+
+   char *new = xasprintf("%s,%s", plugins, arg);
+   free(plugins);
+   return new;
+}
+
 static void parse_exit_severity(const char *str)
 {
    const vhdl_severity_t s = parse_severity(optarg);
@@ -950,7 +960,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    uint64_t      stop_time = TIME_HIGH;
    const char   *wave_fname = NULL;
    const char   *gtkw_fname = NULL;
-   const char   *pli_plugins = NULL;
+   char         *pli_plugins LOCAL = NULL;
 
    static bool have_run = false;
    if (have_run)
@@ -1020,7 +1030,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
          wave_exclude_glob(optarg);
          break;
       case 'l':
-         pli_plugins = optarg;
+         pli_plugins = append_plugin(pli_plugins, optarg);
          break;
       case 'x':
          parse_exit_severity(optarg);
@@ -2681,7 +2691,7 @@ int main(int argc, char **argv)
          parse_stderr_severity(optarg);
          break;
       case 'l':
-         state.plugins = optarg;
+         state.plugins = append_plugin(state.plugins, optarg);
          break;
       case 'T':
          opt_set_str(OPT_PLI_TRACE, "1");
@@ -2750,6 +2760,8 @@ int main(int argc, char **argv)
 
    if (state.cover != NULL)
       cover_data_free(state.cover);
+
+   free(state.plugins);
 
    return ret;
 }
