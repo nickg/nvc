@@ -2867,10 +2867,16 @@ bool calculate_aggregate_bounds(tree_t expr, range_kind_t *kind,
             else if (folded_length(range_of(value_type, 0), &length)) {
                if (i == 0) {
                   int64_t ileft;
-                  if (folded_int(tree_left(base_r), &ileft))
-                     ilow = ihigh = ileft;
-                  else
+                  if (!folded_int(tree_left(base_r), &ileft))
                      return false;
+                  else if (dir == RANGE_TO) {
+                     ilow = ileft;
+                     ihigh = ileft + length - 1;
+                  }
+                  else {
+                     ihigh = ileft;
+                     ilow = ileft - length + 1;
+                  }
                }
                else if (dir == RANGE_TO) {
                   ilow = clow + pos;
