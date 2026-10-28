@@ -4661,6 +4661,7 @@ static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
    assert(tree_kind(t) == T_BLOCK);
 
    tree_t inner = t;
+   vhpiCharT *CompName = NULL;
    c_designUnit *du = NULL;
    switch (tree_kind(inst)) {
    case T_ARCH:
@@ -4676,6 +4677,7 @@ static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
 
          du = cached_designUnit(tree_ref(h));
       }
+      CompName = new_string(istr(tree_ident(inst)));
       break;
    default:
       fatal_trace("unexpected instance kind %s in build_compInstStmt",
@@ -4686,10 +4688,7 @@ static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
    init_designInstUnit(&(c->designInstUnit), region, t, du);
    init_stmt(&(c->stmt), t);
    c->outer = t;
-
-   // The component's name is what an unbound instance can be identified by
-   if (tree_kind(inst) == T_COMPONENT)
-      c->CompName = new_string(istr(tree_ident(inst)));
+   c->CompName = CompName;
 
    // Make sure all lookups happen in the implicit inner region
    (void)vhpi_get_name(&c->designInstUnit.region.object);
