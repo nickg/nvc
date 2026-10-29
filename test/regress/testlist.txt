@@ -1495,3 +1495,5 @@ tcl6            tcl
 issue1700       normal,2019
 vhpi23          vhpi
 vhpi25          vhpi
+cmdline22       shell
+cmdline23       shell,tcl
