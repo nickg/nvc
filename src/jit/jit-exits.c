@@ -272,6 +272,21 @@ void x_func_wait(void)
    jit_msg(NULL, DIAG_FATAL, "cannot wait inside %s", what);
 }
 
+static void *scalar_ptr(jit_scalar_t *value, size_t size)
+{
+   // The value is read as a SIZE byte object from the start of the
+   // scalar so move the least significant bytes there
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+   value->integer = (uint64_t)value->integer << ((sizeof(int64_t) - size) * 8);
+#endif
+   return &value->integer;
+}
+
+static void *signal_scalar_ptr(sig_shared_t *ss, jit_scalar_t *value)
+{
+   return scalar_ptr(value, container_of(ss, rt_signal_t, shared)->nexus.size);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Entry point from interpreter or JIT compiled code
 
@@ -501,7 +516,8 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          uint32_t      dst_count  = args[3].integer;
          bool          scalar     = args[4].integer;
 
-         const void *vptr = scalar ? &initval.integer : initval.pointer;
+         const void *vptr =
+            scalar ? signal_scalar_ptr(dst_ss, &initval) : initval.pointer;
 
          x_map_const(dst_ss, dst_offset, vptr, dst_count);
       }
@@ -660,7 +676,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          bool          scalar = args[4].integer;
 
          if (scalar)
-            x_force(shared, offset, count, &value.integer);
+            x_force(shared, offset, count, signal_scalar_ptr(shared, &value));
          else
             x_force(shared, offset, count, value.pointer);
       }
@@ -685,7 +701,8 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          bool          scalar = args[4].integer;
 
          if (scalar)
-            x_deposit_signal(shared, offset, count, &value.integer);
+            x_deposit_signal(shared, offset, count,
+                             signal_scalar_ptr(shared, &value));
          else
             x_deposit_signal(shared, offset, count, value.pointer);
       }
@@ -701,7 +718,8 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          int64_t       after  = args[5].integer;
 
          if (scalar)
-            x_sched_deposit(shared, offset, count, &value.integer, after);
+            x_sched_deposit(shared, offset, count,
+                            signal_scalar_ptr(shared, &value), after);
          else
             x_sched_deposit(shared, offset, count, value.pointer, after);
       }
@@ -716,7 +734,8 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          bool          scalar = args[4].integer;
 
          if (scalar)
-            x_put_driver(shared, offset, count, &value.integer);
+            x_put_driver(shared, offset, count,
+                         signal_scalar_ptr(shared, &value));
          else
             x_put_driver(shared, offset, count, value.pointer);
       }
@@ -816,7 +835,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          bool           scalar = args[4].integer;
 
          if (scalar)
-            x_file_write(_fp, &data.integer, size, count);
+            x_file_write(_fp, scalar_ptr(&data, size), size, count);
          else
             x_file_write(_fp, data.pointer, size, count);
       }

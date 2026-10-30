@@ -1453,9 +1453,12 @@ static void split_value(rt_nexus_t *nexus, rt_value_t *v_new,
       v_old->qword = *(uint64_t *)ext;
    }
    else {
-      // This trick with shifting probably only works on little-endian
-      // systems
+      // Shift the bytes after the split point to the start
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+      v_new->qword = v_old->qword << (split * 8);
+#else
       v_new->qword = v_old->qword >> (split * 8);
+#endif
    }
 }
 
@@ -4104,6 +4107,10 @@ void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, 1);
 
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+   scalar <<= (sizeof(scalar) - n->size) * 8;
+#endif
+
    sched_driver(m, n, after, reject, &scalar, proc);
 }
 
@@ -4120,6 +4127,10 @@ void x_sched_waveform_s0(sig_shared_t *ss, uint32_t offset, uint64_t scalar)
 
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, 1);
+
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+   scalar <<= (sizeof(scalar) - n->size) * 8;
+#endif
 
    sched_driver(m, n, 0, 0, &scalar, proc);
 }
