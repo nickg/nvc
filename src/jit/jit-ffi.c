@@ -359,7 +359,12 @@ static void jit_ghdl_entry(jit_func_t *f, jit_anchor_t *caller,
          case GHDL_ARG_DROP:
             break;
          case GHDL_ARG_PASS:
-            aptrs[opos++] = &(args[ipos].integer);
+            aptrs[opos] = &(args[ipos].integer);
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+            // Narrow integer arguments are the least significant bytes
+            aptrs[opos] += sizeof(int64_t) - gffi->cif.arg_types[opos]->size;
+#endif
+            opos++;
             break;
          case GHDL_ARG_LENGTH:
             args[ipos].integer = ffi_array_length(args[ipos].integer);
