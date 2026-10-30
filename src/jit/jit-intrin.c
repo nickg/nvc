@@ -539,6 +539,9 @@ __attribute__((always_inline))
 static inline uint8_t __pack_low_bits(const void* vec)
 {
    uint64_t bits = unaligned_load(vec, uint64_t);
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+   bits = __builtin_bswap64(bits);
+#endif
    bits &= UINT64_C(0x0101010101010101);
    bits *= UINT64_C(0x8040201008040201);
    return bits >> 56;
@@ -547,8 +550,14 @@ static inline uint8_t __pack_low_bits(const void* vec)
 __attribute__((always_inline))
 static inline void __spread_bits_8(void *vec, uint8_t packed)
 {
-   unaligned_store(vec + 0, spread_nibble[(packed >> 4) & 0xf], uint32_t);
-   unaligned_store(vec + 4, spread_nibble[(packed >> 0) & 0xf], uint32_t);
+   uint32_t hi = spread_nibble[(packed >> 4) & 0xf];
+   uint32_t lo = spread_nibble[(packed >> 0) & 0xf];
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+   hi = __builtin_bswap32(hi);
+   lo = __builtin_bswap32(lo);
+#endif
+   unaligned_store(vec + 0, hi, uint32_t);
+   unaligned_store(vec + 4, lo, uint32_t);
 }
 
 static inline uint64_t __pack_to_u64(const uint8_t *arr, int size)
