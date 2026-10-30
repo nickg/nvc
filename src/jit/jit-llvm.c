@@ -1537,6 +1537,13 @@ static void cgen_op_send(llvm_obj_t *obj, cgen_block_t *cgb, jit_ir_t *ir)
 
    LLVMValueRef value = cgen_get_value(obj, cgb, ir->arg2);
 
+   // Handles and exit numbers are 32-bit but must fill the whole
+   // argument slot as it is read back as a 64-bit integer
+   LLVMTypeRef type = LLVMTypeOf(value);
+   if (LLVMGetTypeKind(type) == LLVMIntegerTypeKind
+       && LLVMGetIntTypeWidth(type) < 64)
+      value = LLVMBuildZExt(obj->builder, value, obj->types[LLVM_INT64], "");
+
    LLVMValueRef ptr;
    if (nth < ARGCACHE_SIZE)
       ptr = cgb->func->argcache[nth];

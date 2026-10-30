@@ -2061,8 +2061,16 @@ static vhpi_ptr_t vhpi_get_ptr(c_vhpiObject *obj)
             c_varParamDecl *vpd = is_varParamDecl(obj);
             if (vpd != NULL && vpd->Mode != vhpiInMode)
                ptr.data = c->args[pd->argslot].pointer;
-            else
+            else {
                ptr.data = (void *)&(c->args[pd->argslot]);
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+               // Scalars passed by value are in the least significant
+               // bytes of the argument slot
+               if (td->IsScalar)
+                  ptr.data += sizeof(jit_scalar_t)
+                     - vhpi_get_base_type(obj)->elem_bytes;
+#endif
+            }
          }
       }
 
@@ -3766,6 +3774,12 @@ static void *vhpi_from_string(c_typeDecl *td, const vhpiValueT *value_p,
             free(mem);
             return NULL;
          }
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+         // The value is read from the start of the buffer so move the
+         // least significant bytes there
+         const int bytes = vhpi_get_base_type(&td->decl.object)->elem_bytes;
+         *mem = (uint64_t)*mem << ((sizeof(vhpiLongIntT) - bytes) * 8);
+#endif
          return mem;
       }
 
@@ -3866,8 +3880,14 @@ int vhpi_put_value(vhpiHandleT handle,
 
    case vhpiIntVal:
       num_elems = 1;
-      scalar.int64_t_val = value_p->value.intg;
-      src = &scalar;   // Assume little endian
+      src = &scalar;
+
+#define STORE_INT(type) do {                             \
+         scalar.type##_val = value_p->value.intg;        \
+      } while (0)
+
+      // Subtypes do not have elem_bytes set
+      FOR_ALL_SIZES(vhpi_get_base_type(obj)->elem_bytes, STORE_INT);
       break;
 
    case vhpiRealVal:
@@ -3983,10 +4003,26 @@ int vhpi_put_value(vhpiHandleT handle,
          case vhpiForcePropagate:
          case vhpiDeposit:
          case vhpiDepositPropagate:
-            if (td->IsScalar)
-               *(int64_t *)ptr.data = scalar.int64_t_val;
-            else
+            if (!td->IsScalar)
                memcpy(ptr.data, ext, num_elems * td->elem_bytes);
+            else if (obj->kind == vhpiFuncDeclK) {
+               // The result is returned in a whole argument slot
+               jit_scalar_t *result = ptr.data;
+               if (value_p->format == vhpiIntVal)
+                  result->integer = value_p->value.intg;
+               else if (value_p->format == vhpiRealVal)
+                  result->real = value_p->value.real;
+               else {
+#define WIDEN_SCALAR(type) do {                                    \
+                     result->integer = scalar.type##_val;          \
+                  } while (0)
+
+                  const int bytes = vhpi_get_base_type(obj)->elem_bytes;
+                  FOR_ALL_SIZES(bytes, WIDEN_SCALAR);
+               }
+            }
+            else
+               memcpy(ptr.data, src, vhpi_get_base_type(obj)->elem_bytes);
             return 0;
          case vhpiRelease:
             return 0;   // Specified to have no effect
