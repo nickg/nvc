@@ -1,23 +1,26 @@
 ## Unreleased changes
+- Logical operators on arrays and IEEE vectors now emit a warning if
+  their operands differ in length (from @NikLeberg) (#1667).
+- Added basic support for Verilog `$setup`, `$hold`, `$recovery`, and
+  `$removal` timing checks (from @Blebowski).
+- Added a `pkg-config` configuration file to aid locating the VHPI
+  headers (from @gsmecher).
+- Environment variables with braces like `{ENV}` are now supported in
+  the analysis `-f` file list (from @mak-gitdev).
+- Several other minor bugs were resolved (#1678).
+
+## Version 1.23.1 - 2026-10-28
 - Fixed a crash after a severity `failure` assertion failure during
   elaboration.
 - Aliases of globally static names are now correctly treated as globally
   static themselves (#1683).
 - Fixed connecting VHDL `std_logic_vector` signals to System Verilog
   `input logic` ports in mixed language simulation (#1681).
-- Logical operators on arrays and IEEE vectors now emit a warning if
-  their operands differ in length (from @NikLeberg) (#1667).
-- Added basic support for Verilog `$setup`, `$hold`, `$recovery`, and
-  `$removal` timing checks (from @Blebowski).
 - Fixed a crash when a PSL directive has an inline clock expression
   (#1693).
 - PSL declarations are now accepted in generate blocks (#1694).
-- Added a `pkg-config` configuration file to aid locating the VHPI
-  headers (from @gsmecher).
-- Environment variables with braces like `{ENV}` are now supported in
-  the analysis `-f` file list (from @mak-gitdev).
 - Several other minor bugs were resolved (#1663, #1672, #1668, #1670,
-  #1678, #1686, #1687, #1692, #1695, #1700, #1707).
+  #1686, #1687, #1692, #1695, #1700, #1707).
 
 ## Version 1.23.0 - 2026-09-19
 - Added basic support for System Verilog assignment pattern expressions.
