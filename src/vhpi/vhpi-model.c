@@ -457,6 +457,7 @@ typedef struct {
    c_designInstUnit designInstUnit;
    c_stmt           stmt;
    tree_t           outer;
+   vhpiCharT       *CompName;
 } c_compInstStmt;
 
 DEF_CLASS(compInstStmt, vhpiCompInstStmtK, designInstUnit.region.object);
@@ -3252,6 +3253,14 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property, vhpiHandleT handle)
 
          goto missing_property;
       }
+   case vhpiCompNameP:
+      {
+         c_compInstStmt *ci = is_compInstStmt(obj);
+         if (ci != NULL && ci->CompName != NULL)
+            return ci->CompName;
+
+         goto missing_property;
+      }
    case vhpiStrValP:
       {
          c_argv *arg = is_argv(obj);
@@ -4652,6 +4661,7 @@ static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
    assert(tree_kind(t) == T_BLOCK);
 
    tree_t inner = t;
+   vhpiCharT *CompName = NULL;
    c_designUnit *du = NULL;
    switch (tree_kind(inst)) {
    case T_ARCH:
@@ -4667,6 +4677,7 @@ static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
 
          du = cached_designUnit(tree_ref(h));
       }
+      CompName = new_string(istr(tree_ident(inst)));
       break;
    default:
       fatal_trace("unexpected instance kind %s in build_compInstStmt",
@@ -4677,6 +4688,7 @@ static c_abstractRegion *build_compInstStmt(tree_t t, tree_t inst,
    init_designInstUnit(&(c->designInstUnit), region, t, du);
    init_stmt(&(c->stmt), t);
    c->outer = t;
+   c->CompName = CompName;
 
    // Make sure all lookups happen in the implicit inner region
    (void)vhpi_get_name(&c->designInstUnit.region.object);
