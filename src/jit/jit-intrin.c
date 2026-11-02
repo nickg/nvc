@@ -193,6 +193,7 @@ __attribute__((aligned(16)))
 static const uint8_t lane_iota[16] = {
    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
 };
+#endif
 
 static const uint32_t spread_nibble[16] = {
    0x02020202, 0x03020202, 0x02030202, 0x03030202,
@@ -218,8 +219,6 @@ static const uint8_t spread_mask[16] = {
    0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01,
    0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01,
 };
-#endif
-
 #endif
 
 static void (*ieee_packed_add)(const uint8_t *, const uint8_t *,

@@ -75,6 +75,8 @@
 #define ARCH_I386 1
 #elif defined __aarch64__
 #define ARCH_ARM64 1
+#elif defined __powerpc64__
+#define ARCH_PPC64 1
 #endif
 
 #ifdef __MINGW32__
