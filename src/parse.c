@@ -525,10 +525,11 @@ static tree_t bit_string_to_literal(const char *str, const loc_t *loc)
    }
 
    enum { UNSIGNED, SIGNED } mode = UNSIGNED;
+   bool has_mode = false;
 
    switch (*p) {
-   case 'U': case 'u': mode = UNSIGNED; ++p; break;
-   case 'S': case 's': mode = SIGNED; ++p; break;
+   case 'U': case 'u': mode = UNSIGNED; has_mode = true; ++p; break;
+   case 'S': case 's': mode = SIGNED; has_mode = true; ++p; break;
    }
 
    char base_ch = *p++;
@@ -537,7 +538,14 @@ static tree_t bit_string_to_literal(const char *str, const loc_t *loc)
    case 'X': case 'x': base = 16; break;
    case 'O': case 'o': base = 8;  break;
    case 'B': case 'b': base = 2;  break;
-   case 'D': case 'd': base = 10; break;
+   case 'D': case 'd':
+      if (has_mode) {
+         parse_error(loc, "invalid base '%c' for %s bit string", base_ch,
+                     mode == SIGNED ? "signed" : "unsigned");
+         return t;
+      }
+      base = 10;
+      break;
    default:
       parse_error(loc, "invalid base '%c' for bit string", base_ch);
       return t;
@@ -652,7 +660,11 @@ static tree_t bit_string_to_literal(const char *str, const loc_t *loc)
       }
    }
 
-   if (pad == NULL && nbits < length)
+   if (mode == SIGNED && length > 0 && nbits == length
+       && tree_ident(bits[0]) != tree_ident(pad))
+      parse_error(CURRENT_LOC, "excess significant digits in bit string "
+                  "literal");
+   else if (pad == NULL && nbits < length)
       parse_error(CURRENT_LOC, "signed bit string literal cannot be an "
                   "empty string");
    else if (length >= 0) {
