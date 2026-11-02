@@ -1499,3 +1499,4 @@ vhpi25          vhpi
 cmdline22       shell
 cmdline23       shell,tcl
 issue1711       normal
+issue1637       normal,relaxed

@@ -7,6 +7,8 @@
   headers (from @gsmecher).
 - Environment variables with braces like `{ENV}` are now supported in
   the analysis `-f` file list (from @mak-gitdev).
+- Array aggregates with a non-locally static choice and an `others`
+  choice are now accepted with `--relaxed` (#1637).
 - Several other minor bugs were resolved (#1678, #1718).
 
 ## Version 1.23.1 - 2026-10-28
