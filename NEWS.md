@@ -14,6 +14,8 @@
 - PSL declarations are now accepted in generate blocks (#1694).
 - Added a `pkg-config` configuration file to aid locating the VHPI
   headers (from @gsmecher).
+- Environment variables with braces like `{ENV}` are now supported in
+  the analysis `-f` file list (from @mak-gitdev).
 - Several other minor bugs were resolved (#1663, #1672, #1668, #1670,
   #1678, #1686, #1687, #1692, #1695, #1700, #1707).
 
