@@ -7803,6 +7803,27 @@ START_TEST(test_issue1692)
 }
 END_TEST
 
+START_TEST(test_issue1718)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/issue1718.vhd");
+
+   const error_t expect[] = {
+      { 2, "excess significant digits in bit string literal" },
+      { 3, "excess significant digits in bit string literal" },
+      { 4, "invalid base 'd' for signed bit string" },
+      { 5, "invalid base 'd' for unsigned bit string" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -8014,6 +8035,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue1614);
    tcase_add_test(tc_core, test_visibility13);
    tcase_add_test(tc_core, test_issue1692);
+   tcase_add_test(tc_core, test_issue1718);
    suite_add_tcase(s, tc_core);
 
    return s;
