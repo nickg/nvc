@@ -370,6 +370,9 @@ void vhpi_load_plugins(const char *plugins)
    char *plugins_copy LOCAL = xstrdup(plugins);
 
    char *tok = strtok(plugins_copy, ",");
+   if (tok == NULL)
+      return;
+
    do {
       jit_dll_t *dll = ffi_load_dll(tok);
 

@@ -66,7 +66,7 @@ typedef struct {
    bool             user_set_std;
    vhpi_context_t  *vhpi;
    vpi_context_t   *vpi;
-   char            *plugins;
+   text_buf_t      *plugins;
    rt_model_t      *model;
    cover_data_t    *cover;
    ident_t          top_level;
@@ -825,16 +825,6 @@ static vhdl_severity_t parse_severity(const char *str)
       fatal("invalid severity level: %s", str);
 }
 
-static char *append_plugin(char *plugins, const char *arg)
-{
-   if (plugins == NULL)
-      return xstrdup(arg);
-
-   char *new = xasprintf("%s,%s", plugins, arg);
-   free(plugins);
-   return new;
-}
-
 static void parse_exit_severity(const char *str)
 {
    const vhdl_severity_t s = parse_severity(optarg);
@@ -976,11 +966,11 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
       { 0, 0, 0, 0 }
    };
 
-   wave_format_t wave_fmt = WAVE_FORMAT_FST;
-   uint64_t      stop_time = TIME_HIGH;
-   const char   *wave_fname = NULL;
-   const char   *gtkw_fname = NULL;
-   char         *pli_plugins LOCAL = NULL;
+   wave_format_t   wave_fmt = WAVE_FORMAT_FST;
+   uint64_t        stop_time = TIME_HIGH;
+   const char     *wave_fname = NULL;
+   const char     *gtkw_fname = NULL;
+   LOCAL_TEXT_BUF  pli_plugins = tb_new();
 
    static bool have_run = false;
    if (have_run)
@@ -1050,7 +1040,8 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
          wave_exclude_glob(optarg);
          break;
       case 'l':
-         pli_plugins = append_plugin(pli_plugins, optarg);
+         tb_append(pli_plugins, ',');
+         tb_cat(pli_plugins, optarg);
          break;
       case 'x':
          parse_exit_severity(optarg);
@@ -1161,7 +1152,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    if (nplusargs > 0)
       vhpi_set_plusargs(state->vhpi, nplusargs, plusargs);
 
-   if (pli_plugins != NULL || state->plugins != NULL) {
+   if (tb_len(pli_plugins) > 0 || tb_len(state->plugins) > 0) {
       vhpi_context_initialise(state->vhpi, top, state->model, state->jit);
       vpi_context_initialise(state->vpi, top, state->model, state->jit,
                              nplusargs, plusargs);
@@ -1169,8 +1160,8 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    else if (nplusargs > 0)
       warnf("found plusargs on command line but no VHPI plugin was loaded");
 
-   if (pli_plugins != NULL)
-      vhpi_load_plugins(pli_plugins);
+   if (tb_len(pli_plugins) > 0)
+      vhpi_load_plugins(tb_get(pli_plugins));
 
    set_ctrl_c_handler(ctrl_c_handler, state->model);
 
@@ -2658,7 +2649,7 @@ int main(int argc, char **argv)
    opterr = 0;
 
    const char *work_name = "work";
-   cmd_state_t state = {};
+   cmd_state_t state = { .plugins = tb_new() };
 
    const int next_cmd = scan_cmd(1, argc, argv);
    int c, index = 0;
@@ -2711,7 +2702,8 @@ int main(int argc, char **argv)
          parse_stderr_severity(optarg);
          break;
       case 'l':
-         state.plugins = append_plugin(state.plugins, optarg);
+         tb_append(state.plugins, ',');
+         tb_cat(state.plugins, optarg);
          break;
       case 'T':
          opt_set_str(OPT_PLI_TRACE, "1");
@@ -2750,13 +2742,13 @@ int main(int argc, char **argv)
          nplusargs++, optind++;
    }
 
-   if (state.plugins != NULL) {
+   if (tb_len(state.plugins) > 0) {
       state.vhpi = vhpi_context_new();
 
       if (nplusargs > 0)
          vhpi_set_plusargs(state.vhpi, nplusargs, plusargs);
 
-      vhpi_load_plugins(state.plugins);
+      vhpi_load_plugins(tb_get(state.plugins));
    }
    else if (nplusargs > 0)
       warnf("found plusargs on command line but no VHPI plugin was loaded");
@@ -2781,7 +2773,7 @@ int main(int argc, char **argv)
    if (state.cover != NULL)
       cover_data_free(state.cover);
 
-   free(state.plugins);
+   tb_free(state.plugins);
 
    return ret;
 }
