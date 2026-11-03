@@ -1499,4 +1499,5 @@ vhpi25          vhpi
 cmdline22       shell
 cmdline23       shell,tcl
 issue1711       normal
+vhpi26          vhpi,2008,plugin=siginit,+siginit+one
 issue1637       normal,relaxed
