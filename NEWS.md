@@ -7,7 +7,9 @@
   headers (from @gsmecher).
 - Environment variables with braces like `{ENV}` are now supported in
   the analysis `-f` file list (from @mak-gitdev).
-- Several other minor bugs were resolved (#1678, #1718).
+- `process(all)` sensitivity list construction now correctly checks
+  all nested subprograms instead of only procedures (#1721).
+- Several other minor bugs were resolved (#1678, #1718, #1685).
 
 ## Version 1.23.1 - 2026-10-28
 - Fixed a crash after a severity `failure` assertion failure during
