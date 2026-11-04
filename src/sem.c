@@ -3603,6 +3603,7 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
 
    bool have_named = false;
    bool have_pos = false;
+   int nother = 0;
 
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++) {
@@ -3643,6 +3644,7 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
          break;
 
       case A_OTHERS:
+         nother++;
          break;
       }
 
@@ -3682,12 +3684,6 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
 
    // If a choice is not locally static then it must be the only element
    // association, but allow an additional others choice with --relaxed
-
-   int nother = 0;
-   for (int i = 0; i < nassocs; i++) {
-      if (tree_subkind(tree_assoc(t, i)) == A_OTHERS)
-         nother++;
-   }
 
    const bool allow_others = relaxed_rules() && nother == nassocs - 1;
 
