@@ -5201,10 +5201,13 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
          if (tree_kind(value) == T_REF && tree_has_ref(value))
             pack = tree_ref(value);
 
-         if (pack == NULL || tree_kind(pack) != T_PACK_INST)
+         const bool formal = pack != NULL && tree_kind(pack) == T_GENERIC_DECL
+            && tree_class(pack) == C_PACKAGE;
+
+         if (pack == NULL || (tree_kind(pack) != T_PACK_INST && !formal))
             sem_error(value, "actual for generic %s is not an "
                       "instantiated package name", istr(tree_ident(decl)));
-         else if (!tree_has_ref(pack))
+         else if (!formal && !tree_has_ref(pack))
             return false;   // Was parse error
 
          tree_t map = tree_value(decl);
@@ -5213,7 +5216,7 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
 
          assert(tree_kind(map) == T_PACKAGE_MAP);
 
-         tree_t base = tree_ref(pack);
+         tree_t base = tree_ref(formal ? tree_value(pack) : pack);
          tree_t expect = tree_ref(map);
 
          if (tree_ident(base) != tree_ident(expect))
@@ -5221,7 +5224,10 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
                       "instance of %s for generic %s", istr(tree_ident(expect)),
                       istr(tree_ident(base)), istr(tree_ident(decl)));
 
-         map_generic_package(tab, expect, pack);
+         // A formal package is an instance of the same uninstantiated
+         // package so there is nothing to map
+         if (!formal)
+            map_generic_package(tab, expect, pack);
       }
       break;
 
