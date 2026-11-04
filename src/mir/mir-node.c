@@ -291,31 +291,42 @@ static node_data_t *mir_alloc_node(mir_unit_t *mu)
 {
    assert(!mir_is_null(mu->cursor.block));
 
-   node_data_t *n;
    block_data_t *bd = mir_block_data(mu, mu->cursor.block);
+   if (mu->cursor.pos < bd->num_nodes) {
+      node_data_t *n = &(mu->nodes[bd->nodes[mu->cursor.pos]]);
+      if (n->op == _MIR_DELETED_OP) {
+         mu->cursor.pos++;
+         return n;
+      }
+   }
+
+   if (bd->num_nodes == bd->max_nodes) {
+      bd->max_nodes = MAX(4, bd->num_nodes * 2);
+      bd->nodes = xrealloc_array(bd->nodes, bd->max_nodes,
+                                 sizeof(node_id_t));
+   }
+
+   if (mu->num_nodes == mu->max_nodes) {
+      mu->max_nodes = MAX(8, mu->num_nodes * 2);
+      mu->nodes = xrealloc_array(mu->nodes, mu->max_nodes,
+                                 sizeof(node_data_t));
+   }
+
+   const node_id_t id = mu->num_nodes++;
    if (mu->cursor.pos >= bd->num_nodes) {
-      // Append new node
-      if (bd->num_nodes == bd->max_nodes) {
-         bd->max_nodes = MAX(4, bd->num_nodes * 2);
-         bd->nodes = xrealloc_array(bd->nodes, bd->max_nodes,
-                                    sizeof(node_id_t));
-      }
-
-      if (mu->num_nodes == mu->max_nodes) {
-         mu->max_nodes = MAX(8, mu->num_nodes * 2);
-         mu->nodes = xrealloc_array(mu->nodes, mu->max_nodes,
-                                    sizeof(node_data_t));
-      }
-
-      bd->nodes[bd->num_nodes++] = mu->num_nodes;
-      n = &(mu->nodes[mu->num_nodes++]);
+      bd->nodes[bd->num_nodes++] = id;
+      if (mu->cursor.pos != MIR_APPEND)
+         mu->cursor.pos = bd->num_nodes;
    }
    else {
-      n = &(mu->nodes[bd->nodes[mu->cursor.pos]]);
-      assert(n->op == _MIR_DELETED_OP);
+      memmove(bd->nodes + mu->cursor.pos + 1,
+              bd->nodes + mu->cursor.pos,
+              (bd->num_nodes - mu->cursor.pos) * sizeof(node_id_t));
+      bd->nodes[mu->cursor.pos++] = id;
+      bd->num_nodes++;
    }
 
-   return n;
+   return &(mu->nodes[id]);
 }
 
 static size_t mir_spill_args(mir_unit_t *mu, unsigned num)

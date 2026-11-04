@@ -418,6 +418,36 @@ START_TEST(test_control1)
 }
 END_TEST
 
+START_TEST(test_insert1)
+{
+   mir_context_t *mc = mir_context_new();
+
+   mir_unit_t *mu = mir_unit_new(mc, ident_new("insert1"), NULL,
+                                 MIR_UNIT_FUNCTION, NULL);
+
+   mir_value_t before = mir_build_debug_locus(mu, NULL);
+   mir_value_t after = mir_build_debug_locus(mu, NULL);
+
+   mir_block_t block = mir_get_block(mu, 0);
+   mir_set_cursor(mu, block, 1);
+   mir_value_t insert1 = mir_build_debug_locus(mu, NULL);
+   mir_value_t insert2 = mir_build_debug_locus(mu, NULL);
+
+   ck_assert_int_eq(mir_count_nodes(mu, block), 4);
+   ck_assert(mir_equals(mir_get_node(mu, block, 0), before));
+   ck_assert(mir_equals(mir_get_node(mu, block, 1), insert1));
+   ck_assert(mir_equals(mir_get_node(mu, block, 2), insert2));
+   ck_assert(mir_equals(mir_get_node(mu, block, 3), after));
+
+   unsigned pos;
+   ck_assert(mir_equals(mir_get_cursor(mu, &pos), block));
+   ck_assert_int_eq(pos, 3);
+
+   mir_unit_free(mu);
+   mir_context_free(mc);
+}
+END_TEST
+
 START_TEST(test_gvn1)
 {
    mir_context_t *mc = mir_context_new();
@@ -1322,6 +1352,7 @@ Suite *get_mir_tests(void)
    tcase_add_test(tc, test_arith1);
    tcase_add_test(tc, test_real1);
    tcase_add_test(tc, test_control1);
+   tcase_add_test(tc, test_insert1);
    tcase_add_test(tc, test_gvn1);
    tcase_add_test(tc, test_dce1);
    tcase_add_test(tc, test_uarray1);
