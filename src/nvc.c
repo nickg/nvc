@@ -2629,20 +2629,21 @@ int main(int argc, char **argv)
    atexit(fbuf_cleanup);
 
    static struct option long_options[] = {
-      { "help",          no_argument,       0, 'h' },
-      { "version",       no_argument,       0, 'v' },
-      { "work",          required_argument, 0, 'w' },
-      { "std",           required_argument, 0, 's' },
-      { "messages",      required_argument, 0, 'I' },
-      { "map",           required_argument, 0, 'p' },
-      { "ieee-warnings", required_argument, 0, 'W' },
-      { "ignore-time",   no_argument,       0, 'i' },
-      { "force-init",    no_argument,       0, 'f' }, // DEPRECATED 1.7
-      { "stderr",        required_argument, 0, 'E' },
-      { "load",          required_argument, 0, 'l' },
-      { "vhpi-debug",    no_argument,       0, 'D' },
-      { "vhpi-trace",    no_argument,       0, 'T' },
-      { "seed",          required_argument, 0, 'S' },
+      { "help",            no_argument,       0, 'h' },
+      { "version",         no_argument,       0, 'v' },
+      { "work",            required_argument, 0, 'w' },
+      { "std",             required_argument, 0, 's' },
+      { "messages",        required_argument, 0, 'I' },
+      { "map",             required_argument, 0, 'p' },
+      { "ieee-warnings",   required_argument, 0, 'W' },
+      { "ignore-time",     no_argument,       0, 'i' },
+      { "force-init",      no_argument,       0, 'f' }, // DEPRECATED 1.7
+      { "stderr",          required_argument, 0, 'E' },
+      { "notimingchecks",  no_argument,       0, 't' },
+      { "load",            required_argument, 0, 'l' },
+      { "vhpi-debug",      no_argument,       0, 'D' },
+      { "vhpi-trace",      no_argument,       0, 'T' },
+      { "seed",            required_argument, 0, 'S' },
       { 0, 0, 0, 0 }
    };
 
@@ -2704,6 +2705,9 @@ int main(int argc, char **argv)
       case 'l':
          tb_append(state.plugins, ',');
          tb_cat(state.plugins, optarg);
+         break;
+      case 't':
+         opt_set_int(OPT_NO_TCHECKS, 1);
          break;
       case 'T':
          opt_set_str(OPT_PLI_TRACE, "1");

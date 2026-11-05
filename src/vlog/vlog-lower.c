@@ -28,6 +28,7 @@
 #include "rt/assert.h"
 #include "rt/defs.h"
 #include "type.h"
+#include "option.h"
 #include "vlog/vlog-defs.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-number.h"
@@ -3653,7 +3654,7 @@ static void vlog_lower_tcheck(vlog_gen_t *g, vlog_node_t tcheck)
          // $removal   check   stamp   check - limit <  stamp < check
          // $recovery  stamp   check   stamp         <= check < stamp + limit
          //
-         // The ineqalities convert to:
+         // The inequalities convert to:
          //    limit >  check - stamp  >  0
          //    limit >  check - stamp  >= 0
 
@@ -3685,10 +3686,10 @@ static void vlog_lower_tcheck(vlog_gen_t *g, vlog_node_t tcheck)
          mir_build_store(g->mu, trigger_var, trigger);
 
          mir_type_t t_time = mir_time_type(g->mu);
-         mir_value_t t_zero = mir_const(g->mu, t_time, 0);
+         mir_value_t t_init = mir_const(g->mu, t_time, INT32_MIN);
          mir_value_t stamp_var = mir_add_var(g->mu, t_time,  MIR_NULL_STAMP,
                                              ident_new("stamp"), 0);
-         mir_build_store(g->mu, stamp_var, t_zero);
+         mir_build_store(g->mu, stamp_var, t_init);
          mir_build_return(g->mu, MIR_NULL_VALUE);
 
          mir_block_t start_bb = mir_add_block(g->mu);
@@ -4449,6 +4450,9 @@ void vlog_lower_instance(mir_context_t *mc, vlog_node_t body, ident_t parent,
 
       case V_TCHECK:
          {
+            if (opt_get_int(OPT_NO_TCHECKS) == 1)
+               break;
+
             mir_type_t t_offset = mir_offset_type(mu);
 
             // TODO: Put name of the t-check to vlog AST ?
