@@ -1626,6 +1626,7 @@ static void vhpi_global_cb(rt_model_t *m, void *user)
       assert(cb != NULL);
 
       switch (cb->Reason) {
+      case vhpiCbRepStartOfProcesses:
       case vhpiCbRepEndOfProcesses:
       case vhpiCbRepLastKnownDeltaCycle:
       case vhpiCbRepNextTimeStep:
@@ -2427,6 +2428,8 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    case vhpiCbRepStartOfNextCycle:
    case vhpiCbEndOfTimeStep:
    case vhpiCbRepEndOfTimeStep:
+   case vhpiCbStartOfProcesses:
+   case vhpiCbRepStartOfProcesses:
    case vhpiCbEndOfProcesses:
    case vhpiCbRepEndOfProcesses:
    case vhpiCbLastKnownDeltaCycle:
@@ -5228,6 +5231,7 @@ void vhpi_run_callbacks(int32_t reason)
 
    int32_t rep = 0;
    switch (reason) {
+   case vhpiCbStartOfProcesses:    rep = vhpiCbRepStartOfProcesses; break;
    case vhpiCbEndOfProcesses:      rep = vhpiCbRepEndOfProcesses; break;
    case vhpiCbLastKnownDeltaCycle: rep = vhpiCbRepLastKnownDeltaCycle; break;
    case vhpiCbNextTimeStep:        rep = vhpiCbRepNextTimeStep; break;
@@ -5309,6 +5313,7 @@ static void vhpi_phase_cb(rt_model_t *m, void *arg)
    vhpi_run_callbacks(reason);
 
    switch (reason) {
+   case vhpiCbStartOfProcesses:
    case vhpiCbEndOfProcesses:
    case vhpiCbLastKnownDeltaCycle:
    case vhpiCbNextTimeStep:
@@ -5356,6 +5361,7 @@ void vhpi_context_initialise(vhpi_context_t *c, tree_t top, rt_model_t *model,
       vhpiCbEndOfTimeStep,
       vhpiCbStartOfNextCycle,
       vhpiCbLastKnownDeltaCycle,
+      vhpiCbStartOfProcesses,
       vhpiCbEndOfProcesses
    };
 
