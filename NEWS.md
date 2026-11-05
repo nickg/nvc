@@ -9,6 +9,8 @@
   the analysis `-f` file list (from @mak-gitdev).
 - `process(all)` sensitivity list construction now correctly checks
   all nested subprograms instead of only procedures (#1721).
+- Signed integral operands of Verilog expressions mixed with real
+  operands are now converted to real as signed values.
 - Several other minor bugs were resolved (#1678, #1718, #1685).
 
 ## Version 1.23.1 - 2026-10-28

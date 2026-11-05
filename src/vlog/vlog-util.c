@@ -354,6 +354,8 @@ bool vlog_is_signed(vlog_node_t v)
    switch (vlog_kind(v)) {
    case V_NUMBER:
       return number_signed(vlog_number(v));
+   case V_REAL:
+      return true;
    case V_VAR_DECL:
    case V_NET_DECL:
    case V_PORT_DECL:
@@ -393,7 +395,14 @@ bool vlog_is_signed(vlog_node_t v)
    case V_MIN_TYP_MAX:
       return vlog_is_signed(vlog_value(v));
    case V_DATA_TYPE:
-      return !!(vlog_flags(v) & VLOG_F_SIGNED);
+      switch (vlog_subkind(v)) {
+      case DT_REAL:
+      case DT_REALTIME:
+      case DT_SHORTREAL:
+         return true;   // Operand is converted to real as a signed value
+      default:
+         return !!(vlog_flags(v) & VLOG_F_SIGNED);
+      }
    default:
       return false;
    }

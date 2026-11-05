@@ -1502,3 +1502,4 @@ issue1711       normal
 vhpi26          vhpi,2008,plugin=siginit,+siginit+one
 issue1685       normal,2008
 issue1721       normal,2008
+vlog50          verilog
