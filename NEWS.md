@@ -9,6 +9,8 @@
   the analysis `-f` file list (from @mak-gitdev).
 - `process(all)` sensitivity list construction now correctly checks
   all nested subprograms instead of only procedures (#1721).
+- new `--notimingchecks` option disables VHDL Vital and Verilog timing
+  checks.
 - Several other minor bugs were resolved (#1678, #1718, #1685).
 
 ## Version 1.23.1 - 2026-10-28

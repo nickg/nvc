@@ -3636,9 +3636,6 @@ static mir_value_t vlog_lower_tcheck_event(vlog_gen_t *g, vlog_node_t v)
 
 static void vlog_lower_tcheck(vlog_gen_t *g, vlog_node_t tcheck)
 {
-   if (opt_get_int(OPT_NO_TCHECKS) == 1)
-      return;
-
    vlog_tcheck_kind_t tkind = vlog_subkind(tcheck);
 
    switch (tkind) {
@@ -4453,6 +4450,9 @@ void vlog_lower_instance(mir_context_t *mc, vlog_node_t body, ident_t parent,
 
       case V_TCHECK:
          {
+            if (opt_get_int(OPT_NO_TCHECKS) == 1)
+               break;
+
             mir_type_t t_offset = mir_offset_type(mu);
 
             // TODO: Put name of the t-check to vlog AST ?
