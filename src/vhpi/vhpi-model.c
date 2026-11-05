@@ -494,6 +494,8 @@ typedef struct {
    vhpiHandleT   handle;
    rt_watch_t   *watch;
    uint64_t      delay;
+   vhpiTimeT     time;
+   vhpiValueT    value;
 } c_callback;
 
 DEF_CLASS(callback, vhpiCallbackK, refcounted.object);
@@ -1586,10 +1588,18 @@ static void vhpi_signal_event_cb(uint64_t now, rt_signal_t *signal,
    if (cb->State != vhpiEnable)
       return;
 
-   vhpiTimeT time;
-   if (cb->data.time != NULL) {
-      vhpi_get_time(&time, NULL);
-      cb->data.time = &time;
+   if (cb->data.time != NULL)
+      vhpi_get_time(&cb->time, NULL);
+
+   if (cb->data.value != NULL) {
+      const int need = vhpi_get_value(cb->data.obj, &cb->value);
+      if (need > 0) {
+         // Buffer too small
+         cb->value.value.ptr = pool_malloc(vhpi_context()->pool, need);
+         cb->value.bufSize = need;
+
+         vhpi_get_value(cb->data.obj, &cb->value);
+      }
    }
 
    (cb->data.cb_rtn)(&(cb->data));
@@ -2479,7 +2489,10 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 
          c_callback *cb = recycle_object(sizeof(c_callback), vhpiCallbackK);
          init_callback(cb, cb_data_p, flags);
-         cb->delay = vhpi_time_to_native(cb_data_p->time);
+         // LRM 08 section 23.29: do not retain cb_data_p pointers
+         cb->time = *cb_data_p->time;
+         cb->data.time = &cb->time;
+         cb->delay = vhpi_time_to_native(&cb->time);
 
          const uint64_t now = model_now(m, NULL);
 
@@ -2506,6 +2519,17 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 
          c_callback *cb = recycle_object(sizeof(c_callback), vhpiCallbackK);
          init_callback(cb, cb_data_p, flags);
+
+         // LRM 08 section 23.29: do not retain cb_data_p pointers
+         if (cb_data_p->time != NULL)
+            cb->data.time = &cb->time;
+
+         if (cb_data_p->value != NULL) {
+            cb->value.format = cb_data_p->value->format;
+            if (cb->value.format == vhpiObjTypeVal)
+               cb->value.format = vhpi_get_type(obj)->format;
+            cb->data.value = &cb->value;
+         }
 
          // LRM 08 section 23.29: [..] if the obj member of the callback
          // data structure contains a handle, the VHPI program may
