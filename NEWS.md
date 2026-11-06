@@ -9,7 +9,9 @@
   the analysis `-f` file list (from @mak-gitdev).
 - Array aggregates with a non-locally static choice and an `others`
   choice are now accepted with `--relaxed` (#1637).
-- Several other minor bugs were resolved (#1678, #1718).
+- `process(all)` sensitivity list construction now correctly checks
+  all nested subprograms instead of only procedures (#1721).
+- Several other minor bugs were resolved (#1678, #1718, #1685).
 
 ## Version 1.23.1 - 2026-10-28
 - Fixed a crash after a severity `failure` assertion failure during

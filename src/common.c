@@ -2428,12 +2428,16 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
 
    case T_PROCESS:
    case T_SEQUENCE:
+   case T_FUNC_BODY:
    case T_PROC_BODY:
+   case T_FUNC_INST:
+   case T_PROC_INST:
       {
          const int ndecls = tree_decls(expr);
          for (int i = 0; i < ndecls; i++) {
             tree_t d = tree_decl(expr, i);
-            if (tree_kind(d) == T_PROC_BODY)
+            const tree_kind_t dkind = tree_kind(d);
+            if (dkind == T_FUNC_BODY || dkind == T_PROC_BODY)
                build_wait(d, fn, ctx);
          }
 
@@ -2502,6 +2506,7 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
 
    case T_NEXT:
    case T_EXIT:
+   case T_RETURN:
       if (tree_has_value(expr))
          build_wait(tree_value(expr), fn, ctx);
       break;
