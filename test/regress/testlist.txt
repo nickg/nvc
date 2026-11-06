@@ -1513,3 +1513,5 @@ udp3            verilog
 issue1730       verilog
 synopsys5       normal
 synopsys6       gold,fail
+synopsys7       normal
+synopsys8       gold,fail

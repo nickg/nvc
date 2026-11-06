@@ -1862,8 +1862,8 @@ static void synopsys_plus_logic_unsigned(jit_func_t *func, jit_anchor_t *anchor,
    synopsys_plus_unsigned(func, anchor, args, tlab);
 }
 
-// The STD_LOGIC_UNSIGNED operators return a vector with the same bounds
-// as the vector operand rather than (N-1 downto 0)
+// The STD_LOGIC_UNSIGNED and STD_LOGIC_SIGNED operators return a vector
+// with the same bounds as the vector operand rather than (N-1 downto 0)
 static void synopsys_plus_vector_logic(jit_func_t *func, jit_anchor_t *anchor,
                                        jit_scalar_t *args, tlab_t *tlab)
 {
@@ -2356,6 +2356,15 @@ static jit_intrinsic_t intrinsic_list[] = {
    { SA "\"+\"(U" AU ")V", synopsys_plus_logic_unsigned },
    { SU "\"+\"(LV)V", synopsys_plus_logic_vector },
    { SU "\"+\"(LY)Y", synopsys_plus_logic_vector },
+   // CONV_SIGNED zero-extends a STD_ULOGIC so these match the unsigned case
+   { SA "\"+\"(" AS "U)" AS, synopsys_plus_unsigned_logic },
+   { SA "\"+\"(" AS "U)V", synopsys_plus_unsigned_logic },
+   { SS "\"+\"(VL)V", synopsys_plus_vector_logic },
+   { SS "\"+\"(YL)Y", synopsys_plus_vector_logic },
+   { SA "\"+\"(U" AS ")" AS, synopsys_plus_logic_unsigned },
+   { SA "\"+\"(U" AS ")V", synopsys_plus_logic_unsigned },
+   { SS "\"+\"(LV)V", synopsys_plus_logic_vector },
+   { SS "\"+\"(LY)Y", synopsys_plus_logic_vector },
    { SA "\"-\"(" AU AU ")" AU, synopsys_minus_unsigned },
    { SA "\"-\"(" AU AU ")V", synopsys_minus_unsigned },
    { SU "\"-\"(VV)V", synopsys_minus_unsigned },
