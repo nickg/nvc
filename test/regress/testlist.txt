@@ -1512,3 +1512,5 @@ vlog52          verilog,gold
 udp3            verilog
 synopsys5       normal
 synopsys6       gold,fail
+synopsys7       normal
+synopsys8       gold,fail
