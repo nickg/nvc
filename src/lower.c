@@ -11605,12 +11605,16 @@ static void lower_port_map(lower_unit_t *lu, tree_t block, tree_t map,
       assert(value_reg == VCODE_INVALID_REG);
 
       tree_t p0 = tree_value(value);
-      value_reg = lower_lvalue(lu, p0);
+      if (lower_is_signal_ref(p0)) {
+         value_reg = lower_lvalue(lu, p0);
 
-      if (lower_is_trivial_conversion(value))
-         value = p0;
+         if (lower_is_trivial_conversion(value))
+            value = p0;
+         else
+            in_conv = value = p0;
+      }
       else
-         in_conv = value = p0;
+         value_reg = lower_rvalue(lu, value);
    }
 
    tree_t out_conv = NULL;

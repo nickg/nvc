@@ -1507,3 +1507,4 @@ vlog50          verilog
 vlog49          verilog,gold
 force5          verilog
 deassign1       verilog
+issue1726       normal,2008
