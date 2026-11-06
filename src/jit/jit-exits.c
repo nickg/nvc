@@ -651,7 +651,7 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
       }
       break;
 
-   case JIT_EXIT_FORCE:
+   case JIT_EXIT_SCHED_FORCE:
       {
          sig_shared_t *shared = args[0].pointer;
          int32_t       offset = args[1].integer;
@@ -660,19 +660,44 @@ void __nvc_do_exit(jit_exit_t which, jit_anchor_t *anchor, jit_scalar_t *args,
          bool          scalar = args[4].integer;
 
          if (scalar)
-            x_force(shared, offset, count, &value.integer);
+            x_sched_force(shared, offset, count, &value.integer);
          else
-            x_force(shared, offset, count, value.pointer);
+            x_sched_force(shared, offset, count, value.pointer);
       }
       break;
 
-   case JIT_EXIT_RELEASE:
+   case JIT_EXIT_SCHED_RELEASE:
       {
          sig_shared_t *shared = args[0].pointer;
          int32_t       offset = args[1].integer;
          int32_t       count  = args[2].integer;
 
-         x_release(shared, offset, count);
+         x_sched_release(shared, offset, count);
+      }
+      break;
+
+   case JIT_EXIT_FORCE_SIGNAL:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         int32_t       offset = args[1].integer;
+         int32_t       count  = args[2].integer;
+         jit_scalar_t  value  = { .integer = args[3].integer };
+         bool          scalar = args[4].integer;
+
+         if (scalar)
+            x_force_signal(shared, offset, count, &value.integer);
+         else
+            x_force_signal(shared, offset, count, value.pointer);
+      }
+      break;
+
+   case JIT_EXIT_RELEASE_SIGNAL:
+      {
+         sig_shared_t *shared = args[0].pointer;
+         int32_t       offset = args[1].integer;
+         int32_t       count  = args[2].integer;
+
+         x_release_signal(shared, offset, count);
       }
       break;
 

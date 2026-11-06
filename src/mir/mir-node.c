@@ -2702,19 +2702,40 @@ mir_value_t mir_build_driving_value(mir_unit_t *mu, mir_value_t signal,
    return result;
 }
 
-void mir_build_force(mir_unit_t *mu, mir_value_t target, mir_value_t count,
-                     mir_value_t values)
+void mir_build_sched_force(mir_unit_t *mu, mir_value_t target,
+                           mir_value_t count, mir_value_t values)
 {
-   mir_build_3(mu, MIR_OP_FORCE, MIR_NULL_TYPE, MIR_NULL_STAMP,
+   mir_build_3(mu, MIR_OP_SCHED_FORCE, MIR_NULL_TYPE, MIR_NULL_STAMP,
                target, count, values);
 
    MIR_ASSERT(mir_is_signal(mu, target), "force target is not signal");
    MIR_ASSERT(mir_is_offset(mu, count), "force count is not offset type");
 }
 
-void mir_build_release(mir_unit_t *mu, mir_value_t target, mir_value_t count)
+void mir_build_sched_release(mir_unit_t *mu, mir_value_t target,
+                             mir_value_t count)
 {
-   mir_build_2(mu, MIR_OP_RELEASE, MIR_NULL_TYPE, MIR_NULL_STAMP,
+   mir_build_2(mu, MIR_OP_SCHED_RELEASE, MIR_NULL_TYPE, MIR_NULL_STAMP,
+               target, count);
+
+   MIR_ASSERT(mir_is_signal(mu, target), "release target is not signal");
+   MIR_ASSERT(mir_is_offset(mu, count), "release net count is not offset type");
+}
+
+void mir_build_force_signal(mir_unit_t *mu, mir_value_t target,
+                            mir_value_t count, mir_value_t values)
+{
+   mir_build_3(mu, MIR_OP_FORCE_SIGNAL, MIR_NULL_TYPE, MIR_NULL_STAMP,
+               target, count, values);
+
+   MIR_ASSERT(mir_is_signal(mu, target), "force target is not signal");
+   MIR_ASSERT(mir_is_offset(mu, count), "force count is not offset type");
+}
+
+void mir_build_release_signal(mir_unit_t *mu, mir_value_t target,
+                              mir_value_t count)
+{
+   mir_build_2(mu, MIR_OP_RELEASE_SIGNAL, MIR_NULL_TYPE, MIR_NULL_STAMP,
                target, count);
 
    MIR_ASSERT(mir_is_signal(mu, target), "release target is not signal");

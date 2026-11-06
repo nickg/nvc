@@ -223,8 +223,10 @@ typedef enum {
    MIR_OP_FILE_WRITE,
    MIR_OP_LINK_VAR,
    MIR_OP_DRIVING_VALUE,
-   MIR_OP_FORCE,
-   MIR_OP_RELEASE,
+   MIR_OP_SCHED_FORCE,
+   MIR_OP_SCHED_RELEASE,
+   MIR_OP_FORCE_SIGNAL,
+   MIR_OP_RELEASE_SIGNAL,
    MIR_OP_DISCONNECT,
    MIR_OP_PROCESS_INIT,
    MIR_OP_COVER_STMT,
@@ -665,9 +667,14 @@ mir_value_t mir_build_resolved(mir_unit_t *mu, mir_value_t signal);
 mir_value_t mir_build_last_value(mir_unit_t *mu, mir_value_t signal);
 mir_value_t mir_build_driving_value(mir_unit_t *mu, mir_value_t signal,
                                     mir_value_t count);
-void mir_build_force(mir_unit_t *mu, mir_value_t target, mir_value_t count,
-                     mir_value_t values);
-void mir_build_release(mir_unit_t *mu, mir_value_t target, mir_value_t count);
+void mir_build_sched_force(mir_unit_t *mu, mir_value_t target,
+                           mir_value_t count, mir_value_t values);
+void mir_build_sched_release(mir_unit_t *mu, mir_value_t target,
+                             mir_value_t count);
+void mir_build_force_signal(mir_unit_t *mu, mir_value_t target,
+                            mir_value_t count, mir_value_t values);
+void mir_build_release_signal(mir_unit_t *mu, mir_value_t target,
+                              mir_value_t count);
 void mir_build_disconnect(mir_unit_t *mu, mir_value_t target, mir_value_t count,
                           mir_value_t reject, mir_value_t after);
 mir_value_t mir_build_last_event(mir_unit_t *mu, mir_value_t signal,

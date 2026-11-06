@@ -76,8 +76,12 @@ bool x_driving(sig_shared_t *ss, uint32_t offset, int32_t count);
 void *x_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
                   int64_t after, int64_t reject);
-void x_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values);
-void x_release(sig_shared_t *ss, uint32_t offset, int32_t count);
+void x_sched_force(sig_shared_t *ss, uint32_t offset, int32_t count,
+                   void *values);
+void x_sched_release(sig_shared_t *ss, uint32_t offset, int32_t count);
+void x_force_signal(sig_shared_t *ss, uint32_t offset, int32_t count,
+                    void *values);
+void x_release_signal(sig_shared_t *ss, uint32_t offset, int32_t count);
 void x_deposit_signal(sig_shared_t *ss, uint32_t offset, int32_t count,
                       void *values);
 void x_sched_deposit(sig_shared_t *ss, uint32_t offset, int32_t count,

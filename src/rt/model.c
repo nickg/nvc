@@ -3459,13 +3459,13 @@ static inline void check_delay(int64_t delay)
    }
 }
 
-void force_signal(rt_model_t *m, rt_signal_t *s, const void *values,
-                  int offset, size_t count)
+void sched_force(rt_model_t *m, rt_signal_t *s, const void *values,
+                 int offset, size_t count)
 {
    RT_LOCK(s->lock);
 
-   TRACE("force signal %s+%d to %s", istr(tree_ident(s->where)), offset,
-         fmt_values(values, count));
+   TRACE("schedule force signal %s+%d to %s", istr(tree_ident(s->where)),
+         offset, fmt_values(values, count));
 
    assert(m->can_create_delta);
 
@@ -3497,11 +3497,11 @@ void force_signal(rt_model_t *m, rt_signal_t *s, const void *values,
    }
 }
 
-void release_signal(rt_model_t *m, rt_signal_t *s, int offset, size_t count)
+void sched_release(rt_model_t *m, rt_signal_t *s, int offset, size_t count)
 {
    RT_LOCK(s->lock);
 
-   TRACE("release signal %s+%d", istr(tree_ident(s->where)), offset);
+   TRACE("schedule release signal %s+%d", istr(tree_ident(s->where)), offset);
 
    assert(m->can_create_delta);
 
@@ -3514,6 +3514,57 @@ void release_signal(rt_model_t *m, rt_signal_t *s, int offset, size_t count)
 
       rt_source_t *src = get_pseudo_source(m, n, SOURCE_FORCING);
       deltaq_insert_pseudo_source(m, 0, src);
+   }
+}
+
+void force_signal(rt_model_t *m, rt_signal_t *s, const void *values,
+                  int offset, size_t count)
+{
+   RT_LOCK(s->lock);
+
+   TRACE("force signal %s+%d to %s", istr(tree_ident(s->where)), offset,
+         fmt_values(values, count));
+
+   rt_nexus_t *n = split_nexus(m, s, offset, count);
+   const char *vptr = values;
+   for (; count > 0; n = n->chain) {
+      count -= n->width;
+      assert(count >= 0);
+
+      n->flags |= NET_F_FORCED;
+
+      rt_source_t *src = get_pseudo_source(m, n, SOURCE_FORCING);
+      copy_value_ptr(n, &(src->u.pseudo.waveforms.value), vptr);
+      src->u.pseudo.waveforms.when = m->now;
+      src->disconnected = 0;
+
+      update_driving(m, n, true);
+      if (n->flags & NET_F_EFFECTIVE)
+         calculate_effective_value(m, n);
+
+      vptr += n->width * n->size;
+   }
+}
+
+void release_signal(rt_model_t *m, rt_signal_t *s, int offset, size_t count)
+{
+   RT_LOCK(s->lock);
+
+   TRACE("release signal %s+%d", istr(tree_ident(s->where)), offset);
+
+   rt_nexus_t *n = split_nexus(m, s, offset, count);
+   for (; count > 0; n = n->chain) {
+      count -= n->width;
+      assert(count >= 0);
+
+      n->flags &= ~NET_F_FORCED;
+
+      rt_source_t *src = get_pseudo_source(m, n, SOURCE_FORCING);
+      src->disconnected = 1;
+
+      update_driving(m, n, true);
+      if (n->flags & NET_F_EFFECTIVE)
+         calculate_effective_value(m, n);
    }
 }
 
@@ -4642,12 +4693,41 @@ void x_disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
    }
 }
 
-void x_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values)
+void x_sched_force(sig_shared_t *ss, uint32_t offset, int32_t count,
+                   void *values)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
-   TRACE("force signal %s+%d value=%s count=%d", istr(tree_ident(s->where)),
-         offset, fmt_values(values, count), count);
+   TRACE("schedule force signal %s+%d value=%s count=%d",
+         istr(tree_ident(s->where)), offset, fmt_values(values, count), count);
+
+   rt_proc_t *proc = get_active_proc();
+   rt_model_t *m = get_model();
+
+   check_postponed(0, proc);
+
+   sched_force(m, s, values, offset, count);
+}
+
+void x_sched_release(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   TRACE("schedule release signal %s+%d count=%d",
+         istr(tree_ident(s->where)), offset, count);
+
+   rt_proc_t *proc = get_active_proc();
+   rt_model_t *m = get_model();
+
+   check_postponed(0, proc);
+
+   sched_release(m, s, offset, count);
+}
+
+void x_force_signal(sig_shared_t *ss, uint32_t offset, int32_t count,
+                    void *values)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
    rt_proc_t *proc = get_active_proc();
    rt_model_t *m = get_model();
@@ -4657,12 +4737,9 @@ void x_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values)
    force_signal(m, s, values, offset, count);
 }
 
-void x_release(sig_shared_t *ss, uint32_t offset, int32_t count)
+void x_release_signal(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
-
-   TRACE("release signal %s+%d count=%d", istr(tree_ident(s->where)),
-         offset, count);
 
    rt_proc_t *proc = get_active_proc();
    rt_model_t *m = get_model();

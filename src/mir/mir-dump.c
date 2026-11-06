@@ -136,8 +136,10 @@ const char *mir_op_string(mir_op_t op)
       [MIR_OP_FILE_WRITE] = "file write",
       [MIR_OP_LINK_VAR] = "link var",
       [MIR_OP_DRIVING_VALUE] = "driving value",
-      [MIR_OP_FORCE] = "force",
-      [MIR_OP_RELEASE] = "release",
+      [MIR_OP_SCHED_FORCE] = "sched force",
+      [MIR_OP_SCHED_RELEASE] = "sched release",
+      [MIR_OP_FORCE_SIGNAL] = "force signal",
+      [MIR_OP_RELEASE_SIGNAL] = "release signal",
       [MIR_OP_DISCONNECT] = "disconnect",
       [MIR_OP_PROCESS_INIT] = "process init",
       [MIR_OP_COVER_STMT] = "cover stmt",
@@ -1112,7 +1114,8 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
             break;
 
          case MIR_OP_DRIVE_SIGNAL:
-         case MIR_OP_RELEASE:
+         case MIR_OP_SCHED_RELEASE:
+         case MIR_OP_RELEASE_SIGNAL:
             {
                printf("%s ", mir_op_string(n->op));
                mir_dump_value(mu, n->args[0], cb, ctx);
@@ -1518,7 +1521,8 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
             }
             break;
 
-         case MIR_OP_FORCE:
+         case MIR_OP_SCHED_FORCE:
+         case MIR_OP_FORCE_SIGNAL:
          case MIR_OP_DEPOSIT_SIGNAL:
          case MIR_OP_PUT_DRIVER:
             {

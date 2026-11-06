@@ -87,6 +87,9 @@ const void *signal_last_value(rt_signal_t *s);
 uint8_t signal_size(rt_signal_t *s);
 uint32_t signal_width(rt_signal_t *s);
 size_t signal_expand(rt_signal_t *s, uint64_t *buf, size_t max);
+void sched_force(rt_model_t *m, rt_signal_t *s, const void *values,
+                 int offset, size_t count);
+void sched_release(rt_model_t *m, rt_signal_t *s, int offset, size_t count);
 void force_signal(rt_model_t *m, rt_signal_t *s, const void *values,
                   int offset, size_t count);
 void release_signal(rt_model_t *m, rt_signal_t *s, int offset, size_t count);

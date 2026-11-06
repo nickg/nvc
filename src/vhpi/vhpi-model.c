@@ -3970,13 +3970,13 @@ int vhpi_put_value(vhpiHandleT handle,
 
       switch (mode) {
       case vhpiForcePropagate:
-         force_signal(model, ptr.signal, src, ptr.offset, num_elems);
+         sched_force(model, ptr.signal, src, ptr.offset, num_elems);
          return 0;
       case vhpiDepositPropagate:
          sched_deposit(model, ptr.signal, src, ptr.offset, num_elems, 0, false);
          return 0;
       case vhpiRelease:
-         release_signal(model, ptr.signal, ptr.offset, num_elems);
+         sched_release(model, ptr.signal, ptr.offset, num_elems);
          return 0;
       default:
          goto unsupported;

@@ -1086,7 +1086,7 @@ static void import_force(mir_unit_t *mu, mir_import_t *imp, int op)
    mir_value_t count = imp->map[vcode_get_arg(op, 1)];
    mir_value_t values = imp->map[vcode_get_arg(op, 2)];
 
-   mir_build_force(mu, target, count, values);
+   mir_build_sched_force(mu, target, count, values);
 }
 
 static void import_release(mir_unit_t *mu, mir_import_t *imp, int op)
@@ -1094,7 +1094,7 @@ static void import_release(mir_unit_t *mu, mir_import_t *imp, int op)
    mir_value_t target = imp->map[vcode_get_arg(op, 0)];
    mir_value_t count = imp->map[vcode_get_arg(op, 1)];
 
-   mir_build_release(mu, target, count);
+   mir_build_sched_release(mu, target, count);
 }
 
 static void import_disconnect(mir_unit_t *mu, mir_import_t *imp, int op)

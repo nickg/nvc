@@ -233,12 +233,18 @@ START_TEST(test_force1)
 
    shell_eval(sh, "force /x '1'", &result);
    ck_assert_str_eq(result, "");
+   shell_eval(sh, "examine /x", &result);
+   ck_assert_str_eq(result, "'1'");
 
    shell_eval(sh, "force /y 42", &result);
    ck_assert_str_eq(result, "");
+   shell_eval(sh, "examine /y", &result);
+   ck_assert_str_eq(result, "42");
 
    shell_eval(sh, "force /z \"110\"", &result);
    ck_assert_str_eq(result, "");
+   shell_eval(sh, "examine /z", &result);
+   ck_assert_str_eq(result, "\"110\"");
 
    shell_eval(sh, "force", &result);
    ck_assert_str_eq(result, "");
@@ -252,12 +258,16 @@ START_TEST(test_force1)
 
    shell_eval(sh, "noforce /x", &result);
    ck_assert_str_eq(result, "");
+   shell_eval(sh, "examine /x", &result);
+   ck_assert_str_eq(result, "'0'");
 
    shell_eval(sh, "run 1 ns", &result);
    ck_assert_str_eq(result, "");
 
    shell_eval(sh, "noforce *", &result);
    ck_assert_str_eq(result, "");
+   shell_eval(sh, "examine /y /z", &result);
+   ck_assert_str_eq(result, "55 {\"001\"}");
 
    shell_eval(sh, "noforce /x", &result);
 
