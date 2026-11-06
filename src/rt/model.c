@@ -3087,6 +3087,11 @@ static void update_pseudo_source(rt_model_t *m, rt_source_t *src)
       src->disconnected = !(n->flags & NET_F_FORCED);
    }
 
+   if (src->tag == SOURCE_DEPOSIT && (n->flags & NET_F_FORCED)) {
+      src->disconnected = 1;
+      return;
+   }
+
    update_driving(m, n, false);
 }
 
@@ -3546,7 +3551,8 @@ void force_signal(rt_model_t *m, rt_signal_t *s, const void *values,
    }
 }
 
-void release_signal(rt_model_t *m, rt_signal_t *s, int offset, size_t count)
+void release_signal(rt_model_t *m, rt_signal_t *s, int offset, size_t count,
+                    release_mode_t mode)
 {
    RT_LOCK(s->lock);
 
@@ -3562,9 +3568,17 @@ void release_signal(rt_model_t *m, rt_signal_t *s, int offset, size_t count)
       rt_source_t *src = get_pseudo_source(m, n, SOURCE_FORCING);
       src->disconnected = 1;
 
-      update_driving(m, n, true);
-      if (n->flags & NET_F_EFFECTIVE)
-         calculate_effective_value(m, n);
+      switch (mode) {
+      case RELEASE_RECOMPUTE:
+         update_driving(m, n, true);
+         if (n->flags & NET_F_EFFECTIVE)
+            calculate_effective_value(m, n);
+         break;
+      case RELEASE_RETAIN:
+         break;
+      default:
+         should_not_reach_here();
+      }
    }
 }
 
@@ -3593,6 +3607,11 @@ void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
       unsigned char *last = nexus_last_value(n);
 
       const size_t valuesz = n->size * n->width;
+
+      if (n->flags & NET_F_FORCED) {
+         vptr += valuesz;
+         continue;
+      }
 
       if (!cmp_bytes(eff, vptr, valuesz)) {
          copy2(last, eff, vptr, valuesz);
@@ -4737,7 +4756,8 @@ void x_force_signal(sig_shared_t *ss, uint32_t offset, int32_t count,
    force_signal(m, s, values, offset, count);
 }
 
-void x_release_signal(sig_shared_t *ss, uint32_t offset, int32_t count)
+void x_release_signal(sig_shared_t *ss, uint32_t offset, int32_t count,
+                      release_mode_t mode)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
@@ -4746,7 +4766,7 @@ void x_release_signal(sig_shared_t *ss, uint32_t offset, int32_t count)
 
    check_postponed(0, proc);
 
-   release_signal(m, s, offset, count);
+   release_signal(m, s, offset, count, mode);
 }
 
 void x_deposit_signal(sig_shared_t *ss, uint32_t offset, int32_t count,

@@ -3596,7 +3596,7 @@ static void irgen_op_force(jit_irgen_t *g, mir_value_t n, jit_exit_t exit)
    macro_exit(g, exit);
 }
 
-static void irgen_op_release(jit_irgen_t *g, mir_value_t n, jit_exit_t exit)
+static void irgen_op_sched_release(jit_irgen_t *g, mir_value_t n)
 {
    jit_value_t shared = irgen_get_arg_slot(g, n, 0, 0);
    jit_value_t offset = irgen_get_arg_slot(g, n, 0, 1);
@@ -3606,7 +3606,22 @@ static void irgen_op_release(jit_irgen_t *g, mir_value_t n, jit_exit_t exit)
    j_send(g, 1, offset);
    j_send(g, 2, count);
 
-   macro_exit(g, exit);
+   macro_exit(g, JIT_EXIT_SCHED_RELEASE);
+}
+
+static void irgen_op_release_signal(jit_irgen_t *g, mir_value_t n)
+{
+   jit_value_t shared = irgen_get_arg_slot(g, n, 0, 0);
+   jit_value_t offset = irgen_get_arg_slot(g, n, 0, 1);
+   jit_value_t count  = irgen_get_arg(g, n, 1);
+   jit_value_t mode = jit_value_from_int64(irgen_get_enum(g, n, 2));
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+   j_send(g, 3, mode);
+
+   macro_exit(g, JIT_EXIT_RELEASE_SIGNAL);
 }
 
 static void irgen_op_deposit_signal(jit_irgen_t *g, mir_value_t n)
@@ -5136,13 +5151,13 @@ static void irgen_block(jit_irgen_t *g, mir_block_t block)
          irgen_op_force(g, n, JIT_EXIT_SCHED_FORCE);
          break;
       case MIR_OP_SCHED_RELEASE:
-         irgen_op_release(g, n, JIT_EXIT_SCHED_RELEASE);
+         irgen_op_sched_release(g, n);
          break;
       case MIR_OP_FORCE_SIGNAL:
          irgen_op_force(g, n, JIT_EXIT_FORCE_SIGNAL);
          break;
       case MIR_OP_RELEASE_SIGNAL:
-         irgen_op_release(g, n, JIT_EXIT_RELEASE_SIGNAL);
+         irgen_op_release_signal(g, n);
          break;
       case MIR_OP_DEPOSIT_SIGNAL:
          irgen_op_deposit_signal(g, n);

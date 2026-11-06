@@ -92,7 +92,8 @@ void sched_force(rt_model_t *m, rt_signal_t *s, const void *values,
 void sched_release(rt_model_t *m, rt_signal_t *s, int offset, size_t count);
 void force_signal(rt_model_t *m, rt_signal_t *s, const void *values,
                   int offset, size_t count);
-void release_signal(rt_model_t *m, rt_signal_t *s, int offset, size_t count);
+void release_signal(rt_model_t *m, rt_signal_t *s, int offset, size_t count,
+                    release_mode_t mode);
 void deposit_signal(rt_model_t *m, rt_signal_t *s, const void *values,
                     int offset, size_t count);
 void sched_deposit(rt_model_t *m, rt_signal_t *s, const void *values,

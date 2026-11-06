@@ -23,6 +23,7 @@
 #include "mir/mir-structs.h"
 #include "mir/mir-unit.h"
 #include "printf.h"
+#include "rt/defs.h"
 #include "thread.h"
 #include "tree.h"
 #include "vlog/vlog-node.h"
@@ -490,6 +491,17 @@ static int mir_dump_strength(mir_unit_t *mu, mir_value_t value)
    };
    return nvc_printf("$green$(%s1,%s0)$$", names[STRENGTH1(value.id)],
                      names[STRENGTH0(value.id)]);
+}
+
+static int mir_dump_release_mode(mir_value_t value)
+{
+   assert(value.tag == MIR_TAG_ENUM);
+
+   switch (value.id) {
+   case RELEASE_RECOMPUTE: return nvc_printf("$green$recompute$$");
+   case RELEASE_RETAIN:    return nvc_printf("$green$retain$$");
+   default:                return nvc_printf("$red$invalid$$");
+   }
 }
 
 static int mir_dump_vector_op(mir_unit_t *mu, mir_value_t value)
@@ -1115,12 +1127,22 @@ void mir_annotate(mir_unit_t *mu, const mir_annotate_t *cb, void *ctx)
 
          case MIR_OP_DRIVE_SIGNAL:
          case MIR_OP_SCHED_RELEASE:
+            {
+               printf("%s ", mir_op_string(n->op));
+               mir_dump_value(mu, n->args[0], cb, ctx);
+               printf(" count ");
+               mir_dump_value(mu, n->args[1], cb, ctx);
+            }
+            break;
+
          case MIR_OP_RELEASE_SIGNAL:
             {
                printf("%s ", mir_op_string(n->op));
                mir_dump_value(mu, n->args[0], cb, ctx);
                printf(" count ");
                mir_dump_value(mu, n->args[1], cb, ctx);
+               printf(" mode ");
+               mir_dump_release_mode(n->args[2]);
             }
             break;
 

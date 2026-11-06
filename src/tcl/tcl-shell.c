@@ -592,7 +592,7 @@ static int shell_cmd_noforce(ClientData cd, Tcl_Interp *interp,
             shell_signal_t *ss = &(sh->signals[i]);
             if (ss->signal->nexus.flags & NET_F_FORCED)
                release_signal(sh->model, ss->signal, 0,
-                              signal_width(ss->signal));
+                              signal_width(ss->signal), RELEASE_RECOMPUTE);
          }
       }
       else {
@@ -603,7 +603,8 @@ static int shell_cmd_noforce(ClientData cd, Tcl_Interp *interp,
          if (!(ss->signal->nexus.flags & NET_F_FORCED))
             return tcl_error(sh, "signal %s is not forced", signame);
 
-         release_signal(sh->model, ss->signal, 0, signal_width(ss->signal));
+         release_signal(sh->model, ss->signal, 0, signal_width(ss->signal),
+                        RELEASE_RECOMPUTE);
       }
    }
 

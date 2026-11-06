@@ -674,7 +674,7 @@ void mir_build_sched_release(mir_unit_t *mu, mir_value_t target,
 void mir_build_force_signal(mir_unit_t *mu, mir_value_t target,
                             mir_value_t count, mir_value_t values);
 void mir_build_release_signal(mir_unit_t *mu, mir_value_t target,
-                              mir_value_t count);
+                              mir_value_t count, mir_value_t mode);
 void mir_build_disconnect(mir_unit_t *mu, mir_value_t target, mir_value_t count,
                           mir_value_t reject, mir_value_t after);
 mir_value_t mir_build_last_event(mir_unit_t *mu, mir_value_t signal,

@@ -15,6 +15,7 @@
   operands are now converted to real as signed values.
 - Fixed a JIT bug where sign extension of a Verilog vector could
   corrupt the value used by later expressions.
+- Added support for Verilog `force` and `release` statements.
 - Several other minor bugs were resolved (#1678, #1718, #1685).
 
 ## Version 1.23.1 - 2026-10-28

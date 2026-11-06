@@ -63,6 +63,11 @@ typedef uint8_t net_flags_t;
 typedef uint32_t sig_flags_t;
 
 typedef enum {
+   RELEASE_RECOMPUTE,
+   RELEASE_RETAIN,
+} release_mode_t;
+
+typedef enum {
    SCOPE_ROOT,
    SCOPE_INSTANCE,
    SCOPE_PACKAGE,

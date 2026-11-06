@@ -20,6 +20,7 @@
 #include "mir/mir-node.h"
 #include "mir/mir-structs.h"
 #include "mir/mir-priv.h"
+#include "rt/defs.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -2733,13 +2734,16 @@ void mir_build_force_signal(mir_unit_t *mu, mir_value_t target,
 }
 
 void mir_build_release_signal(mir_unit_t *mu, mir_value_t target,
-                              mir_value_t count)
+                              mir_value_t count, mir_value_t mode)
 {
-   mir_build_2(mu, MIR_OP_RELEASE_SIGNAL, MIR_NULL_TYPE, MIR_NULL_STAMP,
-               target, count);
+   mir_build_3(mu, MIR_OP_RELEASE_SIGNAL, MIR_NULL_TYPE, MIR_NULL_STAMP,
+               target, count, mode);
 
    MIR_ASSERT(mir_is_signal(mu, target), "release target is not signal");
    MIR_ASSERT(mir_is_offset(mu, count), "release net count is not offset type");
+   MIR_ASSERT(mode.tag == MIR_TAG_ENUM, "release mode is not an enum");
+   MIR_ASSERT(mode.id == RELEASE_RECOMPUTE || mode.id == RELEASE_RETAIN,
+              "invalid release mode");
 }
 
 void mir_build_disconnect(mir_unit_t *mu, mir_value_t target, mir_value_t count,
