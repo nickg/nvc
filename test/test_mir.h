@@ -24,15 +24,29 @@
 
 #include <inttypes.h>
 
+// The fields must overlay the same bits of the pointer or integer on
+// both byte orders: bit-fields are allocated from the most significant
+// end on big-endian hosts
 typedef union {
    struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+      uint64_t tag : 8;
+      uint64_t data : 56;
+#else
       uint64_t data : 56;
       uint64_t tag : 8;
+#endif
    };
    struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+      uint32_t zero : 4;
+      uint32_t ones : 28;
+      float    real;
+#else
       float    real;
       uint32_t ones : 28;
       uint32_t zero : 4;
+#endif
    };
    const void *ptr;
    uint64_t    bits;

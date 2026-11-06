@@ -740,6 +740,11 @@ static int wrap_get_value(ClientData cd, Tcl_Interp *interp,
          return TCL_OK;
       }
    case vhpiIntVal:
+      {
+         Tcl_Obj *obj = Tcl_NewIntObj(val.value.intg);
+         Tcl_SetObjResult(interp, obj);
+         return TCL_OK;
+      }
    case vhpiLongIntVal:
       {
          Tcl_Obj *obj = Tcl_NewIntObj(val.value.longintg);

@@ -1727,8 +1727,15 @@ START_TEST(test_lvn7)
    jit_func_t *f = jit_get_func(j, h1);
    jit_do_lvn(f);
 
+   // The eight constant pool bytes loaded as one native word
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+   const uint64_t expect = UINT64_C(0x0001020304050607);
+#else
+   const uint64_t expect = UINT64_C(0x0706050403020100);
+#endif
+
    ck_assert_int_eq(f->irbuf[1].op, J_STORE);
-   ck_assert_int_eq(f->irbuf[1].arg1.int64, UINT64_C(0x706050403020100));
+   ck_assert_int_eq(f->irbuf[1].arg1.int64, expect);
 
    ck_assert_int_eq(f->irbuf[3].op, J_NOP);
    ck_assert_int_eq(f->irbuf[4].op, MACRO_COPY);

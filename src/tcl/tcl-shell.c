@@ -543,8 +543,15 @@ static int shell_cmd_force(ClientData cd, Tcl_Interp *interp,
       return tcl_error(sh, "value '%s' is not valid for type %s",
                        valstr, type_pp(type));
 
-   if (type_is_scalar(type))
+   if (type_is_scalar(type)) {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+      // The value is read from the start of the integer so move the
+      // least significant bytes there
+      value.integer = (uint64_t)value.integer
+         << ((sizeof(int64_t) - ss->signal->nexus.size) * 8);
+#endif
       force_signal(sh->model, ss->signal, &value.integer, 0, 1);
+   }
    else if (type_is_character_array(type)) {
       const int width = signal_width(ss->signal);
       if (value.enums->count != width) {
