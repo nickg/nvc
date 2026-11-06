@@ -7,6 +7,8 @@
   headers (from @gsmecher).
 - Environment variables with braces like `{ENV}` are now supported in
   the analysis `-f` file list (from @mak-gitdev).
+- Array aggregates with a non-locally static choice and an `others`
+  choice are now accepted with `--relaxed` (#1637).
 - `process(all)` sensitivity list construction now correctly checks
   all nested subprograms instead of only procedures (#1721).
 - Fixed a JIT bug where sign extension of a Verilog vector could
