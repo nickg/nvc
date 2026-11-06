@@ -916,9 +916,12 @@ static jit_value_t irgen_sign_extend(jit_irgen_t *g, jit_value_t value,
    assert(size >= 0 && size <= 64);
 
    if (size < 64) {
+      // The input may be the register of a live MIR value
+      jit_value_t result = irgen_alloc_temp(g);
       jit_value_t shift = jit_value_from_int64(64 - size);
-      j_shl(g, value, value, shift);
-      j_asr(g, value, value, shift);
+      j_shl(g, result, value, shift);
+      j_asr(g, result, result, shift);
+      return result;
    }
 
    return value;
