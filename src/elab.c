@@ -587,13 +587,16 @@ static tree_t elab_mixed_binding(tree_t comp, const elab_instance_t *ei)
 
       ident_t name = vlog_ident2(mport);
 
+      // An extended identifier such as \next\ matches exactly
+      ident_t ext = ident_sprintf("\\%s\\", istr(vlog_ident(mport)));
+
       tree_t vport = tree_port(ei->block, i);
       assert(tree_ident(vport) == vlog_ident(mport));
 
       tree_t cport = NULL;
       for (int j = 0; j < vhdl_nports; j++) {
          tree_t pj = tree_port(comp, j);
-         if (ident_casecmp(tree_ident(pj), name)) {
+         if (ident_casecmp(tree_ident(pj), name) || tree_ident(pj) == ext) {
             cport = pj;
             mask_set(&have, j);
             break;

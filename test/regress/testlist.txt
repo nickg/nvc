@@ -1510,3 +1510,4 @@ deassign1       verilog
 issue1726       normal,2008
 vlog52          verilog,gold
 udp3            verilog
+mixed10         mixed
