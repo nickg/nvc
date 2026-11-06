@@ -1389,6 +1389,8 @@ static mir_value_t vlog_lower_systf_param(vlog_gen_t *g, vlog_node_t v)
    case V_COND_EXPR:
    case V_MEMBER_REF:
    case V_HIER_REF:
+   case V_USER_FCALL:
+   case V_CAST:
       // TODO: these should not be evaluated until vpi_get_value is called
       return vlog_lower_rvalue(g, v);
    default:
