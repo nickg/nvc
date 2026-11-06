@@ -151,6 +151,8 @@ static void vlog_check_variable_lvalue(vlog_node_t v, vlog_node_t where)
       else if (!is_implicit_data_type(vlog_type(v)))
          return;
       break;
+   case V_HIER_REF:
+      return;   // Cannot check now
    default:
       break;
    }
@@ -712,9 +714,10 @@ static void vlog_check_super_call(vlog_node_t v)
 
 static void vlog_check_deassign(vlog_node_t v)
 {
-   error_at(vlog_loc(v), "procedural deassign statements are not supported "
-            "as they are being considered for removal from the System Verilog "
-            "standard");
+   vlog_node_t target = vlog_target(v);
+
+   vlog_check_expr(target);
+   vlog_check_variable_lvalue(target, target);
 }
 
 static void vlog_check_return(vlog_node_t v)

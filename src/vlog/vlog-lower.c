@@ -3125,9 +3125,11 @@ static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v, gen_stack_t *gs)
          vlog_lower_non_blocking_assignment(g, s);
          break;
       case V_FORCE:
+      case V_ASSIGN:  // Legacy procedural assign
          vlog_lower_force(g, s);
          break;
       case V_RELEASE:
+      case V_DEASSIGN:
          vlog_lower_release(g, s);
          break;
       case V_OP_ASSIGN:
