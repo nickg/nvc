@@ -1508,3 +1508,4 @@ vlog49          verilog,gold
 force5          verilog
 deassign1       verilog
 issue1726       normal,2008
+udp3            verilog

@@ -54,6 +54,7 @@ static mir_value_t vlog_udp_cmp(mir_unit_t *mu, mir_value_t left,
 
    switch (sym) {
    case 'b':
+   case 'B':
       {
          mir_value_t eq0 = mir_build_binary(mu, MIR_VEC_CASE_EQ, t_logic, left,
                                             level_map['0']);
@@ -61,7 +62,7 @@ static mir_value_t vlog_udp_cmp(mir_unit_t *mu, mir_value_t left,
                                             level_map['1']);
          mir_value_t test0 = mir_build_test(mu, eq0);
          mir_value_t test1 = mir_build_test(mu, eq1);
-         return mir_build_and(mu, test0, test1);
+         return mir_build_or(mu, test0, test1);
       }
    case '*':
       should_not_reach_here();
@@ -407,6 +408,8 @@ static void vlog_lower_seq_udp(mir_unit_t *mu, vlog_node_t udp)
          case '1':
          case 'x':
          case 'X':
+         case 'b':
+         case 'B':
             cmp = vlog_udp_cmp(mu, packed, vlog_ival(isym), level_map);
             break;
          case '?':
