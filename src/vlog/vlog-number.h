@@ -87,6 +87,7 @@ void vec2_neg(int size, uint64_t *a);
 void vec2_inv(int size, uint64_t *a);
 int vec2_and1(int size, const uint64_t *a);
 int vec2_or1(int size, const uint64_t *a);
+int vec2_xor1(int size, const uint64_t *a);
 void vec2_and2(int size, uint64_t *a, const uint64_t *b);
 void vec2_or2(int size, uint64_t *a, const uint64_t *b);
 void vec2_xor2(int size, uint64_t *a, const uint64_t *b);

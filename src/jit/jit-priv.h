@@ -239,6 +239,7 @@ typedef enum {
    JIT_VEC_SGE,
    JIT_VEC_AND1,
    JIT_VEC_OR1,
+   JIT_VEC_XOR1,
    JIT_VEC_TERNARY,
    JIT_VEC_EXP,
    JIT_VEC_DEFINED,
