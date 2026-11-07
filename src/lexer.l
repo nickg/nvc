@@ -769,6 +769,7 @@ PROTECT           ?i:protect
 <VLOG>"~&"               { return tTILDEAMP; }
 <VLOG>"~|"               { return tTILDEBAR; }
 <VLOG>"->"               { return tIFIMPL; }
+<VLOG>"->>"              { return tNBTRIGGER; }
 <VLOG>"+="               { return tPLUSEQ; }
 <VLOG>"-="               { return tMINUSEQ; }
 <VLOG>"*="               { return tTIMESEQ; }

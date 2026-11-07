@@ -288,6 +288,21 @@ static void vlog_check_bassign(vlog_node_t v)
    vlog_check_same_type(target, lmask, value, rmask);
 }
 
+static void vlog_check_event_trigger(vlog_node_t v)
+{
+   vlog_node_t target = vlog_target(v);
+   type_mask_t tmask = vlog_check_expr(target);
+
+   // The type of a hierarchical reference is not known until elaboration
+   if (vlog_kind(target) != V_HIER_REF && tmask != TM_ERROR
+       && tmask != TM(DT_EVENT))
+      error_at(vlog_loc(target), "target of event trigger must be an event");
+
+   if (vlog_has_delay(v))
+      error_at(vlog_loc(v), "sorry, delayed non-blocking event trigger is "
+               "not yet supported");
+}
+
 static void vlog_check_assign(vlog_node_t v)
 {
    vlog_node_t target = vlog_target(v);
@@ -873,6 +888,9 @@ static type_mask_t vlog_check_member_ref(vlog_node_t v)
 {
    vlog_check_expr(vlog_value(v));
 
+   if (!vlog_has_ref(v))
+      return TM_ERROR;   // Was earlier error
+
    return get_type_mask(vlog_ref(v));
 }
 
@@ -1404,6 +1422,9 @@ void vlog_check(vlog_node_t v)
       break;
    case V_NBASSIGN:
       vlog_check_nbassign(v);
+      break;
+   case V_EVENT_TRIGGER:
+      vlog_check_event_trigger(v);
       break;
    case V_RETURN:
       vlog_check_return(v);
