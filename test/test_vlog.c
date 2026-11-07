@@ -1969,6 +1969,7 @@ START_TEST(test_pp14)
 
    check_expected_errors();
 }
+END_TEST
 
 START_TEST(test_href2)
 {
