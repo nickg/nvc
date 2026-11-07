@@ -117,6 +117,7 @@ static void elab_verilog_processes(vlog_node_t v, const elab_ctx_t *ctx);
 static void elab_decls(tree_t t, const elab_ctx_t *ctx);
 static void elab_push_scope(tree_t t, elab_ctx_t *ctx);
 static void elab_pop_scope(elab_ctx_t *ctx);
+static inline tree_t elab_eval_expr(tree_t t, const elab_ctx_t *ctx);
 
 static generic_list_t *generic_override = NULL;
 
@@ -1994,26 +1995,59 @@ static vlog_node_t elab_mixed_generics(tree_t comp, vlog_node_t mod,
       }
 
       type_t ctype = tree_type(cg);
-      type_t etype = std_type(NULL, STD_INTEGER);
-
-      if (!type_eq(ctype, etype)) {
-         error_at(tree_loc(cg), "generic %pI should have type %pT to match "
-                  "corresponding Verilog parameter", tree_ident(cg), etype);
-         return NULL;
-      }
 
       tree_t value = find_generic_map(ctx->out, cpos, cg);
-      if (value == NULL)
+      if (value != NULL && tree_kind(value) == T_OPEN && tree_has_value(cg))
+         value = tree_value(cg);   // Use default from component
+
+      if (value == NULL || tree_kind(value) == T_OPEN)
          fatal_at(tree_loc(ctx->out), "cannot get value of generic %pI",
                   tree_ident(cg));
 
-      number_t n = number_from_int(assume_int(value));
+      // The actual may be any globally static
+      // expression so try to fold it first
+      if (!is_literal(value) && tree_kind(value) != T_STRING)
+         value = elab_eval_expr(value, ctx);
 
-      vlog_node_t num = vlog_new(V_NUMBER);
-      vlog_set_number(num, n);
+      vlog_node_t vlog_gen;
+      if (type_eq(ctype, std_type(NULL, STD_STRING))) {
+         if (tree_kind(value) != T_STRING)
+            fatal_at(tree_loc(value), "cannot get value of generic %pI",
+                     tree_ident(cg));
+
+         const int nchars = tree_chars(value);
+         char *buf LOCAL = xmalloc(nchars + 1);
+         for (int j = 0; j < nchars; j++)
+            buf[j] = ident_char(tree_ident(tree_char(value, j)), 1);
+
+         vlog_gen = vlog_new(V_STRING);
+         vlog_set_number(vlog_gen, number_from_string(buf, nchars));
+      }
+      else if (type_eq(ctype, std_type(NULL, STD_REAL))) {
+         double dval;
+         if (!folded_real(value, &dval))
+            fatal_at(tree_loc(value), "cannot get value of generic %pI",
+                     tree_ident(cg));
+
+         vlog_gen = vlog_new(V_REAL);
+         vlog_set_dval(vlog_gen, dval);
+      }
+      else if (type_eq(ctype, std_type(NULL, STD_INTEGER))) {
+         vlog_gen = vlog_new(V_NUMBER);
+         vlog_set_number(vlog_gen, number_from_int(assume_int(value)));
+      }
+      else {
+         error_at(tree_loc(cg), "generic %pI should have type %pT, %pT, or "
+                  "%pT to match corresponding Verilog parameter",
+                  tree_ident(cg), std_type(NULL, STD_INTEGER),
+                  std_type(NULL, STD_STRING), std_type(NULL, STD_REAL));
+         return NULL;
+      }
+
+      vlog_set_loc(vlog_gen, tree_loc(value));
 
       vlog_node_t pa = vlog_new(V_PARAM_ASSIGN);
-      vlog_set_value(pa, num);
+      vlog_set_value(pa, vlog_gen);
       if (named) vlog_set_ident(pa, vlog_ident(d));
 
       vlog_add_param(list, pa);

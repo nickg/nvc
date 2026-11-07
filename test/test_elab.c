@@ -1460,8 +1460,8 @@ START_TEST(test_mixed1)
         "port 'three'" },
       { 56, "missing matching VHDL generic declaration for Verilog parameter "
         "'g1' with no default value in component MOD1" },
-      { 67, "generic G1 should have type INTEGER to match corresponding "
-        "Verilog parameter" },
+      { 67, "generic G1 should have type INTEGER, STRING, or REAL to match "
+        "corresponding Verilog parameter" },
       { 79, "generic G2 not found in Verilog module 'mod1'" },
       { 93, "VHDL port direction IN does not match corresponding Verilog "
         "port 'three' which is declared as output" },
