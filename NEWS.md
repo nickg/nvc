@@ -19,6 +19,8 @@
   support for deprecated procedural `assign` and `deassign` (#1676).
 - Fixed a crash when a Verilog user function call or cast is used as a
   system task argument.
+- Added support for Verilog named events and the `->` and `->>` event
+  trigger statements.
 - Several other minor bugs were resolved (#1678, #1718, #1685, #1726).
 
 ## Version 1.23.1 - 2026-10-28
