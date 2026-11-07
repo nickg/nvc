@@ -220,7 +220,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_CONDS),
 
    // V_EVENT_TRIGGER
-   (I_IDENT),
+   (I_SUBKIND | I_TARGET | I_DELAY),
 
    // V_USER_FCALL
    (I_IDENT | I_REF | I_PARAMS),

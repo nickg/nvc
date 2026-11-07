@@ -28,6 +28,11 @@ typedef enum {
 } v_event_kind_t;
 
 typedef enum {
+   V_TRIGGER_BLOCKING,
+   V_TRIGGER_NONBLOCKING
+} v_trigger_kind_t;
+
+typedef enum {
    V_PORT_INPUT,
    V_PORT_OUTPUT,
    V_PORT_INOUT,
