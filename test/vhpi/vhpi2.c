@@ -9,10 +9,46 @@ static vhpiHandleT handle_x;
 static vhpiHandleT handle_y;
 static vhpiHandleT end_of_timestep_cb;
 static int         sequence = 0;
+static int         start_of_processes_count = 0;
+static int         rep_start_count = 0;
+static int         rep_end_count = 0;
+
+static void start_of_processes(const vhpiCbDataT *cb_data)
+{
+   vhpi_printf("start_of_processes");
+
+   fail_unless(sequence == 0);
+   fail_unless(start_of_processes_count++ == 0);
+}
+
+// In every cycle, the start of the process phase, then its end
+static void rep_start_of_processes(const vhpiCbDataT *cb_data)
+{
+   fail_unless(rep_start_count == rep_end_count);
+   rep_start_count++;
+}
+
+static void rep_end_of_processes(const vhpiCbDataT *cb_data)
+{
+   fail_unless(rep_end_count + 1 == rep_start_count);
+   rep_end_count++;
+}
+
+static void end_of_simulation(const vhpiCbDataT *cb_data)
+{
+   fail_unless(start_of_processes_count == 1);
+   fail_unless(rep_start_count > 1);
+   fail_unless(rep_start_count == rep_end_count);
+}
 
 static void end_of_processes(const vhpiCbDataT *cb_data)
 {
    vhpi_printf("end_of_processes");
+
+   // The process phase of this cycle started after the callbacks were
+   // registered
+   fail_unless(start_of_processes_count == 1);
+   fail_unless(rep_start_count == 1);
 
    fail_unless(sequence++ == 0);
 }
@@ -97,6 +133,34 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
 
    value.value.intg = 1;
    vhpi_put_value(handle_x, &value, vhpiForcePropagate);
+   check_error();
+
+   vhpiCbDataT cb_data0 = {
+      .reason = vhpiCbStartOfProcesses,
+      .cb_rtn = start_of_processes,
+   };
+   vhpi_register_cb(&cb_data0, 0);
+   check_error();
+
+   vhpiCbDataT cb_data0r = {
+      .reason = vhpiCbRepStartOfProcesses,
+      .cb_rtn = rep_start_of_processes,
+   };
+   vhpi_register_cb(&cb_data0r, 0);
+   check_error();
+
+   vhpiCbDataT cb_data0e = {
+      .reason = vhpiCbRepEndOfProcesses,
+      .cb_rtn = rep_end_of_processes,
+   };
+   vhpi_register_cb(&cb_data0e, 0);
+   check_error();
+
+   vhpiCbDataT cb_data0s = {
+      .reason = vhpiCbEndOfSimulation,
+      .cb_rtn = end_of_simulation,
+   };
+   vhpi_register_cb(&cb_data0s, 0);
    check_error();
 
    vhpiCbDataT cb_data1 = {
