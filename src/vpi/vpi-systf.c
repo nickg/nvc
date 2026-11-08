@@ -29,6 +29,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -40,6 +41,22 @@ typedef struct {
    size_t      pos;
    bool        eof;
 } scan_src_t;
+
+typedef struct {
+   int   units;        // Power of ten seconds or INT_MIN for the precision
+   int   precision;    // Digits after the decimal point
+   char *suffix;
+   int   min_width;
+} time_format_t;
+
+#define MAX_TIME_PRECISION 100
+
+static time_format_t time_format = {
+   .units     = INT_MIN,
+   .precision = 0,
+   .suffix    = NULL,
+   .min_width = 20,
+};
 
 static void format_string(ostream_t *out, vpiHandle it, int fwidth)
 {
@@ -80,12 +97,126 @@ static void format_radix_string(ostream_t *out, const char *str, int fwidth)
       ostream_puts(out, str);
 }
 
+static int64_t time_pow10(int n)
+{
+   int64_t r = 1;
+   for (; n > 0; n--)
+      r *= 10;
+   return r;
+}
+
+static bool format_time_integer(text_buf_t *tb, uint64_t value, int64_t unit,
+                                int64_t scale, int precision)
+{
+   // Print value * unit / scale rounded to precision decimal places
+
+   uint64_t num;
+   if (__builtin_mul_overflow(value, unit, &num))
+      return false;
+
+   uint64_t whole = num / scale, rem = num % scale;
+
+   char *frac LOCAL = xmalloc(precision + 1);
+   for (int i = 0; i < precision; i++) {
+      rem *= 10;
+      frac[i] = '0' + rem / scale;
+      rem %= scale;
+   }
+
+   if (rem * 2 >= scale) {
+      int i = precision - 1;
+      for (; i >= 0 && frac[i] == '9'; i--)
+         frac[i] = '0';
+
+      if (i >= 0)
+         frac[i]++;
+      else
+         whole++;
+   }
+
+   tb_printf(tb, "%"PRIu64, whole);
+
+   if (precision > 0) {
+      tb_append(tb, '.');
+      tb_catn(tb, frac, precision);
+   }
+
+   return true;
+}
+
+static void format_time(ostream_t *out, vpiHandle arg, int fwidth)
+{
+   vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
+   assert(call != NULL);
+
+   const int unit_exp = vpi_get(vpiTimeUnit, call);
+   vpi_release_handle(call);
+
+   const int units = time_format.units != INT_MIN
+      ? time_format.units : vpi_get(vpiTimePrecision, NULL);
+
+   // The argument is in the time unit of the module containing the call
+   const int64_t unit = time_pow10(unit_exp + 15);
+   const int64_t scale = time_pow10(units + 15);
+
+   s_vpi_value argval = { .format = vpiDecStrVal };
+   vpi_get_value(arg, &argval);
+   if (vpi_chk_error(NULL))
+      return;
+
+   text_buf_t *tb = tb_new();
+
+   const char *str = argval.value.str;
+   const bool neg = str[0] == '-';
+   char *end;
+   const uint64_t value = strtoull(str + neg, &end, 10);
+
+   if (*end != '\0' || end == str + neg)
+      tb_cat(tb, str);   // Unknown value
+   else {
+      // The decimal string is rounded if the argument is a real number
+      s_vpi_value realval = { .format = vpiRealVal };
+      vpi_get_value(arg, &realval);
+
+      const double real = realval.value.real;
+      const double sign = neg ? -1.0 : 1.0;
+
+      if (real != sign * (double)value)
+         tb_printf(tb, "%.*f", time_format.precision, real * unit / scale);
+      else {
+         if (neg && value != 0)
+            tb_append(tb, '-');
+
+         if (!format_time_integer(tb, value, unit, scale,
+                                  time_format.precision)) {
+            tb_rewind(tb);
+            tb_printf(tb, "%.*f", time_format.precision,
+                      real * unit / scale);
+         }
+      }
+   }
+
+   const char *suffix = time_format.suffix ?: "";
+   const int len = tb_len(tb) + strlen(suffix);
+   const int width = fwidth >= 0 ? fwidth : time_format.min_width;
+
+   for (int i = len; i < width; i++)
+      ostream_putc(out, ' ');
+
+   ostream_write(out, tb_get(tb), tb_len(tb));
+   ostream_puts(out, suffix);
+
+   tb_free(tb);
+}
+
 static void format_radix(ostream_t *out, vpiHandle arg, char radix, int fwidth,
                          int precision, char pad)
 {
    switch (radix) {
-   case 'd':
    case 't':
+      format_time(out, arg, fwidth);
+      break;
+   case 'd':
       {
          s_vpi_value argval = { .format = vpiDecStrVal };
          vpi_get_value(arg, &argval);
@@ -317,6 +448,71 @@ static PLI_INT32 get_int_arg(vpiHandle arg)
    s_vpi_value value = { .format = vpiIntVal };
    vpi_get_value(arg, &value);
    return value.value.integer;
+}
+
+static PLI_INT32 timeformat_tf(PLI_BYTE8 *userdata)
+{
+   vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
+   assert(call != NULL);
+
+   vpiHandle it = vpi_iterate(vpiArgument, call);
+   vpi_release_handle(call);
+
+   int nargs = 0;
+   vpiHandle arg;
+   for (; it != NULL && (arg = vpi_scan(it)) != NULL; nargs++) {
+      switch (nargs) {
+      case 0:
+         {
+            const PLI_INT32 units = get_int_arg(arg);
+            if (units < -15 || units > 0)
+               jit_msg(NULL, DIAG_WARN, "$timeformat units %d out of "
+                       "range -15 to 0", units);
+            else
+               time_format.units = units;
+         }
+         break;
+      case 1:
+         {
+            const PLI_INT32 precision = get_int_arg(arg);
+            if (precision < 0 || precision > MAX_TIME_PRECISION)
+               jit_msg(NULL, DIAG_WARN, "$timeformat precision %d out of "
+                       "range 0 to %d", precision, MAX_TIME_PRECISION);
+            else
+               time_format.precision = precision;
+         }
+         break;
+      case 2:
+         {
+            s_vpi_value value = { .format = vpiStringVal };
+            vpi_get_value(arg, &value);
+
+            if (!vpi_chk_error(NULL)) {
+               free(time_format.suffix);
+               time_format.suffix = xstrdup(value.value.str);
+            }
+         }
+         break;
+      case 3:
+         time_format.min_width = get_int_arg(arg);
+         break;
+      }
+
+      vpi_release_handle(arg);
+   }
+
+   if (nargs == 0) {
+      // Without arguments restore the defaults
+      free(time_format.suffix);
+      time_format = (time_format_t){
+         .units     = INT_MIN,
+         .precision = 0,
+         .suffix    = NULL,
+         .min_width = 20,
+      };
+   }
+
+   return 0;
 }
 
 static FILE *get_file_stream(vpiHandle arg)
@@ -875,6 +1071,25 @@ static PLI_INT32 time_tf(PLI_BYTE8 *userdata)
    return 0;
 }
 
+static PLI_INT32 realtime_tf(PLI_BYTE8 *userdata)
+{
+   rt_model_t *m = get_model();
+   const int64_t now = model_now(m, NULL);
+
+   s_vpi_value result = {
+      .format = vpiRealVal,
+      .value = { .real = now },
+   };
+
+   vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
+   assert(call != NULL);
+
+   vpi_put_value(call, &result, NULL, 0);
+
+   vpi_release_handle(call);
+   return 0;
+}
+
 static PLI_INT32 stime_tf(PLI_BYTE8 *userdata)
 {
    rt_model_t *m = get_model();
@@ -1208,6 +1423,11 @@ static s_vpi_systf_data builtins[] = {
    },
    {
       .type   = vpiSysTask,
+      .tfname = "$timeformat",
+      .calltf = timeformat_tf
+   },
+   {
+      .type   = vpiSysTask,
       .tfname = "$monitor",
       .calltf = monitor_tf
    },
@@ -1316,6 +1536,12 @@ static s_vpi_systf_data builtins[] = {
       .tfname      = "$time",
       .sysfunctype = vpiTimeFunc,
       .calltf      = time_tf
+   },
+   {
+      .type        = vpiSysFunc,
+      .tfname      = "$realtime",
+      .sysfunctype = vpiRealFunc,
+      .calltf      = realtime_tf
    },
    {
       .type        = vpiSysFunc,
