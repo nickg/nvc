@@ -181,6 +181,8 @@ static void vlog_check_net_lvalue(vlog_node_t v, vlog_node_t where)
    case V_REF:
       vlog_check_net_lvalue(vlog_ref(v), v);
       return;
+   case V_HIER_REF:
+      return;   // Target is resolved during elaboration
    case V_BIT_SELECT:
    case V_PART_SELECT:
    case V_MEMBER_REF:

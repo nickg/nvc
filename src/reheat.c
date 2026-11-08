@@ -109,7 +109,9 @@ void reheat(tree_t top, unit_registry_t *ur, mir_context_t *mc,
       .instances = hset_new(16),
    };
 
-   reheat_block(tree_stmt(top, 0), &ctx);
+   const int ntops = tree_stmts(top);
+   for (int i = 0; i < ntops; i++)
+      reheat_block(tree_stmt(top, i), &ctx);
 
    hset_free(ctx.instances);
 }

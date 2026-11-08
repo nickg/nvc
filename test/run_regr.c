@@ -132,6 +132,7 @@ typedef struct _test {
    test_t    *next;
    int        flags;
    char      *stop;
+   char      *top;
    param_t   *params;
    char      *relax;
    char      *work;
@@ -422,6 +423,8 @@ static bool parse_test_list(void)
             test->flags |= F_STOP;
             test->stop = strdup(stop + 1);
          }
+         else if (strncmp(opt, "top=", 4) == 0)
+            test->top = strdup(opt + 4);
          else if (strcmp(opt, "2008") == 0)
             test->flags |= F_2008;
          else if (strcmp(opt, "2000") == 0)
@@ -1011,6 +1014,8 @@ static bool run_test(test_t *test)
 
       push_arg(&args, "-e");
       push_arg(&args, "%s", test->name);
+      if (test->top != NULL)
+         push_arg(&args, "%s", test->top);
       push_arg(&args, "-O%u", test->olevel);
 
       if (test->flags & F_NOCOLL)

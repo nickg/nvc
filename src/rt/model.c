@@ -3351,6 +3351,11 @@ static void model_cycle(rt_model_t *m)
    if (m->nonblockq.count > 0) {
       TRACE("begin non-blocking assignment region");
       deferq_run(m, &m->nonblockq);
+
+      // Updates deferred because the nexus has several sources must not
+      // wait for the next time step
+      if (heap_size(m->driving_heap) > 0 || heap_size(m->effective_heap) > 0)
+         m->next_is_delta = true;
    }
 
  next_delta:

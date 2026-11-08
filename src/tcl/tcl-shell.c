@@ -26,6 +26,7 @@
 #include "tcl/tcl-priv.h"
 #include "tcl/tcl-shell.h"
 #include "tcl/tcl-structs.h"
+#include "thread.h"
 #include "tree.h"
 #include "type.h"
 
@@ -638,6 +639,11 @@ static int shell_cmd_exit(ClientData cd, Tcl_Interp *interp,
 
    if (sh->handler.exit != NULL)
       (*sh->handler.exit)(status, sh->handler.context);
+
+   // Tcl_Exit runs the atexit handlers which join the worker threads: wait
+   // for pending JIT compilation first as a worker that calls atexit while
+   // the main thread holds the C runtime exit lock would never finish
+   async_barrier();
 
    Tcl_Exit(status);
 

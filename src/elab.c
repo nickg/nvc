@@ -84,9 +84,15 @@ typedef struct {
 } lib_search_params_t;
 
 typedef struct {
-   tree_t  comp;
-   tree_t *result;
+   tree_t       comp;
+   tree_t      *result;
+   vlog_node_t *mod;
 } synth_binding_params_t;
+
+typedef struct {
+   ident_t   name;
+   object_t *result;
+} find_module_params_t;
 
 typedef struct _generic_list {
    generic_list_t *next;
@@ -478,9 +484,22 @@ static bool elab_synth_binding_cb(lib_t lib, void *__ctx)
    synth_binding_params_t *params = __ctx;
 
    ident_t name = ident_prefix(lib_name(lib), tree_ident(params->comp), '.');
-   *(params->result) = lib_get(lib, name);
+   object_t *obj = lib_get_generic(lib, name, NULL);
 
-   return *(params->result) == NULL;
+   *(params->mod) = vlog_from_object(obj);
+   *(params->result) = tree_from_object(obj);
+
+   return obj == NULL;
+}
+
+static bool elab_find_module_cb(lib_t lib, void *__ctx)
+{
+   find_module_params_t *params = __ctx;
+
+   ident_t qual = ident_prefix(lib_name(lib), params->name, '.');
+   params->result = lib_get_generic(lib, qual, NULL);
+
+   return params->result == NULL;
 }
 
 static tree_t elab_to_vhdl(type_t from, type_t to)
@@ -681,7 +700,8 @@ static tree_t elab_mixed_binding(tree_t comp, const elab_instance_t *ei)
    return bind;
 }
 
-static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
+static tree_t elab_default_binding(tree_t inst, vlog_node_t *mod,
+                                   const elab_ctx_t *ctx)
 {
    // Default binding indication is described in LRM 93 section 5.2.2
 
@@ -706,7 +726,7 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
 
    object_t *obj = lib_get_generic(lib, full_i, NULL);
 
-   if (vlog_from_object(obj) != NULL)
+   if ((*mod = vlog_from_object(obj)) != NULL)
       return NULL;  // Verilog binding handled separately
 
    tree_t entity = tree_from_object(obj);
@@ -716,9 +736,13 @@ static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
       // behaviour of many synthesis tools
       synth_binding_params_t params = {
          .comp     = comp,
-         .result   = &entity
+         .result   = &entity,
+         .mod      = mod
       };
       lib_for_all(elab_synth_binding_cb, &params);
+
+      if (*mod != NULL)
+         return NULL;
    }
 
    if (entity == NULL) {
@@ -1618,7 +1642,8 @@ static void elab_verilog_module(tree_t comp, ident_t label, vlog_node_t mod,
    ident_t ndotted = ident_prefix(ctx->dotted, label, '.');
 
    elab_ctx_t new_ctx = {
-      .dotted = ndotted,
+      .dotted  = ndotted,
+      .library = lib_require(ident_until(vlog_ident(mod), '.')),
    };
    elab_inherit_context(&new_ctx, ctx);
 
@@ -1698,6 +1723,15 @@ static void elab_verilog_instance_list(vlog_node_t v, const elab_ctx_t *ctx)
    ident_t qual = ident_new(tb_get(tb));
 
    object_t *obj = lib_get_generic(ctx->library, qual, NULL);
+   if (obj == NULL) {
+      // Look in the other libraries on the command line as well
+      find_module_params_t params = {
+         .name = ident_rfrom(qual, '.')
+      };
+      lib_for_all(elab_find_module_cb, &params);
+      obj = params.result;
+   }
+
    if (obj == NULL) {
       error_at(vlog_loc(v), "module %pQ not found in library %pI",
                modname, libname);
@@ -1994,11 +2028,14 @@ static vlog_node_t elab_mixed_generics(tree_t comp, vlog_node_t mod,
       }
 
       type_t ctype = tree_type(cg);
-      type_t etype = std_type(NULL, STD_INTEGER);
+      type_t itype = std_type(NULL, STD_INTEGER);
+      type_t stype = std_type(NULL, STD_STRING);
 
-      if (!type_eq(ctype, etype)) {
+      const bool is_string = type_eq(ctype, stype);
+
+      if (!is_string && !type_eq(ctype, itype)) {
          error_at(tree_loc(cg), "generic %pI should have type %pT to match "
-                  "corresponding Verilog parameter", tree_ident(cg), etype);
+                  "corresponding Verilog parameter", tree_ident(cg), itype);
          return NULL;
       }
 
@@ -2007,7 +2044,24 @@ static vlog_node_t elab_mixed_generics(tree_t comp, vlog_node_t mod,
          fatal_at(tree_loc(ctx->out), "cannot get value of generic %pI",
                   tree_ident(cg));
 
-      number_t n = number_from_int(assume_int(value));
+      if (tree_kind(value) == T_OPEN && tree_has_value(cg))
+         value = tree_value(cg);   // Use the default value from the component
+
+      number_t n;
+      if (is_string) {
+         if (tree_kind(value) != T_STRING)
+            fatal_at(tree_loc(value), "value of string generic %pI is not "
+                     "a string literal", tree_ident(cg));
+
+         const int nchars = tree_chars(value);
+         char *bytes LOCAL = xmalloc(nchars);
+         for (int j = 0; j < nchars; j++)
+            bytes[j] = assume_int(tree_char(value, j));
+
+         n = number_from_string(bytes, nchars);
+      }
+      else
+         n = number_from_int(assume_int(value));
 
       vlog_node_t num = vlog_new(V_NUMBER);
       vlog_set_number(num, n);
@@ -2291,18 +2345,11 @@ static void elab_configuration(tree_t inst, tree_t unit, const elab_ctx_t *ctx)
 static void elab_component(tree_t inst, tree_t comp, const elab_ctx_t *ctx)
 {
    if (!tree_has_spec(inst)) {
-      tree_t bind = elab_default_binding(inst, ctx);
-      if (bind == NULL) {
-         ident_t prefix = lib_name(ctx->library);
-         ident_t qual = ident_prefix(prefix, tree_ident2(inst), '.');
-
-         object_t *obj = lib_get_generic(ctx->library, qual, NULL);
-
-         vlog_node_t mod = vlog_from_object(obj);
-         if (mod != NULL) {
-            elab_mixed_instance(inst, comp, mod, ctx);
-            return;
-         }
+      vlog_node_t mod = NULL;
+      tree_t bind = elab_default_binding(inst, &mod, ctx);
+      if (bind == NULL && mod != NULL) {
+         elab_mixed_instance(inst, comp, mod, ctx);
+         return;
       }
 
       tree_t spec = tree_new(T_SPEC);
