@@ -88,15 +88,21 @@ static void rename_mangled(copy_ctx_t *ctx, ident_t dotted,
       ident_t orig = tree_ident2(decl);
       for (int j = 0; j < nprefix; j++) {
          if (ident_starts_with(orig, prefixes[j])) {
-            ident_t prefix = ident_runtil(orig, '(');
-
-            LOCAL_TEXT_BUF tb = tb_new();
-            tb_cat(tb, istr(dotted));
-            tb_cat(tb, istr(prefix) + ident_len(prefixes[j]));
-
             type_t type = tree_type(decl);
             const bool is_func = type_has_result(type);
             const int nports = tree_ports(decl);
+
+            // Only this subprogram's own signature begins at the final
+            // '('. A nested procedure with no parameters has none, so
+            // cutting there would drop its name and share the enclosing
+            // body (issue #1740).
+            ident_t stem = orig;
+            if (nports > 0 || is_func)
+               stem = ident_runtil(orig, '(');
+
+            LOCAL_TEXT_BUF tb = tb_new();
+            tb_cat(tb, istr(dotted));
+            tb_cat(tb, istr(stem) + ident_len(prefixes[j]));
             if (nports > 0 || is_func)
                tb_append(tb, '(');
 
