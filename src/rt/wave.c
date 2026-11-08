@@ -27,6 +27,7 @@
 #include "rt/model.h"
 #include "rt/structs.h"
 #include "rt/wave.h"
+#include "rt/wave-live.h"
 #include "printf.h"
 #include "tree.h"
 #include "type.h"
@@ -109,6 +110,7 @@ typedef struct {
 typedef struct _wave_dumper {
    tree_t         top;
    void          *fst_ctx;
+   lvw_t         *live;
    rt_model_t    *model;
    gtkw_writer_t *gtkw;
    FILE          *vcdfile;
@@ -119,6 +121,14 @@ typedef struct _wave_dumper {
    fst_type_t    *datatypes[DT_STRING + 1];
    data_array_t   dumped;
 } wave_dumper_t;
+
+// Calls an fstWriter function or its lvw_ equivalent depending on the
+// output format
+#define WV(wd, fn, ...) \
+   ((wd)->live != NULL ? lvw_##fn((wd)->live, __VA_ARGS__) \
+                       : fstWriter##fn((wd)->fst_ctx, __VA_ARGS__))
+#define WV0(wd, fn) \
+   ((wd)->live != NULL ? lvw_##fn((wd)->live) : fstWriter##fn((wd)->fst_ctx))
 
 static glob_array_t incl;
 static glob_array_t excl;
@@ -149,7 +159,16 @@ static void fst_close(rt_model_t *m, void *arg)
 {
    wave_dumper_t *wd = arg;
 
-   fstWriterEmitTimeChange(wd->fst_ctx, model_now(m, NULL));
+   if (wd->live == NULL || model_now(m, NULL) != wd->last_time)
+      WV(wd, EmitTimeChange, model_now(m, NULL));
+
+   if (wd->live != NULL) {
+      lvw_close(wd->live);
+      wd->live  = NULL;
+      wd->model = NULL;
+      return;
+   }
+
    fstWriterClose(wd->fst_ctx);
 
    if (wd->vcdfile) {
@@ -185,6 +204,25 @@ static void fst_close(rt_model_t *m, void *arg)
    wd->model   = NULL;
 }
 
+static void live_flush(rt_model_t *m, void *arg)
+{
+   wave_dumper_t *wd = arg;
+   if (wd->live == NULL)
+      return;
+
+   // Tell the reader how far simulation time has advanced even if no
+   // signal changed, then make everything so far visible
+   const uint64_t now = model_now(m, NULL);
+   if (now != wd->last_time) {
+      lvw_EmitTimeChange(wd->live, now);
+      wd->last_time = now;
+   }
+   lvw_flush(wd->live);
+
+   // Phase callbacks run once; the next `run` needs this again
+   model_set_phase_cb(m, END_OF_SIMULATION, live_flush, wd);
+}
+
 static inline void fst_write_binary(uint64_t val, size_t size, char *buf)
 {
    for (size_t j = 0; j < size; j++)
@@ -201,14 +239,14 @@ static void fst_fmt_int(rt_watch_t *w, fst_data_t *data)
       char buf[data->type->size + 1];
       fst_write_binary(val[i], data->type->size, buf);
 
-      fstWriterEmitValueChange(data->dumper->fst_ctx, data->handle[i], buf);
+      WV(data->dumper, EmitValueChange, data->handle[i], buf);
    }
 }
 
 static void fst_fmt_real(rt_watch_t *w, fst_data_t *data)
 {
    const void *buf = signal_value(data->signal);
-   fstWriterEmitValueChange(data->dumper->fst_ctx, data->handle[0], buf);
+   WV(data->dumper, EmitValueChange, data->handle[0], buf);
 }
 
 static void fst_fmt_physical(rt_watch_t *w, fst_data_t *data)
@@ -224,8 +262,8 @@ static void fst_fmt_physical(rt_watch_t *w, fst_data_t *data)
    checked_sprintf(buf, sizeof(buf), "%"PRIi64" %s",
                    val / unit->mult, unit->name);
 
-   fstWriterEmitVariableLengthValueChange(
-      data->dumper->fst_ctx, data->handle[0], buf, strlen(buf));
+   WV(data->dumper, EmitVariableLengthValueChange, data->handle[0],
+      buf, strlen(buf));
 }
 
 static void fst_fmt_chars(rt_watch_t *w, fst_data_t *data)
@@ -236,11 +274,11 @@ static void fst_fmt_chars(rt_watch_t *w, fst_data_t *data)
          char buf[data->size];
          for (int j = 0; j < data->size; j++)
             buf[j] = data->type->u.map[p[j]];
-         fstWriterEmitValueChange(data->dumper->fst_ctx, data->handle[i], buf);
+         WV(data->dumper, EmitValueChange, data->handle[i], buf);
       }
       else
-         fstWriterEmitVariableLengthValueChange(
-            data->dumper->fst_ctx, data->handle[i], p, data->size);
+         WV(data->dumper, EmitVariableLengthValueChange, data->handle[i],
+            p, data->size);
    }
 }
 
@@ -255,8 +293,7 @@ static void fst_fmt_enum(rt_watch_t *w, fst_data_t *data)
       assert(val[i] < e->count);
 
       const char *literal = e->strings + val[i] * e->size;
-      fstWriterEmitVariableLengthValueChange(data->dumper->fst_ctx,
-                                             data->handle[i],
+      WV(data->dumper, EmitVariableLengthValueChange, data->handle[i],
                                              literal,
                                              strnlen(literal, e->size));
    }
@@ -270,7 +307,7 @@ static void fst_fmt_verilog(rt_watch_t *w, fst_data_t *data)
       char buf[data->size];
       for (int j = 0; j < data->size; j++)
          buf[j] = data->type->u.map[p[j] & 3];
-      fstWriterEmitValueChange(data->dumper->fst_ctx, data->handle[i], buf);
+      WV(data->dumper, EmitValueChange, data->handle[i], buf);
    }
 }
 
@@ -280,7 +317,7 @@ static void fst_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
    fst_data_t *data = user;
 
    if (now != data->dumper->last_time) {
-      fstWriterEmitTimeChange(data->dumper->fst_ctx, now);
+      WV(data->dumper, EmitTimeChange, now);
       data->dumper->last_time = now;
    }
 
@@ -435,7 +472,7 @@ static fst_type_t *fst_type_for(wave_dumper_t *wd, type_t type,
          ft->size    = nbits;
          ft->fn      = fst_fmt_int;
 
-         ft->u.enumh = fstWriterCreateEnumTable(wd->fst_ctx, type_pp(type),
+         ft->u.enumh = WV(wd, CreateEnumTable, type_pp(type),
                                                 nlits, nbits, names, lits);
 #else
          ft->vartype = FST_VT_GEN_STRING;
@@ -583,11 +620,9 @@ static fstHandle fst_create_handle(wave_dumper_t *wd, fst_data_t *data,
                                    type_t type, fstHandle alias)
 {
    if (data->type->vartype == FST_VT_SV_ENUM)
-      fstWriterEmitEnumTableRef(wd->fst_ctx, data->type->u.enumh);
+      WV(wd, EmitEnumTableRef, data->type->u.enumh);
 
-   return fstWriterCreateVar2(
-      wd->fst_ctx,
-      data->type->vartype,
+   return WV(wd, CreateVar2, data->type->vartype,
       dir,
       data->size,
       name,
@@ -704,7 +739,7 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
                         vd, type, tb);
       assert(pos == length);
 
-      fstWriterSetAttrEnd(wd->fst_ctx);
+      WV0(wd, SetAttrEnd);
    }
    else {
       data = xcalloc_flex(sizeof(fst_data_t), length, sizeof(fstHandle));
@@ -725,7 +760,7 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
          data->handle[i] = fst_create_handle(wd, data, tb_get(tb), vd, elem, 0);
       }
 
-      fstWriterSetAttrEnd(wd->fst_ctx);
+      WV0(wd, SetAttrEnd);
    }
 
    assert(find_watch(&(s->nexus), fst_event_cb) == NULL);
@@ -843,7 +878,7 @@ static void fst_create_record_var(wave_dumper_t *wd, tree_t d,
    tb_cat(tb, suffix);
    tb_downcase(tb);
 
-   fstWriterSetScope(wd->fst_ctx, FST_ST_VHDL_RECORD, tb_get(tb), NULL);
+   WV(wd, SetScope, FST_ST_VHDL_RECORD, tb_get(tb), NULL);
 
    size_t hlen = 0;
    if (wd->gtkw != NULL) {
@@ -859,7 +894,7 @@ static void fst_create_record_var(wave_dumper_t *wd, tree_t d,
       fst_process_signal(wd, scope, f, tree_type(cons ?: f), tb);
    }
 
-   fstWriterSetUpscope(wd->fst_ctx);
+   WV0(wd, SetUpscope);
 
    if (wd->gtkw != NULL) {
       tb_trim(wd->gtkw->hier, hlen);
@@ -1057,9 +1092,7 @@ static void fst_process_verilog(wave_dumper_t *wd, rt_scope_t *scope,
 
    enum fstVarDir dir = FST_VD_IMPLICIT;
 
-   data->handle[0] = fstWriterCreateVar2(
-      wd->fst_ctx,
-      data->type->vartype,
+   data->handle[0] = WV(wd, CreateVar2, data->type->vartype,
       dir,
       data->size,
       tb_get(tb),
@@ -1102,14 +1135,14 @@ static void fst_enter_scope(wave_dumper_t *wd, tree_t unit, rt_scope_t *scope,
    }
 
    const loc_t *loc = tree_loc(unit);
-   fstWriterSetSourceStem(wd->fst_ctx, loc_file_str(loc), loc->first_line, 1);
+   WV(wd, SetSourceStem, loc_file_str(loc), loc->first_line, 1);
 
    tb_rewind(tb);
    tb_istr(tb, tree_ident(scope->where));
    tb_downcase(tb);
 
    // TODO: store the component name in T_HIER somehow?
-   fstWriterSetScope(wd->fst_ctx, st, tb_get(tb), "");
+   WV(wd, SetScope, st, tb_get(tb), "");
 
    if (wd->gtkw != NULL) {
       if (scope->kind == SCOPE_INSTANCE && tb_len(wd->gtkw->hier) > 0)
@@ -1124,7 +1157,7 @@ static void fst_enter_scope(wave_dumper_t *wd, tree_t unit, rt_scope_t *scope,
 
 static void fst_leave_scope(wave_dumper_t *wd)
 {
-   fstWriterSetUpscope(wd->fst_ctx);
+   WV0(wd, SetUpscope);
 
    if (wd->gtkw != NULL) {
       const char *h = tb_get(wd->gtkw->hier);
@@ -1235,7 +1268,7 @@ static void fst_walk_packages(wave_dumper_t *wd)
    }
 }
 
-void wave_dumper_restart(wave_dumper_t *wd, rt_model_t *m, jit_t *jit)
+static void wave_dumper_begin(wave_dumper_t *wd, rt_model_t *m, jit_t *jit)
 {
    wd->last_time = UINT64_MAX;
    wd->model     = m;
@@ -1261,7 +1294,31 @@ void wave_dumper_restart(wave_dumper_t *wd, rt_model_t *m, jit_t *jit)
       fst_event_cb(0, data->signal, data->watch, data);
    }
 
+   if (wd->live != NULL)
+      lvw_flush(wd->live);
+}
+
+void wave_dumper_restart(wave_dumper_t *wd, rt_model_t *m, jit_t *jit)
+{
+   wave_dumper_begin(wd, m, jit);
    model_set_phase_cb(m, END_OF_SIMULATION, fst_close, wd);
+}
+
+void wave_dumper_start_shell(wave_dumper_t *wd, rt_model_t *m, jit_t *jit)
+{
+   // The TCL shell may call model_run many times, each of which runs the
+   // end of simulation callbacks, so the file is closed explicitly by
+   // wave_dumper_finish when the shell exits instead
+   wave_dumper_begin(wd, m, jit);
+
+   if (wd->live != NULL)
+      model_set_phase_cb(m, END_OF_SIMULATION, live_flush, wd);
+}
+
+void wave_dumper_finish(wave_dumper_t *wd)
+{
+   if ((wd->fst_ctx != NULL || wd->live != NULL) && wd->model != NULL)
+      fst_close(wd->model, wd);
 }
 
 wave_dumper_t *wave_dumper_new(const char *file, const char *gtkw_file,
@@ -1272,7 +1329,13 @@ wave_dumper_t *wave_dumper_new(const char *file, const char *gtkw_file,
    wd->last_time = UINT64_MAX;
    wd->typecache = hash_new(128);
 
-   if (format == WAVE_FORMAT_VCD) {
+   if (format == WAVE_FORMAT_LIVE) {
+      wd->vcdfile = NULL;
+      wd->tmpfst  = NULL;
+      wd->live    = lvw_create(file);
+      lvw_SetTimescale(wd->live, -15);
+   }
+   else if (format == WAVE_FORMAT_VCD) {
 #if defined __CYGWIN__ || defined __MINGW32__
       const char *tmpdir = ".";
 #else
@@ -1296,15 +1359,17 @@ wave_dumper_t *wave_dumper_new(const char *file, const char *gtkw_file,
       wd->fst_ctx = fstWriterCreate(file, 1);
    }
 
-   if (wd->fst_ctx == NULL)
-      fatal("fstWriterCreate failed");
+   if (wd->live == NULL) {
+      if (wd->fst_ctx == NULL)
+         fatal("fstWriterCreate failed");
 
-   fstWriterSetFileType(wd->fst_ctx, FST_FT_VHDL);
-   fstWriterSetTimescale(wd->fst_ctx, -15);
-   fstWriterSetVersion(wd->fst_ctx, PACKAGE_STRING);
-   fstWriterSetPackType(wd->fst_ctx, 0);
-   fstWriterSetRepackOnClose(wd->fst_ctx, 1);
-   fstWriterSetParallelMode(wd->fst_ctx, 0);
+      fstWriterSetFileType(wd->fst_ctx, FST_FT_VHDL);
+      fstWriterSetTimescale(wd->fst_ctx, -15);
+      fstWriterSetVersion(wd->fst_ctx, PACKAGE_STRING);
+      fstWriterSetPackType(wd->fst_ctx, 0);
+      fstWriterSetRepackOnClose(wd->fst_ctx, 1);
+      fstWriterSetParallelMode(wd->fst_ctx, 0);
+   }
 
    if (gtkw_file != NULL) {
       wd->gtkw = xcalloc(sizeof(gtkw_writer_t));

@@ -44,6 +44,7 @@ void model_free(rt_model_t *m);
 void model_reset(rt_model_t *m);
 void model_run(rt_model_t *m, uint64_t stop_time);
 bool model_step(rt_model_t *m);
+bool model_step_cycle(rt_model_t *m, bool finish_time_step);
 bool model_can_create_delta(rt_model_t *m);
 int64_t model_now(rt_model_t *m, unsigned *deltas);
 int64_t model_next_time(rt_model_t *m);

@@ -1012,6 +1012,8 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
             wave_fmt = WAVE_FORMAT_VCD;
          else if (strcmp(optarg, "fst") == 0)
             wave_fmt = WAVE_FORMAT_FST;
+         else if (strcmp(optarg, "live") == 0)
+            wave_fmt = WAVE_FORMAT_LIVE;
          else
             fatal("invalid waveform format: %s", optarg);
          break;
@@ -1102,8 +1104,8 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
 
    wave_dumper_t *dumper = NULL;
    if (wave_fname != NULL) {
-      const char *name_map[] = { "FST", "VCD" };
-      const char *ext_map[]  = { "fst", "vcd" };
+      const char *name_map[] = { "FST", "VCD", "live" };
+      const char *ext_map[]  = { "fst", "vcd", "lvw" };
       char *tmp LOCAL = NULL, *tmp2 LOCAL = NULL;
 
       if (*wave_fname == '\0') {
@@ -1583,21 +1585,133 @@ static int dump_cmd(int argc, char **argv, cmd_state_t *state)
    return argc > 1 ? process_command(argc, argv, state) : EXIT_SUCCESS;
 }
 
+typedef struct {
+   wave_format_t  fmt;
+   const char    *wave_fname;
+   const char    *gtkw_fname;
+} shell_wave_opts_t;
+
+static struct option shell_wave_long_options[] = {
+   { "wave",        optional_argument, 0, 'w' },
+   { "format",      required_argument, 0, 'f' },
+   { "gtkw",        optional_argument, 0, 'g' },
+   { "dump-arrays", optional_argument, 0, 'a' },
+   { "include",     required_argument, 0, 'i' },
+   { "exclude",     required_argument, 0, 'e' },
+   { 0, 0, 0, 0 }
+};
+
+// Returns true if the option was one of the waveform options
+static bool shell_wave_option(int c, shell_wave_opts_t *wo)
+{
+   switch (c) {
+   case 'f':
+      if (strcmp(optarg, "vcd") == 0)
+         wo->fmt = WAVE_FORMAT_VCD;
+      else if (strcmp(optarg, "fst") == 0)
+         wo->fmt = WAVE_FORMAT_FST;
+      else if (strcmp(optarg, "live") == 0)
+         wo->fmt = WAVE_FORMAT_LIVE;
+      else
+         fatal("invalid waveform format: %s", optarg);
+      return true;
+   case 'w':
+      wo->wave_fname = optarg == NULL ? "" : optarg;
+      return true;
+   case 'g':
+      wo->gtkw_fname = optarg == NULL ? "" : optarg;
+      return true;
+   case 'a':
+      opt_set_int(OPT_DUMP_ARRAYS,
+                  optarg == NULL ? INT_MAX : parse_int(optarg));
+      return true;
+   case 'i':
+      wave_include_glob(optarg);
+      return true;
+   case 'e':
+      wave_exclude_glob(optarg);
+      return true;
+   default:
+      return false;
+   }
+}
+
+#ifdef ENABLE_TCL
+static wave_dumper_t *shell_wave_new(cmd_state_t *state, tree_t top,
+                                     const shell_wave_opts_t *wo)
+{
+   if (wo->wave_fname == NULL) {
+      if (wo->gtkw_fname != NULL)
+         warnf("$bold$--gtkw$$ option has no effect without $bold$--wave$$");
+      return NULL;
+   }
+
+   if (top == NULL)
+      fatal("the $bold$--wave$$ option requires a top-level unit");
+
+   const char *name_map[] = { "FST", "VCD", "live" };
+   const char *ext_map[]  = { "fst", "vcd", "lvw" };
+   const char *wave_fname = wo->wave_fname;
+   const char *gtkw_fname = wo->gtkw_fname;
+   char *tmp LOCAL = NULL, *tmp2 LOCAL = NULL;
+
+   if (*wave_fname == '\0') {
+      tmp = xasprintf("%s.%s", state->top_level_arg, ext_map[wo->fmt]);
+      wave_fname = tmp;
+      notef("writing %s waveform data to %s", name_map[wo->fmt], tmp);
+   }
+
+   if (gtkw_fname != NULL && *gtkw_fname == '\0') {
+      tmp2 = xasprintf("%s.gtkw", state->top_level_arg);
+      gtkw_fname = tmp2;
+   }
+
+   wave_include_file(state->top_level_arg);
+   return wave_dumper_new(wave_fname, gtkw_fname, top, wo->fmt);
+}
+
+static void shell_wave_exit(int status, void *ctx)
+{
+   // Tcl_Exit terminates the process so the waveform must be closed here
+   wave_dumper_finish(ctx);
+}
+
+static wave_dumper_t *shell_wave_attach(cmd_state_t *state, tcl_shell_t *sh,
+                                        tree_t top, const shell_wave_opts_t *wo)
+{
+   wave_dumper_t *dumper = shell_wave_new(state, top, wo);
+   if (dumper == NULL)
+      return NULL;
+
+   wave_dumper_start_shell(dumper, state->model, state->jit);
+
+   const shell_handler_t handler = {
+      .exit    = shell_wave_exit,
+      .context = dumper,
+   };
+   shell_set_handler(sh, &handler);
+
+   return dumper;
+}
+
+#endif
+
 static int do_cmd(int argc, char **argv, cmd_state_t *state)
 {
-   static struct option long_options[] = {
-      { 0, 0, 0, 0 }
-   };
+   shell_wave_opts_t wo = { .fmt = WAVE_FORMAT_FST };
 
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
-   const char *spec = ":";
-   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
+   const char *spec = ":w::";
+   while ((c = getopt_long(next_cmd, argv, spec, shell_wave_long_options,
+                           &index)) != -1) {
       switch (c) {
       case 0: break;  // Set a flag
       case '?': bad_option("do", argv);
       case ':': missing_argument("do", argv);
-      default: abort();
+      default:
+         if (!shell_wave_option(c, &wo))
+            abort();
       }
    }
 
@@ -1650,14 +1764,25 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
    if (top != NULL)
       shell_reset(sh);
 
+   wave_dumper_t *dumper = shell_wave_attach(state, sh, top, &wo);
+
    if (optind == next_cmd)
       fatal("no script file specified");
 
    for (int i = optind; i < next_cmd; i++) {
       if (!shell_do(sh, argv[i])) {
+         if (dumper != NULL) {
+            wave_dumper_finish(dumper);
+            wave_dumper_free(dumper);
+         }
          shell_free(sh);
          return EXIT_FAILURE;
       }
+   }
+
+   if (dumper != NULL) {
+      wave_dumper_finish(dumper);
+      wave_dumper_free(dumper);
    }
 
    shell_free(sh);
@@ -1682,19 +1807,20 @@ static int do_cmd(int argc, char **argv, cmd_state_t *state)
 
 static int interact_cmd(int argc, char **argv, cmd_state_t *state)
 {
-   static struct option long_options[] = {
-      { 0, 0, 0, 0 }
-   };
+   shell_wave_opts_t wo = { .fmt = WAVE_FORMAT_FST };
 
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
-   const char *spec = ":";
-   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
+   const char *spec = ":w::";
+   while ((c = getopt_long(next_cmd, argv, spec, shell_wave_long_options,
+                           &index)) != -1) {
       switch (c) {
       case 0: break;  // Set a flag
       case '?': bad_option("do", argv);
       case ':': missing_argument("do", argv);
-      default: abort();
+      default:
+         if (!shell_wave_option(c, &wo))
+            abort();
       }
    }
 
@@ -1740,7 +1866,14 @@ static int interact_cmd(int argc, char **argv, cmd_state_t *state)
    if (top != NULL)
       shell_reset(sh);
 
+   wave_dumper_t *dumper = shell_wave_attach(state, sh, top, &wo);
+
    shell_interact(sh);
+
+   if (dumper != NULL) {
+      wave_dumper_finish(dumper);
+      wave_dumper_free(dumper);
+   }
 
    shell_free(sh);
 #else

@@ -74,6 +74,80 @@ static Tcl_Obj *tcl_ident_string(ident_t ident)
    return Tcl_NewStringObj(istr(ident), ident_len(ident));
 }
 
+// Version of the reply schema produced by the -json option of the shell
+// commands.  Increment when an existing field changes meaning or is removed.
+#define JSON_VERSION 1
+
+static void json_string(text_buf_t *tb, const char *str, size_t len)
+{
+   tb_append(tb, '"');
+
+   for (const char *p = str; p < str + len; p++) {
+      switch (*p) {
+      case '"':  tb_cat(tb, "\\\""); break;
+      case '\\': tb_cat(tb, "\\\\"); break;
+      case '\n': tb_cat(tb, "\\n"); break;
+      case '\r': tb_cat(tb, "\\r"); break;
+      case '\t': tb_cat(tb, "\\t"); break;
+      default:
+         if ((unsigned char)*p < 0x20)
+            tb_printf(tb, "\\u%04x", *p);
+         else
+            tb_append(tb, *p);
+      }
+   }
+
+   tb_append(tb, '"');
+}
+
+static void json_begin(text_buf_t *tb)
+{
+   tb_printf(tb, "{\"v\":%d", JSON_VERSION);
+}
+
+static void json_key(text_buf_t *tb, const char *key)
+{
+   tb_append(tb, ',');
+   json_string(tb, key, strlen(key));
+   tb_append(tb, ':');
+}
+
+static int json_reply(tcl_shell_t *sh, text_buf_t *tb)
+{
+   tb_append(tb, '}');
+   Tcl_SetObjResult(sh->interp, Tcl_NewStringObj(tb_get(tb), tb_len(tb)));
+   return TCL_OK;
+}
+
+static void json_dict(tcl_shell_t *sh, text_buf_t *tb, Tcl_Obj *dict)
+{
+   // All values are strings
+   tb_append(tb, '{');
+
+   Tcl_DictSearch search;
+   Tcl_Obj *key, *value;
+   int done;
+   if (Tcl_DictObjFirst(sh->interp, dict, &search, &key, &value, &done)
+       == TCL_OK) {
+      for (bool first = true; !done; first = false) {
+         if (!first)
+            tb_append(tb, ',');
+
+         Tcl_Size klen, vlen;
+         const char *kstr = Tcl_GetStringFromObj(key, &klen);
+         const char *vstr = Tcl_GetStringFromObj(value, &vlen);
+         json_string(tb, kstr, klen);
+         tb_append(tb, ':');
+         json_string(tb, vstr, vlen);
+
+         Tcl_DictObjNext(&search, &key, &value, &done);
+      }
+      Tcl_DictObjDone(&search);
+   }
+
+   tb_append(tb, '}');
+}
+
 static int syntax_error(tcl_shell_t *sh, Tcl_Obj *const objv[])
 {
    return tcl_error(sh, "syntax error, enter $bold$help %s$$ for usage",
@@ -184,6 +258,94 @@ static shell_signal_t *get_signal(tcl_shell_t *sh, const char *name)
    return container_of(obj, shell_signal_t, obj);
 }
 
+static bool shell_parse_time(tcl_shell_t *sh, Tcl_Obj *amount, Tcl_Obj *units,
+                             uint64_t *result)
+{
+   Tcl_WideInt base;
+   int error = Tcl_GetWideIntFromObj(sh->interp, amount, &base);
+   if (error != TCL_OK || base <= 0) {
+      tcl_error(sh, "invalid time");
+      return false;
+   }
+
+   const char *unit = Tcl_GetString(units);
+
+   uint64_t mult;
+   if      (strcmp(unit, "fs") == 0) mult = 1;
+   else if (strcmp(unit, "ps") == 0) mult = 1000;
+   else if (strcmp(unit, "ns") == 0) mult = 1000000;
+   else if (strcmp(unit, "us") == 0) mult = 1000000000;
+   else if (strcmp(unit, "ms") == 0) mult = 1000000000000;
+   else {
+      tcl_error(sh, "invalid time unit %s", unit);
+      return false;
+   }
+
+   *result = base * mult;
+   return true;
+}
+
+static bool shell_check_breaks(tcl_shell_t *sh, uint64_t stop_time,
+                               unsigned *id, uint64_t *when)
+{
+   // A time breakpoint is reached when all events up to its time have
+   // been processed.  Reached breakpoints are deleted and the earliest
+   // one is returned.
+
+   const int64_t now = model_now(sh->model, NULL);
+   const int64_t next = model_next_time(sh->model);
+
+   bool hit = false;
+   for (unsigned i = 0; i < sh->nbreaks; ) {
+      shell_break_t *b = &(sh->breaks[i]);
+
+      if (b->when <= stop_time
+          && (b->when <= now || (next != TIME_HIGH && b->when < next))) {
+         if (!hit || b->when < *when) {
+            *id = b->id;
+            *when = b->when;
+         }
+         hit = true;
+
+         sh->breaks[i] = sh->breaks[--sh->nbreaks];
+      }
+      else
+         i++;
+   }
+
+   return hit;
+}
+
+static int shell_run_result(tcl_shell_t *sh, bool json, bool finished,
+                            uint64_t stop_time)
+{
+   shell_update_now(sh);
+
+   unsigned id = 0;
+   uint64_t when = 0;
+   const bool hit = shell_check_breaks(sh, stop_time, &id, &when);
+
+   if (json) {
+      LOCAL_TEXT_BUF tb = tb_new();
+      json_begin(tb);
+      tb_printf(tb, ",\"now\":%"PRIi64",\"delta\":%u", sh->now_var,
+                sh->deltas_var);
+      tb_printf(tb, ",\"status\":\"%s\"",
+                hit ? "breakpoint" : finished ? "finished" : "paused");
+      if (hit)
+         tb_printf(tb, ",\"breakpoint\":{\"id\":%u,\"time\":%"PRIu64"}",
+                   id, when);
+      return json_reply(sh, tb);
+   }
+   else if (hit) {
+      char *msg = nvc_asprintf("breakpoint %u at %"PRIu64" fs", id, when);
+      Tcl_SetObjResult(sh->interp, Tcl_NewStringObj(msg, -1));
+      free(msg);
+   }
+
+   return TCL_OK;
+}
+
 static const char restart_help[] =
    "Restart the simulation";
 
@@ -195,7 +357,17 @@ static int shell_cmd_restart(ClientData cd, Tcl_Interp *interp,
 }
 
 static const char run_help[] =
-   "Start or resume the simulation";
+   "Start or resume the simulation\n"
+   "\n"
+   "Syntax:\n"
+   "  run [options] [<time> <units>]\n"
+   "\n"
+   "Options:\n"
+   "  -json\tReply with a single line JSON object.\n"
+   "\n"
+   "Examples:\n"
+   "  run\n"
+   "  run 100 ns\n";
 
 static int shell_cmd_run(ClientData cd, Tcl_Interp *interp,
                          int objc, Tcl_Obj *const objv[])
@@ -208,37 +380,236 @@ static int shell_cmd_run(ClientData cd, Tcl_Interp *interp,
    else if (sim_running)
       return tcl_error(sh, "simulation already running");
 
-   uint64_t stop_time = UINT64_MAX;
-   if (objc == 3) {
-      Tcl_WideInt base;
-      int error = Tcl_GetWideIntFromObj(interp, objv[1], &base);
-      if (error != TCL_OK || base <= 0)
-         return tcl_error(sh, "invalid time");
-
-      const char *unit = Tcl_GetString(objv[2]);
-
-      uint64_t mult;
-      if      (strcmp(unit, "fs") == 0) mult = 1;
-      else if (strcmp(unit, "ps") == 0) mult = 1000;
-      else if (strcmp(unit, "ns") == 0) mult = 1000000;
-      else if (strcmp(unit, "us") == 0) mult = 1000000000;
-      else if (strcmp(unit, "ms") == 0) mult = 1000000000000;
+   bool json = false;
+   int pos = 1;
+   for (const char *opt; (opt = next_option(&pos, objc, objv)); ) {
+      if (strcmp(opt, "-json") == 0)
+         json = true;
       else
-         return tcl_error(sh, "invalid time unit %s", unit);
-
-      stop_time = model_now(sh->model, NULL) + (base * mult);
+         return syntax_error(sh, objv);
    }
-   else if (objc != 1)
+
+   uint64_t stop_time = UINT64_MAX;
+   if (objc - pos == 2) {
+      uint64_t duration;
+      if (!shell_parse_time(sh, objv[pos], objv[pos + 1], &duration))
+         return TCL_ERROR;
+
+      stop_time = model_now(sh->model, NULL) + duration;
+   }
+   else if (objc != pos)
       return tcl_error(sh, "usage: $bold$run [time units]$$");
 
+   for (unsigned i = 0; i < sh->nbreaks; i++)
+      stop_time = MIN(stop_time, sh->breaks[i].when);
 
    sim_running = true;
    model_run(sh->model, stop_time);
    sim_running = false;
 
-   shell_update_now(sh);
+   return shell_run_result(sh, json,
+                           model_next_time(sh->model) == TIME_HIGH, stop_time);
+}
 
-   return TCL_OK;
+static const char step_help[] =
+   "Advance the simulation by a single cycle\n"
+   "\n"
+   "Syntax:\n"
+   "  step [options]\n"
+   "\n"
+   "Options:\n"
+   "  -delta\tRun one delta cycle or time step. This is the default.\n"
+   "  -time\t\tRun to the end of the current time step, or if it has\n"
+   "\t\talready finished, the whole of the next time step.\n"
+   "  -json\t\tReply with a single line JSON object.\n"
+   "\n"
+   "The now and deltas variables give the new simulation "
+   "time and delta cycle number.\n";
+
+static int shell_cmd_step(ClientData cd, Tcl_Interp *interp,
+                          int objc, Tcl_Obj *const objv[])
+{
+   tcl_shell_t *sh = cd;
+
+   if (!shell_has_model(sh))
+      return TCL_ERROR;
+
+   bool json = false, whole_time = false;
+   int pos = 1;
+   for (const char *opt; (opt = next_option(&pos, objc, objv)); ) {
+      if (strcmp(opt, "-json") == 0)
+         json = true;
+      else if (strcmp(opt, "-time") == 0)
+         whole_time = true;
+      else if (strcmp(opt, "-delta") == 0)
+         whole_time = false;
+      else
+         return syntax_error(sh, objv);
+   }
+
+   if (pos != objc)
+      return syntax_error(sh, objv);
+
+   const bool more = model_step_cycle(sh->model, whole_time);
+
+   return shell_run_result(sh, json, !more, UINT64_MAX);
+}
+
+static const char breakpoint_help[] =
+   "Stop the simulation at a given time\n"
+   "\n"
+   "Syntax:\n"
+   "  breakpoint add [options] <time> <units>\n"
+   "  breakpoint list [options]\n"
+   "  breakpoint delete [options] <id>|all\n"
+   "\n"
+   "Options:\n"
+   "  -json\tReply with a single line JSON object.\n"
+   "\n"
+   "The time is absolute simulation time and must be after the current "
+   "time. The run command stops once all events up to the "
+   "breakpoint time have been processed and then deletes the breakpoint.\n"
+   "\n"
+   "Examples:\n"
+   "  breakpoint add 250 ns\n"
+   "  breakpoint delete all\n";
+
+static int shell_cmd_breakpoint(ClientData cd, Tcl_Interp *interp,
+                                int objc, Tcl_Obj *const objv[])
+{
+   tcl_shell_t *sh = cd;
+
+   if (!shell_has_model(sh))
+      return TCL_ERROR;
+   else if (objc < 2)
+      return syntax_error(sh, objv);
+
+   const char *cmd = Tcl_GetString(objv[1]);
+
+   bool json = false;
+   int pos = 2;
+   for (const char *opt; (opt = next_option(&pos, objc, objv)); ) {
+      if (strcmp(opt, "-json") == 0)
+         json = true;
+      else
+         return syntax_error(sh, objv);
+   }
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   if (json)
+      json_begin(tb);
+
+   if (strcmp(cmd, "add") == 0) {
+      uint64_t when;
+      if (objc - pos != 2)
+         return syntax_error(sh, objv);
+      else if (!shell_parse_time(sh, objv[pos], objv[pos + 1], &when))
+         return TCL_ERROR;
+      else if (when <= model_now(sh->model, NULL))
+         return tcl_error(sh, "breakpoint time must be after the current "
+                          "simulation time");
+
+      if (sh->nbreaks == sh->breakalloc) {
+         sh->breakalloc = MAX(sh->breakalloc * 2, 8);
+         sh->breaks = xrealloc_array(sh->breaks, sh->breakalloc,
+                                     sizeof(shell_break_t));
+      }
+
+      const unsigned id = ++(sh->nextbreak);
+      sh->breaks[sh->nbreaks++] = (shell_break_t){ id, when };
+
+      if (json) {
+         tb_printf(tb, ",\"id\":%u,\"time\":%"PRIu64, id, when);
+         return json_reply(sh, tb);
+      }
+
+      Tcl_SetObjResult(interp, Tcl_NewIntObj(id));
+      return TCL_OK;
+   }
+   else if (strcmp(cmd, "list") == 0) {
+      if (pos != objc)
+         return syntax_error(sh, objv);
+
+      // Keep the list ordered by time then creation order
+      for (unsigned i = 1; i < sh->nbreaks; i++) {
+         shell_break_t b = sh->breaks[i];
+         unsigned j = i;
+         for (; j > 0 && (sh->breaks[j - 1].when > b.when
+                          || (sh->breaks[j - 1].when == b.when
+                              && sh->breaks[j - 1].id > b.id)); j--)
+            sh->breaks[j] = sh->breaks[j - 1];
+         sh->breaks[j] = b;
+      }
+
+      Tcl_Obj *list = Tcl_NewListObj(0, NULL);
+
+      if (json) {
+         json_key(tb, "breakpoints");
+         tb_append(tb, '[');
+      }
+
+      for (unsigned i = 0; i < sh->nbreaks; i++) {
+         const shell_break_t *b = &(sh->breaks[i]);
+         if (json) {
+            if (i > 0)
+               tb_append(tb, ',');
+            tb_printf(tb, "{\"id\":%u,\"time\":%"PRIu64"}", b->id, b->when);
+         }
+         else {
+            Tcl_Obj *d = Tcl_NewDictObj();
+            tcl_dict_put(sh, d, "id", Tcl_NewIntObj(b->id));
+            tcl_dict_put(sh, d, "time", Tcl_NewWideIntObj(b->when));
+            Tcl_ListObjAppendElement(interp, list, d);
+         }
+      }
+
+      if (json) {
+         Tcl_DecrRefCount(list);
+         tb_append(tb, ']');
+         return json_reply(sh, tb);
+      }
+
+      Tcl_SetObjResult(interp, list);
+      return TCL_OK;
+   }
+   else if (strcmp(cmd, "delete") == 0) {
+      if (objc - pos != 1)
+         return syntax_error(sh, objv);
+
+      unsigned deleted = 0;
+      const char *arg = Tcl_GetString(objv[pos]);
+      if (strcmp(arg, "all") == 0) {
+         deleted = sh->nbreaks;
+         sh->nbreaks = 0;
+      }
+      else {
+         int id;
+         if (Tcl_GetIntFromObj(interp, objv[pos], &id) != TCL_OK)
+            return tcl_error(sh, "invalid breakpoint '%s'", arg);
+
+         for (unsigned i = 0; i < sh->nbreaks; i++) {
+            if ((int)sh->breaks[i].id == id) {
+               memmove(sh->breaks + i, sh->breaks + i + 1,
+                       (sh->nbreaks - i - 1) * sizeof(shell_break_t));
+               sh->nbreaks--;
+               deleted++;
+               break;
+            }
+         }
+
+         if (deleted == 0)
+            return tcl_error(sh, "no breakpoint with id %d", id);
+      }
+
+      if (json) {
+         tb_printf(tb, ",\"deleted\":%u", deleted);
+         return json_reply(sh, tb);
+      }
+
+      return TCL_OK;
+   }
+   else
+      return syntax_error(sh, objv);
 }
 
 static const char find_help[] =
@@ -250,6 +621,7 @@ static const char find_help[] =
    "\n"
    "Options:\n"
    "  -r, -recursive\tInclude subregions in wildcard search.\n"
+   "  -json\t\tReply with a single line JSON object.\n"
    "\n"
    "Examples:\n"
    "  find signals -r /*\tList all signals in the design\n"
@@ -273,14 +645,20 @@ static int shell_cmd_find(ClientData cd, Tcl_Interp *interp,
    else
       goto usage;
 
+   bool json = false;
    int pos = 2;
    for (const char *opt; (opt = next_option(&pos, objc, objv)); ) {
       if (strcmp(opt, "-recursive") == 0 || strcmp(opt, "-r") == 0) {
          // Always recursive for now...
       }
+      else if (strcmp(opt, "-json") == 0)
+         json = true;
       else
          goto usage;
    }
+
+   if (pos >= objc)
+      goto usage;
 
    const char *glob = Tcl_GetString(objv[pos]);
    Tcl_Obj *result = Tcl_NewListObj(0, NULL);
@@ -312,6 +690,30 @@ static int shell_cmd_find(ClientData cd, Tcl_Interp *interp,
       break;
    }
 
+   if (json) {
+      LOCAL_TEXT_BUF tb = tb_new();
+      json_begin(tb);
+      json_key(tb, "kind");
+      tb_cat(tb, what == SIGNALS ? "\"signals\"" : "\"regions\"");
+      json_key(tb, "names");
+      tb_append(tb, '[');
+
+      Tcl_Size count;
+      Tcl_Obj **elems;
+      Tcl_ListObjGetElements(interp, result, &count, &elems);
+      for (int i = 0; i < count; i++) {
+         if (i > 0)
+            tb_append(tb, ',');
+         Tcl_Size len;
+         const char *str = Tcl_GetStringFromObj(elems[i], &len);
+         json_string(tb, str, len);
+      }
+
+      tb_append(tb, ']');
+      Tcl_DecrRefCount(result);
+      return json_reply(sh, tb);
+   }
+
    Tcl_SetObjResult(interp, result);
    return TCL_OK;
 
@@ -329,6 +731,7 @@ static const char examine_help[] =
    "\n"
    "Options:\n"
    "  -radix <type>\tFormat as hexadecimal, decimal, or binary.\n"
+   "  -json\tReply with a single line JSON object.\n"
    "  -<radix>\tAlias of \"-radix <radix>\".\n"
    "\n"
    "Examples:\n"
@@ -362,10 +765,13 @@ static int shell_cmd_examine(ClientData cd, Tcl_Interp *interp,
       return TCL_ERROR;
 
    print_flags_t flags = 0;
+   bool json = false;
    int pos = 1;
    for (const char *opt; (opt = next_option(&pos, objc, objv)); ) {
       if (parse_radix(opt + 1, &flags))
          continue;
+      else if (strcmp(opt, "-json") == 0)
+         json = true;
       else if (strcmp(opt, "-radix") == 0 && pos + 1 < objc) {
          const char *arg = Tcl_GetString(objv[pos++]);
          if (!parse_radix(arg, &flags))
@@ -377,6 +783,36 @@ static int shell_cmd_examine(ClientData cd, Tcl_Interp *interp,
 
    if (pos == objc)
       goto usage;
+
+   if (json) {
+      LOCAL_TEXT_BUF tb = tb_new();
+      json_begin(tb);
+      json_key(tb, "values");
+      tb_append(tb, '[');
+
+      for (int i = 0; pos < objc; pos++, i++) {
+         const char *name = Tcl_GetString(objv[pos]);
+         shell_signal_t *ss = get_signal(sh, name);
+         if (ss == NULL)
+            return TCL_ERROR;
+
+         if (!shell_get_printer(sh, ss))
+            return TCL_ERROR;
+
+         const char *str = print_signal(ss->printer, ss->signal, flags);
+
+         if (i > 0)
+            tb_append(tb, ',');
+         tb_cat(tb, "{\"name\":");
+         json_string(tb, name, strlen(name));
+         tb_cat(tb, ",\"value\":");
+         json_string(tb, str, strlen(str));
+         tb_append(tb, '}');
+      }
+
+      tb_append(tb, ']');
+      return json_reply(sh, tb);
+   }
 
    const int count = objc - pos;
    Tcl_Obj *single[1], **result = single;
@@ -415,7 +851,10 @@ static const char describe_help[] =
    "Return information about an object or region\n"
    "\n"
    "Syntax:\n"
-   "  describe <name>...\n"
+   "  describe [options] <name>...\n"
+   "\n"
+   "Options:\n"
+   "  -json\tReply with a single line JSON object.\n"
    "\n"
    "Examples:\n"
    "  describe /uut/foo\n"
@@ -429,9 +868,13 @@ static int shell_cmd_describe(ClientData cd, Tcl_Interp *interp,
    if (!shell_has_model(sh))
       return TCL_ERROR;
 
+   bool json = false;
    int pos = 1;
    for (const char *opt; (opt = next_option(&pos, objc, objv)); ) {
-      goto usage;
+      if (strcmp(opt, "-json") == 0)
+         json = true;
+      else
+         goto usage;
    }
 
    if (pos == objc)
@@ -470,6 +913,25 @@ static int shell_cmd_describe(ClientData cd, Tcl_Interp *interp,
       }
    }
 
+   if (json) {
+      LOCAL_TEXT_BUF tb = tb_new();
+      json_begin(tb);
+      json_key(tb, "objects");
+      tb_append(tb, '[');
+      for (int i = 0; i < count; i++) {
+         if (i > 0)
+            tb_append(tb, ',');
+         json_dict(sh, tb, result[i]);
+         Tcl_DecrRefCount(result[i]);
+      }
+      tb_append(tb, ']');
+
+      if (count > 1)
+         free(result);
+
+      return json_reply(sh, tb);
+   }
+
    if (count > 1) {
       Tcl_Obj *list = Tcl_NewListObj(count, result);
       Tcl_SetObjResult(interp, list);
@@ -482,6 +944,138 @@ static int shell_cmd_describe(ClientData cd, Tcl_Interp *interp,
 
  usage:
    return syntax_error(sh, objv);
+}
+
+static const char processes_help[] =
+   "List the processes in the design and their state\n"
+   "\n"
+   "Syntax:\n"
+   "  processes [options] [<pattern>]\n"
+   "\n"
+   "Options:\n"
+   "  -json\tReply with a single line JSON object.\n"
+   "\n"
+   "The state of a process is one of:\n"
+   "  ready\tScheduled to run in the current or next cycle.\n"
+   "  delayed\tWaiting for a timeout to expire.\n"
+   "  waiting\tWaiting for a signal event, or suspended indefinitely.\n"
+   "\n"
+   "Examples:\n"
+   "  processes\n"
+   "  processes /uut/*\n";
+
+static const char *process_state(rt_proc_t *proc)
+{
+   if (proc->wakeable.pending)
+      return "ready";
+   else if (proc->wakeable.delayed)
+      return "delayed";
+   else
+      return "waiting";
+}
+
+static int shell_cmd_processes(ClientData cd, Tcl_Interp *interp,
+                               int objc, Tcl_Obj *const objv[])
+{
+   tcl_shell_t *sh = cd;
+
+   if (!shell_has_model(sh))
+      return TCL_ERROR;
+
+   bool json = false;
+   int pos = 1;
+   for (const char *opt; (opt = next_option(&pos, objc, objv)); ) {
+      if (strcmp(opt, "-json") == 0)
+         json = true;
+      else
+         return syntax_error(sh, objv);
+   }
+
+   const char *glob = "*";
+   if (pos < objc)
+      glob = Tcl_GetString(objv[pos++]);
+
+   if (pos != objc)
+      return syntax_error(sh, objv);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   LOCAL_TEXT_BUF path = tb_new();
+   Tcl_Obj *list = Tcl_NewListObj(0, NULL);
+
+   if (json) {
+      json_begin(tb);
+      json_key(tb, "processes");
+      tb_append(tb, '[');
+   }
+
+   int count = 0;
+   for (int i = 0; i < sh->nregions; i++) {
+      rt_scope_t *scope = sh->regions[i].scope;
+
+      for (int j = 0; j < scope->procs.count; j++) {
+         rt_proc_t *proc = scope->procs.items[j];
+
+         // The process name is its full hierarchical path
+         const char *full = istr(ident_downcase(proc->name));
+         const char *last = strrchr(full, ':');
+         ident_t name = ident_new(last != NULL ? last + 1 : full);
+
+         tb_rewind(path);
+         tb_istr(path, sh->regions[i].obj.path);
+         tb_istr(path, name);
+
+         if (!ident_glob(ident_new(tb_get(path)), glob, -1))
+            continue;
+
+         const char *state = process_state(proc);
+         const loc_t *loc = tree_loc(proc->where);
+         const char *file = loc_file_str(loc);
+         const unsigned line =
+            loc->first_line == LINE_INVALID ? 0 : loc->first_line;
+
+         if (json) {
+            if (count > 0)
+               tb_append(tb, ',');
+
+            tb_cat(tb, "{\"name\":");
+            json_string(tb, istr(name), ident_len(name));
+            tb_cat(tb, ",\"path\":");
+            json_string(tb, tb_get(path), tb_len(path));
+            tb_printf(tb, ",\"state\":\"%s\",\"file\":", state);
+            if (file != NULL)
+               json_string(tb, file, strlen(file));
+            else
+               tb_cat(tb, "null");
+            if (line > 0)
+               tb_printf(tb, ",\"line\":%u}", line);
+            else
+               tb_cat(tb, ",\"line\":null}");
+         }
+         else {
+            Tcl_Obj *d = Tcl_NewDictObj();
+            tcl_dict_put(sh, d, "name", tcl_ident_string(name));
+            tcl_dict_put(sh, d, "path",
+                         Tcl_NewStringObj(tb_get(path), tb_len(path)));
+            tcl_dict_put(sh, d, "state", Tcl_NewStringObj(state, -1));
+            if (file != NULL)
+               tcl_dict_put(sh, d, "file", Tcl_NewStringObj(file, -1));
+            if (line > 0)
+               tcl_dict_put(sh, d, "line", Tcl_NewIntObj(line));
+            Tcl_ListObjAppendElement(interp, list, d);
+         }
+
+         count++;
+      }
+   }
+
+   if (json) {
+      Tcl_DecrRefCount(list);
+      tb_append(tb, ']');
+      return json_reply(sh, tb);
+   }
+
+   Tcl_SetObjResult(interp, list);
+   return TCL_OK;
 }
 
 static const char force_help[] =
@@ -906,6 +1500,8 @@ tcl_shell_t *shell_new(tree_t top, jit_t *jit, rt_model_t *m)
    shell_add_cmd(sh, "copyright", shell_cmd_copyright, copyright_help);
    shell_add_cmd(sh, "find", shell_cmd_find, find_help);
    shell_add_cmd(sh, "run", shell_cmd_run, run_help);
+   shell_add_cmd(sh, "step", shell_cmd_step, step_help);
+   shell_add_cmd(sh, "breakpoint", shell_cmd_breakpoint, breakpoint_help);
    shell_add_cmd(sh, "restart", shell_cmd_restart, restart_help);
    shell_add_cmd(sh, "examine", shell_cmd_examine, examine_help);
    shell_add_cmd(sh, "exa", shell_cmd_examine, examine_help);
@@ -913,6 +1509,7 @@ tcl_shell_t *shell_new(tree_t top, jit_t *jit, rt_model_t *m)
    shell_add_cmd(sh, "noforce", shell_cmd_noforce, noforce_help);
    shell_add_cmd(sh, "echo", shell_cmd_echo, echo_help);
    shell_add_cmd(sh, "describe", shell_cmd_describe, describe_help);
+   shell_add_cmd(sh, "processes", shell_cmd_processes, processes_help);
 
    shell_add_vhpi_cmds(sh);
 
@@ -929,6 +1526,7 @@ void shell_free(tcl_shell_t *sh)
 
    free(sh->signals);
    free(sh->regions);
+   free(sh->breaks);
    free(sh->datadir);
    free(sh->prompt);
    free(sh->cmds);

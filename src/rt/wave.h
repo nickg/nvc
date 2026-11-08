@@ -22,13 +22,16 @@
 
 typedef enum {
    WAVE_FORMAT_FST,
-   WAVE_FORMAT_VCD
+   WAVE_FORMAT_VCD,
+   WAVE_FORMAT_LIVE   // append-only stream readable while running
 } wave_format_t;
 
 wave_dumper_t *wave_dumper_new(const char *file, const char *gtkw_file,
                                tree_t top, wave_format_t format);
 void wave_dumper_free(wave_dumper_t *wd);
 void wave_dumper_restart(wave_dumper_t *wd, rt_model_t *m, jit_t *jit);
+void wave_dumper_start_shell(wave_dumper_t *wd, rt_model_t *m, jit_t *jit);
+void wave_dumper_finish(wave_dumper_t *wd);
 
 void wave_include_glob(const char *glob);
 void wave_exclude_glob(const char *glob);
