@@ -287,6 +287,13 @@ static void vlog_lower_seq_udp(mir_unit_t *mu, vlog_node_t udp)
    mir_value_t result_var = mir_add_var(mu, t_logic, MIR_NULL_STAMP,
                                         ident_new("result"), MIR_VAR_TEMP);
 
+   // Edges are detected against the input values seen by the previous
+   // evaluation rather than the event flag which remains set for the
+   // whole cycle and would cause the same edge to be applied again if
+   // an input changes as a result of the output changing
+   mir_value_t *prev_vars LOCAL =
+      xmalloc_array(nports - 1, sizeof(mir_value_t));
+
    {
       mir_value_t one = mir_const(mu, t_offset, 1);
 
@@ -294,6 +301,13 @@ static void vlog_lower_seq_udp(mir_unit_t *mu, vlog_node_t udp)
          mir_value_t upref = mir_build_var_upref(mu, hops, in_vars[i - 1].id);
          mir_value_t nets = mir_build_load(mu, upref);
          mir_build_sched_event(mu, nets, one);
+
+         ident_t name = ident_sprintf("prev%d", i - 1);
+         prev_vars[i - 1] = mir_add_var(mu, t_logic, MIR_NULL_STAMP, name, 0);
+
+         mir_value_t value = mir_build_load(mu, mir_build_resolved(mu, nets));
+         mir_build_store(mu, prev_vars[i - 1],
+                         mir_build_pack(mu, t_logic, value));
       }
 
       if (vlog_stmts(table) > 0) {
@@ -323,15 +337,22 @@ static void vlog_lower_seq_udp(mir_unit_t *mu, vlog_node_t udp)
       level_map['1'] = logic1;
       level_map['x'] = level_map['X'] = logicX;
 
-      mir_value_t *mem LOCAL = xmalloc_array(nports * 2, sizeof(mir_value_t));
-      mir_value_t *in_regs = mem, *in_nets = mem + nports;
+      mir_value_t *mem LOCAL = xmalloc_array(nports * 3, sizeof(mir_value_t));
+      mir_value_t *in_regs = mem, *in_prev = mem + nports;
+      mir_value_t *in_changed = mem + 2 * nports;
 
       for (int i = 1; i < nports; i++) {
          mir_value_t upref = mir_build_var_upref(mu, hops, in_vars[i - 1].id);
          mir_value_t nets = mir_build_load(mu, upref);
          mir_value_t value = mir_build_load(mu, mir_build_resolved(mu, nets));
          in_regs[i - 1] = mir_build_pack(mu, t_logic, value);
-         in_nets[i - 1] = nets;
+         in_prev[i - 1] = mir_build_load(mu, prev_vars[i - 1]);
+
+         mir_value_t same = mir_build_binary(mu, MIR_VEC_CASE_EQ, t_logic,
+                                             in_regs[i - 1], in_prev[i - 1]);
+         in_changed[i - 1] = mir_build_not(mu, mir_build_test(mu, same));
+
+         mir_build_store(mu, prev_vars[i - 1], in_regs[i - 1]);
       }
 
       mir_block_t test_bb = start_bb;
@@ -353,7 +374,7 @@ static void vlog_lower_seq_udp(mir_unit_t *mu, vlog_node_t udp)
                {
                   const unsigned val = vlog_ival(sym);
                   if (val == '*')
-                     cmp = mir_build_event_flag(mu, in_nets[j], one);
+                     cmp = in_changed[j];
                   else if (val != '?')
                      cmp = vlog_udp_cmp(mu, in_regs[j], val, level_map);
                }
@@ -364,14 +385,11 @@ static void vlog_lower_seq_udp(mir_unit_t *mu, vlog_node_t udp)
                   const unsigned left = vlog_ival(vlog_left(sym));
                   const unsigned right = vlog_ival(vlog_right(sym));
 
-                  cmp = mir_build_event_flag(mu, in_nets[j], one);
+                  cmp = in_changed[j];
 
                   if (left != '?') {
-                     mir_value_t last_ptr =
-                        mir_build_last_value(mu, in_nets[j]);
-                     mir_value_t last = mir_build_load(mu, last_ptr);
-                     mir_value_t packed = mir_build_pack(mu, t_logic, last);
-                     mir_value_t eq = vlog_udp_cmp(mu, packed, left, level_map);
+                     mir_value_t eq =
+                        vlog_udp_cmp(mu, in_prev[j], left, level_map);
                      cmp = mir_build_and(mu, cmp, eq);
                   }
 
