@@ -20,7 +20,7 @@
 - Fixed a crash when a Verilog user function call or cast is used as a
   system task argument.
 - Several other minor bugs were resolved (#1678, #1718, #1685, #1726,
-  #1730).
+  #1730, #1722).
 
 ## Version 1.23.1 - 2026-10-28
 - Fixed a crash after a severity `failure` assertion failure during

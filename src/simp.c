@@ -1603,6 +1603,24 @@ static tree_t simp_aggregate(tree_t t)
    return t;
 }
 
+static tree_t simp_const_decl(tree_t t, simp_ctx_t *ctx)
+{
+   if (!(tree_flags(t) & TREE_F_LOCALLY_STATIC))
+      return t;
+
+   tree_t value = tree_value(t);
+   if (!type_is_scalar(tree_type(value)))
+      return t;
+   else if (!eval_possible(value, ctx->registry, ctx->mir))
+      return t;
+
+   tree_t new = eval_try_fold(ctx->jit, value, ctx->registry, NULL, NULL);
+   if (new != t)
+      tree_set_value(t, new);
+
+   return t;
+}
+
 static void simp_generic_map(tree_t t, tree_t unit)
 {
    switch (tree_kind(unit)) {
@@ -1810,6 +1828,8 @@ static tree_t simp_tree_local(tree_t t, void *_ctx)
       return t;
    case T_AGGREGATE:
       return simp_aggregate(t);
+   case T_CONST_DECL:
+      return simp_const_decl(t, ctx);
    default:
       return t;
    }

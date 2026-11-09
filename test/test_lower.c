@@ -7212,6 +7212,29 @@ START_TEST(test_issue1707)
 }
 END_TEST
 
+START_TEST(test_issue1722)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue1722.vhd");
+
+   run_elab();
+
+   mir_unit_t *mu = find_unit2("WORK.ISSUE1722.P1");
+
+   static const mir_match_t bb1[] = {
+      { MIR_OP_VAR_UPREF, ENUM(1), UPREF("STATE") },
+      { MIR_OP_LOAD },
+      { MIR_OP_RESOLVED },
+      { MIR_OP_LOAD },
+      { MIR_OP_CASE },
+   };
+   mir_match(mu, 1, bb1);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -7378,6 +7401,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_types1);
    tcase_add_test(tc, test_issue1503);
    tcase_add_test(tc, test_issue1707);
+   tcase_add_test(tc, test_issue1722);
    suite_add_tcase(s, tc);
 
    return s;
