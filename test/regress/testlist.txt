@@ -1511,3 +1511,4 @@ issue1726       normal,2008
 vlog52          verilog,gold
 udp3            verilog
 issue1730       verilog
+issue1728       fail,gold,2008

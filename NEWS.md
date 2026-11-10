@@ -21,7 +21,7 @@
   system task argument.
 - Various fixes and improvements to Cobertura coverage export (#1684).
 - Several other minor bugs were resolved (#1678, #1718, #1685, #1726,
-  #1730, #1722).
+  #1730, #1722, #1728).
 
 ## Version 1.23.1 - 2026-10-28
 - Fixed a crash after a severity `failure` assertion failure during
