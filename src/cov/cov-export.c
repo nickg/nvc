@@ -186,7 +186,9 @@ static void cobertura_class_stats(const cobertura_class_t *class,
       if (line->branch) {
          (*nbranches)++;
          if ((line->bflags & COV_FLAG_TRUE) && (line->bflags & COV_FLAG_FALSE))
-             (*hitbranches)++;
+            (*hitbranches)++;
+         else if (line->bflags & COV_FLAG_CHOICE)
+            (*hitbranches)++;
       }
    }
 }
@@ -214,8 +216,12 @@ static void cobertura_print_class(cobertura_class_t *class, FILE *f)
       const cobertura_line_t *line = &(class->lines[i]);
       if (line->branch) {
          int pct = 0;
-         if (line->bflags & COV_FLAG_TRUE) pct += 50;
-         if (line->bflags & COV_FLAG_FALSE) pct += 50;
+         if (line->bflags & COV_FLAG_CHOICE)
+            pct = 100;
+         else {
+            if (line->bflags & COV_FLAG_TRUE) pct += 50;
+            if (line->bflags & COV_FLAG_FALSE) pct += 50;
+         }
 
          fprintf(f, "<line number=\"%d\" hits=\"%d\" branch=\"true\" "
                  "condition-coverage=\"%d %%\">\n",
