@@ -23,13 +23,18 @@ end entity;
 
 architecture test of cover17 is
     signal x, y : integer;
+    signal c : integer := 5;
+    signal z : integer;
 begin
 
     u1: entity work.sub port map ( x );
     u2: entity work.sub port map ( y );
 
+    z <= -1 when c < 0 else 0 when c = 0 else 1;
+
     tb: process is
     begin
+        c <= 0;
         x <= 0;
         wait for 1 ns;
         if x = 0 then

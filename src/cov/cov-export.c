@@ -16,7 +16,9 @@
 //
 
 #include "util.h"
+#include "array.h"
 #include "cov/cov-api.h"
+#include "diag.h"
 #include "hash.h"
 #include "ident.h"
 #include "option.h"
@@ -32,11 +34,17 @@
 typedef struct _cobertura_class cobertura_class_t;
 
 typedef struct {
-   unsigned lineno;
-   unsigned stmt_hits;
-   unsigned branch_hits;
-   bool     branch;
-   unsigned bflags;
+   loc_t       loc;
+   cover_src_t source;
+   unsigned    hits;
+   unsigned    flags;
+   unsigned    hit_flags;
+} cobertura_cond_t;
+
+typedef struct {
+   unsigned            lineno;
+   unsigned            stmt_hits;
+   A(cobertura_cond_t) conds;
 } cobertura_line_t;
 
 typedef struct _cobertura_class {
@@ -118,6 +126,23 @@ static cobertura_line_t *cobertura_get_line(cobertura_class_t *class,
    return line;
 }
 
+static cobertura_cond_t *cobertura_get_cond(cobertura_line_t *line,
+                                            const loc_t *loc,
+                                            cover_src_t source)
+{
+   for (int i = 0; i < line->conds.count; i++) {
+      cobertura_cond_t *cond = &(line->conds.items[i]);
+      if (cond->source == source && loc_eq(&(cond->loc), loc))
+         return cond;
+   }
+
+   APUSH(line->conds, ((cobertura_cond_t) {
+      .loc = *loc,
+      .source = source,
+   }));
+   return &ATOP(line->conds);
+}
+
 static void cobertura_export_scope(cobertura_report_t *report,
                                    cobertura_class_t *class, cover_obj_t scope)
 {
@@ -136,7 +161,10 @@ static void cobertura_export_scope(cobertura_report_t *report,
          break;
       case COV_ITEM_BRANCH:
          {
-            l->branch = true;
+            const cover_src_t source =
+               cover_get_u32(report->data, item, COV_ATTR_SOURCE,
+                             COV_SRC_UNKNOWN);
+            cobertura_cond_t *cond = cobertura_get_cond(l, &loc, source);
 
             cover_obj_t bins[2];
             int nbins = cover_rel(report->data, item, COV_REL_BINS, 0, bins, 2);
@@ -145,10 +173,12 @@ static void cobertura_export_scope(cobertura_report_t *report,
             for (int j = 0; j < nbins; j++) {
                uint32_t data = cover_get_u32(report->data, bins[j],
                                              COV_ATTR_DATA, 0);
-               l->branch_hits += data;
+               const unsigned flags =
+                  cover_get_u32(report->data, bins[j], COV_ATTR_FLAGS, 0);
+               cond->hits += data;
+               cond->flags |= flags;
                if (data > 0)
-                  l->bflags |= cover_get_u32(report->data, bins[j],
-                                             COV_ATTR_FLAGS, 0);
+                  cond->hit_flags |= flags;
             }
          }
          break;
@@ -183,15 +213,22 @@ static void cobertura_class_stats(const cobertura_class_t *class,
    *nlines += class->nlines;
    for (int i = 0; i < class->nlines; i++) {
       const cobertura_line_t *line = &(class->lines[i]);
-      if (line->stmt_hits > 0 || line->branch_hits > 0)
-         (*hitlines)++;
-      if (line->branch) {
-         (*nbranches)++;
-         if ((line->bflags & COV_FLAG_TRUE) && (line->bflags & COV_FLAG_FALSE))
-            (*hitbranches)++;
-         else if (line->bflags & COV_FLAG_CHOICE)
-            (*hitbranches)++;
+      bool line_hit = line->stmt_hits > 0;
+      for (int j = 0; j < line->conds.count; j++) {
+         const cobertura_cond_t *cond = &(line->conds.items[j]);
+         line_hit |= cond->hits > 0;
+
+         const unsigned flags = cond->flags;
+         const unsigned hit_flags = cond->hit_flags;
+         *nbranches += !!(flags & COV_FLAG_TRUE)
+            + !!(flags & COV_FLAG_FALSE) + !!(flags & COV_FLAG_CHOICE);
+         *hitbranches += !!(hit_flags & COV_FLAG_TRUE)
+            + !!(hit_flags & COV_FLAG_FALSE)
+            + !!(hit_flags & COV_FLAG_CHOICE);
       }
+
+      if (line_hit)
+         (*hitlines)++;
    }
 }
 
@@ -216,23 +253,46 @@ static void cobertura_print_class(cobertura_class_t *class, FILE *f)
    fprintf(f, "<lines>\n");
    for (int i = 0; i < class->nlines; i++) {
       const cobertura_line_t *line = &(class->lines[i]);
+      unsigned branch_hits = 0;
+      int nbins = 0, hitbins = 0;
+      for (int j = 0; j < line->conds.count; j++) {
+         const cobertura_cond_t *cond = &(line->conds.items[j]);
+         branch_hits = MAX(branch_hits, cond->hits);
+
+         const unsigned flags = cond->flags;
+         const unsigned hit_flags = cond->hit_flags;
+         nbins += !!(flags & COV_FLAG_TRUE) + !!(flags & COV_FLAG_FALSE)
+            + !!(flags & COV_FLAG_CHOICE);
+         hitbins += !!(hit_flags & COV_FLAG_TRUE)
+            + !!(hit_flags & COV_FLAG_FALSE)
+            + !!(hit_flags & COV_FLAG_CHOICE);
+      }
+
       const unsigned hits =
-         line->stmt_hits > 0 ? line->stmt_hits : line->branch_hits;
-      if (line->branch) {
-         int pct = 0;
-         if (line->bflags & COV_FLAG_CHOICE)
-            pct = 100;
-         else {
-            if (line->bflags & COV_FLAG_TRUE) pct += 50;
-            if (line->bflags & COV_FLAG_FALSE) pct += 50;
-         }
+         line->conds.count > 0 ? branch_hits : line->stmt_hits;
+      if (line->conds.count > 0) {
+         const int pct = nbins > 0 ? 100 * hitbins / nbins : 100;
 
          fprintf(f, "<line number=\"%d\" hits=\"%d\" branch=\"true\" "
-                 "condition-coverage=\"%d %%\">\n",
-                 line->lineno, hits, pct);
+                 "condition-coverage=\"%d %% (%d/%d)\">\n",
+                 line->lineno, hits, pct, hitbins, nbins);
          fprintf(f, "<conditions>\n");
-         fprintf(f, "<condition number=\"0\" type=\"jump\" "
-                 "coverage=\"%d %%\"/>\n", pct);
+         for (int j = 0; j < line->conds.count; j++) {
+            const cobertura_cond_t *cond = &(line->conds.items[j]);
+            const unsigned flags = cond->flags;
+            const unsigned hit_flags = cond->hit_flags;
+            const int ntotal = !!(flags & COV_FLAG_TRUE)
+               + !!(flags & COV_FLAG_FALSE) + !!(flags & COV_FLAG_CHOICE);
+            const int nhit = !!(hit_flags & COV_FLAG_TRUE)
+               + !!(hit_flags & COV_FLAG_FALSE)
+               + !!(hit_flags & COV_FLAG_CHOICE);
+            const int cpct = ntotal > 0 ? 100 * nhit / ntotal : 100;
+            const char *type = cond->source == COV_SRC_CASE_CHOICE
+               ? "switch" : "jump";
+
+            fprintf(f, "<condition number=\"%d\" type=\"%s\" "
+                    "coverage=\"%d %%\"/>\n", j, type, cpct);
+         }
          fprintf(f, "</conditions>\n");
          fprintf(f, "</line>\n");
       }
@@ -310,6 +370,8 @@ void cover_export_cobertura(const cover_data_t *db, FILE *f,
 
    for (cobertura_class_t *it = report.classes, *tmp; it; it = tmp) {
       tmp = it->next;
+      for (int i = 0; i < it->nlines; i++)
+         ACLEAR(it->lines[i].conds);
       free(it->lines);
       free(it->file);
       free(it);
