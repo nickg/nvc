@@ -39,6 +39,10 @@ begin
         if x < 0 then                   -- Never taken
             assert false;               -- Not covered
         end if;
+        case x is
+            when 0 => report "zero";    -- Taken
+            when others => null;         -- Never taken
+        end case;
         wait;
     end process;
 
