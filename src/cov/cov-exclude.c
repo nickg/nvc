@@ -684,20 +684,17 @@ bool cover_should_emit_scope(const cover_data_t *db, cover_obj_t scope)
    if (db->spec == NULL)
       return true;
 
-   ident_t block_name;
-   cover_obj_t blk = scope;
-   for (;;) {
-      cover_obj_t parent = cover_get_obj(db, blk, COV_ATTR_PARENT);
-      if (cover_is_null(parent))
-         return true;
-
-      cover_obj_t inst = cover_get_obj(db, blk, COV_ATTR_INST);
-
-      if ((block_name = cover_get_ident(db, inst, COV_ATTR_BLOCK_NAME)))
+   ident_t block_name = NULL;
+   cover_obj_t inst = cover_get_obj(db, scope, COV_ATTR_INST);
+   while (!cover_is_null(inst)) {
+      if ((block_name = cover_get_ident(db, inst, COV_ATTR_BLOCK_NAME)) != NULL)
          break;
 
-      blk = parent;
+      inst = cover_get_obj(db, inst, COV_ATTR_PARENT);
    }
+
+   if (block_name == NULL)
+      return true;
 
    ident_t ename = ident_until(block_name, '-');
 
