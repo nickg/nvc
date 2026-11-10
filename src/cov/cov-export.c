@@ -155,15 +155,10 @@ static void cobertura_export_scope(cobertura_report_t *report,
       }
    }
 
-   cover_obj_t inst = cover_get_obj(report->data, scope, COV_ATTR_INST);
-
    cover_iter_t child_it = cover_begin(report->data, scope, COV_REL_CHILDREN);
    cover_obj_t child;
-   while (cover_next(&child_it, &child)) {
-      // TODO: remove this check
-      if (cover_equals(cover_get_obj(report->data, child, COV_ATTR_INST), inst))
-         cobertura_export_scope(report, class, child);
-   }
+   while (cover_next(&child_it, &child))
+      cobertura_export_scope(report, class, child);
 }
 
 static void cobertura_export_inst(cobertura_report_t *report, cover_obj_t inst)
@@ -361,12 +356,7 @@ static void dump_scope_xml(const cover_data_t *db, cover_obj_t scope,
                            FILE *f)
 {
    ident_t name = cover_get_ident(db, scope, COV_ATTR_NAME);
-   cover_obj_t inst = cover_get_obj(db, scope, COV_ATTR_INST);
    loc_t scope_loc = cover_get_loc(db, scope, COV_ATTR_LOC);
-
-   cover_obj_t root = cover_get_obj(db, inst, COV_ATTR_ROOT);
-   if (cover_equals(root, scope))
-      return;  // TODO: remove
 
    fprintf(f, "%*s<scope name=\"%s\"", indent, "", istr(name));
 
@@ -390,11 +380,8 @@ static void dump_scope_xml(const cover_data_t *db, cover_obj_t scope,
 
    cover_iter_t child_it = cover_begin(db, scope, COV_REL_CHILDREN);
    cover_obj_t child;
-   while (cover_next(&child_it, &child)) {
-      // TODO: remove this check
-      if (cover_equals(cover_get_obj(db, child, COV_ATTR_INST), inst))
-         dump_scope_xml(db, child, indent + 2, &scope_loc, relative, f);
-   }
+   while (cover_next(&child_it, &child))
+      dump_scope_xml(db, child, indent + 2, &scope_loc, relative, f);
 
    fprintf(f, "%*s</scope>\n", indent, "");
 }

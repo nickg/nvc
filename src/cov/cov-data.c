@@ -797,7 +797,7 @@ static cover_obj_t cover_clone_scope(cover_data_t *dst_db,
                                      const cover_data_t *src_db,
                                      cover_obj_t src_scope,
                                      cover_obj_t parent_scope,
-                                     cover_obj_t parent_inst)
+                                     cover_obj_t inst)
 {
    cover_obj_t obj = cover_make_obj(COVER_TAG_SCOPE, dst_db->scopes.count);
    APUSH(dst_db->scopes, *cover_scope_data_const(src_db, src_scope));
@@ -806,7 +806,7 @@ static cover_obj_t cover_clone_scope(cover_data_t *dst_db,
    copy->parent = parent_scope;
    copy->items = (cover_array_t)AINIT;
    copy->children = (cover_array_t)AINIT;
-   copy->inst = parent_inst;
+   copy->inst = inst;
 
    cover_iter_t item_it = cover_begin(src_db, src_scope, COV_REL_ITEMS);
    cover_obj_t item;
@@ -815,17 +815,10 @@ static cover_obj_t cover_clone_scope(cover_data_t *dst_db,
       cover_append(dst_db, obj, COV_REL_ITEMS, copy);
    }
 
-   cover_obj_t src_inst = cover_get_obj(src_db, src_scope, COV_ATTR_INST);
-
    cover_iter_t child_it = cover_begin(src_db, src_scope, COV_REL_CHILDREN);
    cover_obj_t child;
    while (cover_next(&child_it, &child)) {
-      // TODO: remove this check
-      if (!cover_equals(cover_get_obj(src_db, child, COV_ATTR_INST), src_inst))
-         continue;
-
-      cover_obj_t copy = cover_clone_scope(dst_db, src_db, child, obj,
-                                           parent_inst);
+      cover_obj_t copy = cover_clone_scope(dst_db, src_db, child, obj, inst);
       cover_append(dst_db, obj, COV_REL_CHILDREN, copy);
    }
 
@@ -967,13 +960,8 @@ static void cover_merge_scope(cover_data_t *dst_db,
       }
    }
 
-   cover_obj_t src_inst = cover_get_obj(src_db, src_scope, COV_ATTR_INST);
    cover_iter_t src_child_it = cover_begin(src_db, src_scope, COV_REL_CHILDREN);
    while (cover_next(&src_child_it, &src)) {
-      // TODO: remove this check
-      if (!cover_equals(cover_get_obj(src_db, src, COV_ATTR_INST), src_inst))
-         continue;
-
       ident_t src_name = cover_get_ident(src_db, src, COV_ATTR_NAME);
 
       bool found = false;

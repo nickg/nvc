@@ -353,15 +353,10 @@ static void rpt_visit_scope(cover_rpt_t *rpt, rpt_hier_t *h, cover_obj_t scope)
       }
    }
 
-   cover_obj_t inst = cover_get_obj(rpt->data, scope, COV_ATTR_INST);
-
    cover_iter_t it = cover_begin(rpt->data, scope, COV_REL_CHILDREN);
    cover_obj_t child;
-   while (cover_next(&it, &child)) {
-      // TODO: remove this check
-      if (cover_equals(cover_get_obj(rpt->data, child, COV_ATTR_INST), inst))
-         rpt_visit_scope(rpt, h, child);
-   }
+   while (cover_next(&it, &child))
+      rpt_visit_scope(rpt, h, child);
 }
 
 static rpt_hier_t *rpt_visit_inst(cover_rpt_t *rpt, cover_obj_t inst)
