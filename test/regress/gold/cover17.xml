@@ -1,11 +1,11 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <!DOCTYPE coverage SYSTEM 'http://cobertura.sourceforge.net/xml/coverage-04.dtd'>
-<coverage version="TEST" line-rate="0.857143" branch-rate="0.400000" complexity="0.0" lines-valid="14" lines-covered="12" branches-valid="5" branches-covered="2" timestamp="0">
+<coverage version="TEST" line-rate="0.812500" branch-rate="0.333333" complexity="0.0" lines-valid="16" lines-covered="13" branches-valid="6" branches-covered="2" timestamp="0">
 <sources>
 <source>.</source>
 </sources>
 <packages>
-<package name="WORK" line-rate="0.857143" branch-rate="0.400000" complexity="0.0">
+<package name="WORK" line-rate="0.812500" branch-rate="0.333333" complexity="0.0">
 <classes>
 <class name="SUB(TEST)" filename="cover17.vhd" line-rate="1.000000" branch-rate="1.000000" complexity="0.0" >
 <methods/>
@@ -19,7 +19,7 @@
 <line number="13" hits="3" branch="false"/>
 </lines>
 </class>
-<class name="COVER17(TEST)" filename="cover17.vhd" line-rate="0.818182" branch-rate="0.250000" complexity="0.0" >
+<class name="COVER17(TEST)" filename="cover17.vhd" line-rate="0.769231" branch-rate="0.200000" complexity="0.0" >
 <methods/>
 <lines>
 <line number="33" hits="1" branch="false"/>
@@ -37,18 +37,24 @@
 </conditions>
 </line>
 <line number="40" hits="0" branch="false"/>
-<line number="42" hits="1" branch="false"/>
-<line number="43" hits="1" branch="true" condition-coverage="100 %">
+<line number="41" hits="1" branch="true" condition-coverage="50 %">
+<conditions>
+<condition number="0" type="jump" coverage="50 %"/>
+</conditions>
+</line>
+<line number="42" hits="0" branch="false"/>
+<line number="44" hits="1" branch="false"/>
+<line number="45" hits="1" branch="true" condition-coverage="100 %">
 <conditions>
 <condition number="0" type="jump" coverage="100 %"/>
 </conditions>
 </line>
-<line number="44" hits="0" branch="true" condition-coverage="0 %">
+<line number="46" hits="0" branch="true" condition-coverage="0 %">
 <conditions>
 <condition number="0" type="jump" coverage="0 %"/>
 </conditions>
 </line>
-<line number="46" hits="1" branch="false"/>
+<line number="48" hits="1" branch="false"/>
 </lines>
 </class>
 </classes>

@@ -33,7 +33,8 @@ typedef struct _cobertura_class cobertura_class_t;
 
 typedef struct {
    unsigned lineno;
-   unsigned hits;
+   unsigned stmt_hits;
+   unsigned branch_hits;
    bool     branch;
    unsigned bflags;
 } cobertura_line_t;
@@ -130,7 +131,7 @@ static void cobertura_export_scope(cobertura_report_t *report,
       case COV_ITEM_STMT:
          {
             cover_obj_t bin = cover_at(report->data, item, COV_REL_BINS, 0);
-            l->hits += cover_get_u32(report->data, bin, COV_ATTR_DATA, 0);
+            l->stmt_hits += cover_get_u32(report->data, bin, COV_ATTR_DATA, 0);
          }
          break;
       case COV_ITEM_BRANCH:
@@ -144,6 +145,7 @@ static void cobertura_export_scope(cobertura_report_t *report,
             for (int j = 0; j < nbins; j++) {
                uint32_t data = cover_get_u32(report->data, bins[j],
                                              COV_ATTR_DATA, 0);
+               l->branch_hits += data;
                if (data > 0)
                   l->bflags |= cover_get_u32(report->data, bins[j],
                                              COV_ATTR_FLAGS, 0);
@@ -181,7 +183,7 @@ static void cobertura_class_stats(const cobertura_class_t *class,
    *nlines += class->nlines;
    for (int i = 0; i < class->nlines; i++) {
       const cobertura_line_t *line = &(class->lines[i]);
-      if (line->hits > 0)
+      if (line->stmt_hits > 0 || line->branch_hits > 0)
          (*hitlines)++;
       if (line->branch) {
          (*nbranches)++;
@@ -214,6 +216,8 @@ static void cobertura_print_class(cobertura_class_t *class, FILE *f)
    fprintf(f, "<lines>\n");
    for (int i = 0; i < class->nlines; i++) {
       const cobertura_line_t *line = &(class->lines[i]);
+      const unsigned hits =
+         line->stmt_hits > 0 ? line->stmt_hits : line->branch_hits;
       if (line->branch) {
          int pct = 0;
          if (line->bflags & COV_FLAG_CHOICE)
@@ -225,7 +229,7 @@ static void cobertura_print_class(cobertura_class_t *class, FILE *f)
 
          fprintf(f, "<line number=\"%d\" hits=\"%d\" branch=\"true\" "
                  "condition-coverage=\"%d %%\">\n",
-                 line->lineno, line->hits, pct);
+                 line->lineno, hits, pct);
          fprintf(f, "<conditions>\n");
          fprintf(f, "<condition number=\"0\" type=\"jump\" "
                  "coverage=\"%d %%\"/>\n", pct);
@@ -234,7 +238,7 @@ static void cobertura_print_class(cobertura_class_t *class, FILE *f)
       }
       else
          fprintf(f, "<line number=\"%d\" hits=\"%d\" branch=\"false\"/>\n",
-                 line->lineno, line->hits);
+                 line->lineno, hits);
    }
    fprintf(f, "</lines>\n");
 

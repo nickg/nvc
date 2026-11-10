@@ -38,6 +38,8 @@ begin
         wait for 1 ns;
         if x < 0 then                   -- Never taken
             assert false;               -- Not covered
+        elsif x > 0 then                -- Evaluated but false
+            assert false;               -- Not covered
         end if;
         case x is
             when 0 => report "zero";    -- Taken
