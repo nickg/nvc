@@ -158,7 +158,6 @@ struct _cover_data {
    int              threshold;
    cover_spec_t    *spec;
    cover_ef_t      *ef;
-   cover_obj_t      root_scope;
    cover_array_t    roots;
    hash_t          *inst_map;
    mem_pool_t      *pool;

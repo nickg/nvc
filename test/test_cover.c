@@ -464,16 +464,13 @@ END_TEST
 static cover_obj_t make_cover_block(cover_data_t *db, const char *qual,
                                     cover_obj_t parent, const char *name)
 {
-   if (cover_is_null(parent))
-      parent = cover_get_obj(db, COVER_NULL_OBJ, COV_ATTR_ROOT);
-
    cover_obj_t parent_inst = cover_get_obj(db, parent, COV_ATTR_INST);
 
    cover_obj_t inst = cover_inst_new(db, ident_new(name), parent_inst,
                                      ident_new(name), ident_new("WORK"),
                                      ident_new(qual));
-   return cover_scope_new(db, inst, parent, CSCOPE_INSTANCE, ident_new(name),
-                          LOC_INVALID);
+   return cover_scope_new(db, inst, COVER_NULL_OBJ, CSCOPE_INSTANCE,
+                          ident_new(name), LOC_INVALID);
 }
 
 static cover_obj_t add_functional_range(cover_data_t *db, cover_obj_t scope,
@@ -522,6 +519,14 @@ START_TEST(test_merge3)
 
    cover_obj_t dst_child_inst = ck_cover_find(dst, "WORK.TOP.CHILD");
    cover_obj_t dst_child = cover_get_obj(dst, dst_child_inst, COV_ATTR_ROOT);
+   cover_obj_t dst_top_inst = cover_get_obj(dst, dst_top, COV_ATTR_INST);
+
+   ck_assert(cover_is_null(cover_get_obj(dst, dst_child, COV_ATTR_PARENT)));
+   ck_assert(cover_equals(cover_get_obj(dst, dst_child_inst, COV_ATTR_PARENT),
+                          dst_top_inst));
+   ck_assert_int_eq(cover_count(dst, dst_top, COV_REL_CHILDREN), 0);
+   ck_assert(cover_equals(cover_at(dst, dst_top_inst, COV_REL_CHILDREN, 0),
+                          dst_child_inst));
 
    cover_obj_t item = cover_at(dst, dst_child, COV_REL_ITEMS, 0);
    cover_obj_t bin = cover_at(dst, item, COV_REL_BINS, 0);
@@ -545,8 +550,7 @@ START_TEST(test_merge4)
    // merge must count children in the destination database, not interpret the
    // destination scope handle in the source database.
    make_cover_block(dst, "WORK.DST_EXTRA", COVER_NULL_OBJ, "EXTRA");
-   cover_obj_t dst_root = cover_get_obj(dst, COVER_NULL_OBJ, COV_ATTR_ROOT);
-   make_cover_block(dst, "WORK.DST_COMMON", dst_root, "COMMON");
+   make_cover_block(dst, "WORK.DST_COMMON", COVER_NULL_OBJ, "COMMON");
 
    make_cover_block(src, "WORK.SRC_COMMON", COVER_NULL_OBJ, "COMMON");
 
