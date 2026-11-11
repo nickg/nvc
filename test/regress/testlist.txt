@@ -1498,6 +1498,9 @@ vhpi24          vhpi
 vhpi25          vhpi
 cmdline22       shell
 cmdline23       shell,tcl
+json1           tcl
+procs1          tcl
+step1           tcl
 issue1711       normal
 vhpi26          vhpi,2008,plugin=siginit,+siginit+one
 issue1637       normal,relaxed

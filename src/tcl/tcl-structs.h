@@ -52,6 +52,11 @@ typedef struct {
    rt_scope_t     *scope;
 } shell_region_t;
 
+typedef struct {
+   unsigned  id;
+   uint64_t  when;
+} shell_break_t;
+
 typedef char *(*get_line_fn_t)(tcl_shell_t *);
 
 typedef struct _tcl_shell {
@@ -76,6 +81,10 @@ typedef struct _tcl_shell {
    get_line_fn_t    getline;
    shell_handler_t  handler;
    bool             quit;
+   shell_break_t   *breaks;
+   unsigned         nbreaks;
+   unsigned         breakalloc;
+   unsigned         nextbreak;
    char            *datadir;
 } tcl_shell_t;
 

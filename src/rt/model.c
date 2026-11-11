@@ -3439,6 +3439,30 @@ bool model_step(rt_model_t *m)
    return should_stop_now(m, TIME_HIGH);
 }
 
+bool model_step_cycle(rt_model_t *m, bool finish_time_step)
+{
+   // Like model_run but stops after one simulation cycle, or after the
+   // last delta cycle of the current time step if requested
+
+   MODEL_ENTRY(m);
+
+   if (m->force_stop)
+      return false;   // Was error during intialisation
+
+   run_callbacks(m, START_OF_SIMULATION);
+
+   do {
+      if (should_stop_now(m, TIME_HIGH))
+         break;
+
+      model_cycle(m);
+   } while (finish_time_step && m->next_is_delta);
+
+   run_callbacks(m, END_OF_SIMULATION);
+
+   return !should_stop_now(m, TIME_HIGH);
+}
+
 static inline void check_postponed(int64_t after, rt_proc_t *proc)
 {
    if (unlikely(proc->wakeable.postponed && after == 0))

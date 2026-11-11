@@ -1,6 +1,8 @@
 lib_libnvc_a_SOURCES += \
 	src/rt/heap.c \
 	src/rt/cover.c \
+	src/rt/wave-live.c \
+	src/rt/wave-live.h \
 	src/rt/wave.c \
 	src/rt/wave.h \
 	src/rt/defs.h \
