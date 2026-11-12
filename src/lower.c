@@ -6772,7 +6772,7 @@ static void lower_return(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
       value_reg = lower_rvalue(lu, value);
 
       if (type_is_scalar(type))
-         lower_check_scalar_bounds(lu, value_reg, type, value, NULL);
+         lower_check_scalar_bounds(lu, value_reg, tree_type(stmt), value, stmt);
       else if (type_is_access(type))
          value_reg = lower_incomplete_access(value_reg, type_designated(type));
       else if (type_is_array(type))
