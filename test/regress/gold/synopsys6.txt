@@ -1,0 +1,1 @@
+index 0 outside of NATURAL range -1 downto 0

@@ -1834,6 +1834,9 @@ static void synopsys_plus_signed(jit_func_t *func, jit_anchor_t *anchor,
 static void synopsys_plus_unsigned_logic(jit_func_t *func, jit_anchor_t *anchor,
                                          jit_scalar_t *args, tlab_t *tlab)
 {
+   if (unlikely(ffi_array_length(args[3].integer) == 0))
+      fail_in_interpreter(func, anchor, args, tlab);
+
    uint8_t right[] = { args[4].integer };
    args[4].pointer = right;
    args[5].integer = 0;
@@ -1845,6 +1848,9 @@ static void synopsys_plus_unsigned_logic(jit_func_t *func, jit_anchor_t *anchor,
 static void synopsys_plus_logic_unsigned(jit_func_t *func, jit_anchor_t *anchor,
                                          jit_scalar_t *args, tlab_t *tlab)
 {
+   if (unlikely(ffi_array_length(args[4].integer) == 0))
+      fail_in_interpreter(func, anchor, args, tlab);
+
    uint8_t left[] = { args[1].integer };
    args[6].integer = args[4].integer;
    args[5].integer = args[3].integer;
@@ -1854,6 +1860,30 @@ static void synopsys_plus_logic_unsigned(jit_func_t *func, jit_anchor_t *anchor,
    args[3].integer = 1;
 
    synopsys_plus_unsigned(func, anchor, args, tlab);
+}
+
+// The STD_LOGIC_UNSIGNED and STD_LOGIC_SIGNED operators return a vector
+// with the same bounds as the vector operand rather than (N-1 downto 0)
+static void synopsys_plus_vector_logic(jit_func_t *func, jit_anchor_t *anchor,
+                                       jit_scalar_t *args, tlab_t *tlab)
+{
+   const int64_t left = args[2].integer, length = args[3].integer;
+
+   synopsys_plus_unsigned_logic(func, anchor, args, tlab);
+
+   args[1].integer = left;
+   args[2].integer = length;
+}
+
+static void synopsys_plus_logic_vector(jit_func_t *func, jit_anchor_t *anchor,
+                                       jit_scalar_t *args, tlab_t *tlab)
+{
+   const int64_t left = args[3].integer, length = args[4].integer;
+
+   synopsys_plus_logic_unsigned(func, anchor, args, tlab);
+
+   args[1].integer = left;
+   args[2].integer = length;
 }
 
 static void synopsys_minus_unsigned(jit_func_t *func, jit_anchor_t *anchor,
@@ -2320,12 +2350,21 @@ static jit_intrinsic_t intrinsic_list[] = {
    { SS "\"+\"(YY)Y", synopsys_plus_signed },
    { SA "\"+\"(" AU "U)" AU, synopsys_plus_unsigned_logic },
    { SA "\"+\"(" AU "U)V", synopsys_plus_unsigned_logic },
-   { SU "\"+\"(VL)V", synopsys_plus_unsigned_logic },
-   { SU "\"+\"(YL)Y", synopsys_plus_unsigned_logic },
+   { SU "\"+\"(VL)V", synopsys_plus_vector_logic },
+   { SU "\"+\"(YL)Y", synopsys_plus_vector_logic },
    { SA "\"+\"(U" AU ")" AU, synopsys_plus_logic_unsigned },
    { SA "\"+\"(U" AU ")V", synopsys_plus_logic_unsigned },
-   { SU "\"+\"(LV)V", synopsys_plus_logic_unsigned },
-   { SU "\"+\"(LY)Y", synopsys_plus_logic_unsigned },
+   { SU "\"+\"(LV)V", synopsys_plus_logic_vector },
+   { SU "\"+\"(LY)Y", synopsys_plus_logic_vector },
+   // CONV_SIGNED zero-extends a STD_ULOGIC so these match the unsigned case
+   { SA "\"+\"(" AS "U)" AS, synopsys_plus_unsigned_logic },
+   { SA "\"+\"(" AS "U)V", synopsys_plus_unsigned_logic },
+   { SS "\"+\"(VL)V", synopsys_plus_vector_logic },
+   { SS "\"+\"(YL)Y", synopsys_plus_vector_logic },
+   { SA "\"+\"(U" AS ")" AS, synopsys_plus_logic_unsigned },
+   { SA "\"+\"(U" AS ")V", synopsys_plus_logic_unsigned },
+   { SS "\"+\"(LV)V", synopsys_plus_logic_vector },
+   { SS "\"+\"(LY)Y", synopsys_plus_logic_vector },
    { SA "\"-\"(" AU AU ")" AU, synopsys_minus_unsigned },
    { SA "\"-\"(" AU AU ")V", synopsys_minus_unsigned },
    { SU "\"-\"(VV)V", synopsys_minus_unsigned },
