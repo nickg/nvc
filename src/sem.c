@@ -1485,7 +1485,9 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
 
    const tree_kind_t value_kind = tree_kind(value);
 
-   if (type != NULL && type_is_subprogram(type)) {
+   if (type != NULL && type_is_none(type))
+      return false;   // Error already reported while parsing
+   else if (type != NULL && type_is_subprogram(type)) {
       // Alias of subprogram or enumeration literal
       // Rules for matching signatures are in LRM 93 section 2.3.2
       return true;

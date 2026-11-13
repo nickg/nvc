@@ -7544,6 +7544,18 @@ static void p_alias_declaration(tree_t parent)
       }
       tree_set_type(t, type);
    }
+   else if (name_requires_signature(nametab, value)) {
+      // LRM 08 section 6.6.3: a signature is required if the name denotes
+      // a subprogram (including an operator) or an enumeration literal
+      if (state.n_correct >= RECOVER_THRESH) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+         diag_printf(d, "signature required for subprogram or "
+                     "enumeration literal");
+         diag_lrm(d, STD_08, "6.6.3");
+         diag_emit(d);
+      }
+      tree_set_type(t, type_new(T_NONE));
+   }
    else if (tree_kind(value) == T_REF && tree_has_ref(value)) {
       // A nonobject alias may be a design unit which does not have a type
       tree_t decl = tree_ref(value);

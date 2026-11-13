@@ -444,6 +444,8 @@ static const struct {
    { "Constant and variable parameters", { [STD_93] = "2.1.1.1",
         [STD_08] = "4.2.2.2" } },
    { "Object aliases", { [STD_93] = "4.3.3.1", [STD_08] = "6.6.2" } },
+   { "Nonobject aliases", { [STD_93] = "4.3.3.2", [STD_08] = "6.6.3",
+        [STD_19] = "6.6.3" } },
    { "Case statement", { [STD_93] = "8.8", [STD_08] = "10.9" } },
    { "Elaboration of a declarative part", { [STD_93] = "12.3",
         [STD_08] = "14.4" } },

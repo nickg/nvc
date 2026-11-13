@@ -1732,6 +1732,94 @@ static const symbol_t *iterate_symbol_for(nametab_t *tab, ident_t name)
    }
 }
 
+static ident_t flat_selected_name(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_REF:
+      return tree_ident(t);
+   case T_RECORD_REF:
+      {
+         ident_t prefix = flat_selected_name(tree_value(t));
+         if (prefix == NULL)
+            return NULL;
+         else
+            return ident_prefix(prefix, tree_ident(t), '.');
+      }
+   default:
+      return NULL;
+   }
+}
+
+static bool decl_requires_signature(tree_t decl)
+{
+   while (tree_kind(decl) == T_ALIAS) {
+      tree_t value = tree_value(decl);
+      if (tree_kind(value) == T_PROT_REF)
+         return true;
+      else if (tree_kind(value) != T_REF || !tree_has_ref(value))
+         return false;
+      else
+         decl = tree_ref(value);
+   }
+
+   return is_subprogram(decl) || tree_kind(decl) == T_ENUM_LIT;
+}
+
+static bool symbol_requires_signature(const symbol_t *sym)
+{
+   if (sym == NULL)
+      return false;
+
+   bool any = false;
+   for (unsigned i = 0; i < sym->ndecls; i++) {
+      const decl_t *dd = get_decl(sym, i);
+      if (dd->visibility == HIDDEN || dd->visibility == ATTRIBUTE)
+         continue;
+      else if (!decl_requires_signature(dd->tree))
+         return false;
+
+      any = true;
+   }
+
+   return any;
+}
+
+bool name_requires_signature(nametab_t *tab, tree_t name)
+{
+   // LRM 08 section 6.6.3: a signature is required when the name denotes
+   // a subprogram (including an operator) or an enumeration literal.
+   // Every visible declaration must be one of those: an object or type
+   // of the same name is a legal alias without a signature.
+
+   if (tree_kind(name) == T_RECORD_REF) {
+      ident_t prefix_id = flat_selected_name(tree_value(name));
+      const symbol_t *prefix = prefix_id != NULL
+         ? iterate_symbol_for(tab, prefix_id) : NULL;
+
+      type_t ptype = NULL;
+      bool all_protected = prefix != NULL;
+      int visible = 0;
+      for (unsigned i = 0; prefix != NULL && all_protected
+              && i < prefix->ndecls; i++) {
+         const decl_t *dd = get_decl(prefix, i);
+         if (dd->visibility == HIDDEN || dd->visibility == ATTRIBUTE)
+            continue;
+
+         visible++;
+         ptype = get_type_or_null(dd->tree);
+         all_protected = ptype != NULL && type_is_protected(ptype);
+      }
+
+      if (all_protected && visible > 0) {
+         scope_t *s = scope_for_type(tab, ptype);
+         return symbol_requires_signature(symbol_for(s, tree_ident(name)));
+      }
+   }
+
+   ident_t id = flat_selected_name(name);
+   return id != NULL && symbol_requires_signature(iterate_symbol_for(tab, id));
+}
+
 static void hint_for_typo(scope_t *top_scope, diag_t *d, ident_t name,
                           name_mask_t filter)
 {
