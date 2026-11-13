@@ -7,18 +7,25 @@ on:
   workflow_dispatch:
 
 jobs:
-  pkg-ubuntu:
-    name: Package for Ubuntu
+  pkg-deb:
+    name: Package for ${{matrix.distro}} ${{matrix.version}}
     strategy:
       matrix:
         include:
-          - { version: 22.04 }
-          - { version: 24.04 }
-          - { version: 26.04 }
+          - { distro: ubuntu, version: 22.04, image: 'ghcr.io/nickg/nvc-ubuntu-builder:22.04' }
+          - { distro: ubuntu, version: 24.04, image: 'ghcr.io/nickg/nvc-ubuntu-builder:24.04' }
+          - { distro: ubuntu, version: 26.04, image: 'ghcr.io/nickg/nvc-ubuntu-builder:26.04' }
+          - { distro: debian, version: 12, image: 'debian:12' }
+          - { distro: debian, version: 13, image: 'debian:13' }
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/nickg/nvc-ubuntu-builder:${{matrix.version}}
+      image: ${{matrix.image}}
     steps:
+      - name: Install packaging tools
+        run: |
+          apt-get -y update
+          DEBIAN_FRONTEND=noninteractive apt-get -y install \
+            --no-install-recommends git ca-certificates dpkg-dev
       - uses: actions/checkout@v6
         with:
           fetch-depth: 1
@@ -30,14 +37,15 @@ jobs:
       - name: Build Debian package
         run: |
           ln -s contrib/debian debian
+          DEBIAN_FRONTEND=noninteractive apt-get -y build-dep ./
           sed -i 's/nvc (.*)/nvc (${{ env.VERSION }}-1)/' debian/changelog
           dpkg-buildpackage -uc -us -b
-          mv ../nvc_${{ env.VERSION }}-1_amd64.deb nvc_${{ env.VERSION }}-1_amd64_ubuntu-${{ matrix.version }}.deb
+          mv ../nvc_${{ env.VERSION }}-1_amd64.deb nvc_${{ env.VERSION }}-1_amd64_${{ matrix.distro }}-${{ matrix.version }}.deb
       - name: 'Upload artifact'
         uses: actions/upload-artifact@v4
         with:
-          name: 'ubuntu-${{matrix.version}} package'
-          path: nvc_${{ env.VERSION }}-1_amd64_ubuntu-${{ matrix.version }}.deb
+          name: '${{matrix.distro}}-${{matrix.version}} package'
+          path: nvc_${{ env.VERSION }}-1_amd64_${{ matrix.distro }}-${{ matrix.version }}.deb
 
   msi-installer:
     name: Windows installer
