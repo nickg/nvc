@@ -326,6 +326,45 @@ static vcode_reg_t psl_lower_async_abort(unit_registry_t *ur,
    return emit_function_trigger(name, args, ARRAY_LEN(args));
 }
 
+static bool psl_const_width(type_t type, int64_t *width)
+{
+   if (type_is_unconstrained(type))
+      return false;
+   else if (type_is_array(type)) {
+      int64_t w = 1;
+      const int ndims = dimension_of(type);
+      for (int i = 0; i < ndims; i++) {
+         int64_t length;
+         if (!folded_length(range_of(type, i), &length))
+            return false;
+         w *= length;
+      }
+
+      int64_t elem_w;
+      if (!psl_const_width(type_elem(type), &elem_w))
+         return false;
+
+      *width = w * (type_is_array(type_elem(type)) ? elem_w : 1);
+      return true;
+   }
+   else if (type_is_record(type)) {
+      // Fields with unconstrained types are stored indirectly
+      const int nfields = type_fields(type);
+      for (int i = 0; i < nfields; i++) {
+         int64_t fwidth;
+         if (!psl_const_width(tree_type(type_field(type, i)), &fwidth))
+            return false;
+      }
+
+      *width = 1;
+      return true;
+   }
+   else {
+      *width = 1;
+      return true;
+   }
+}
+
 static vcode_reg_t psl_lower_prev_shift_reg(lower_unit_t *lu, tree_t expr,
                                             int cycles)
 {
@@ -347,17 +386,22 @@ static vcode_reg_t psl_lower_prev_shift_reg(lower_unit_t *lu, tree_t expr,
    vcode_reg_t count_reg = VCODE_INVALID_REG;
 
    const bool is_array = type_is_array(type);
-   if (is_array) {
-      int64_t length;
-      if (!folded_length(range_of(type, 0), &length))
-         fatal_at(tree_loc(expr), "sorry, only constant length arrays "
-                  "are supported");
+   const bool is_composite = is_array || type_is_record(type);
+   if (is_composite) {
+      int64_t width;
+      if (!psl_const_width(type, &width))
+         fatal_at(tree_loc(expr), "sorry, only types with constant "
+                  "bounds are supported");
 
-      count_reg = emit_const(vtype_offset(), length);
+      if (is_array)
+         count_reg = emit_const(vtype_offset(), width);
+
+      if (vcode_reg_kind(cur_reg) == VCODE_TYPE_UARRAY)
+         cur_reg = emit_unwrap(cur_reg);
    }
 
    for (int i = 0; i < cycles - 1; i++) {
-      if (is_array) {
+      if (is_composite) {
          vcode_reg_t src_ptr = emit_index(vars[i + 1], VCODE_INVALID_REG);
          vcode_reg_t dst_ptr = emit_index(vars[i], VCODE_INVALID_REG);
          emit_copy(dst_ptr, src_ptr, count_reg);
@@ -368,7 +412,7 @@ static vcode_reg_t psl_lower_prev_shift_reg(lower_unit_t *lu, tree_t expr,
       }
    }
 
-   if (is_array) {
+   if (is_composite) {
       vcode_reg_t dst_ptr = emit_index(vars[cycles - 1], VCODE_INVALID_REG);
       emit_copy(dst_ptr, cur_reg, count_reg);
    }
@@ -377,7 +421,7 @@ static vcode_reg_t psl_lower_prev_shift_reg(lower_unit_t *lu, tree_t expr,
 
    vcode_state_restore(&state);
 
-   if (is_array)
+   if (is_composite)
       return emit_index(vars[0], VCODE_INVALID_REG);
    else
       return emit_load(vars[0]);
