@@ -3468,7 +3468,7 @@ START_TEST(test_alias2)
    const error_t expect[] = {
       { 39, "no method FOOBAR in protected type T_TEST matches signature []" },
       { 40, "no visible declaration for XX" },
-      { 42, "procedure INCREMENT not allowed in an expression" },
+      { 42, "signature required for subprogram or enumeration literal" },
       { 58, "function GET_BITS with return identifier RV cannot be called "
         "in this context as the result subtype is not known" },
       { 59, "function GET_BITS with return identifier RV cannot be called" },
@@ -4103,6 +4103,29 @@ START_TEST(test_issue1686)
 }
 END_TEST
 
+START_TEST(test_issue1751)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/sem/issue1751.vhd");
+
+   const error_t expect[] = {
+      { 36, "signature required for subprogram or enumeration literal" },
+      { 38, "signature required for subprogram or enumeration literal" },
+      { 41, "signature required for subprogram or enumeration literal" },
+      { 45, "signature required for subprogram or enumeration literal" },
+      { 52, "signature required for subprogram or enumeration literal" },
+      { 60, "signature required for subprogram or enumeration literal" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY, T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -4296,6 +4319,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue1594);
    tcase_add_test(tc_core, test_issue1683);
    tcase_add_test(tc_core, test_issue1686);
+   tcase_add_test(tc_core, test_issue1751);
    suite_add_tcase(s, tc_core);
 
    return s;
