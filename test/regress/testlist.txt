@@ -1511,3 +1511,5 @@ issue1726       normal,2008
 vlog52          verilog,gold
 udp3            verilog
 issue1730       verilog
+synopsys5       normal
+synopsys6       gold,fail
