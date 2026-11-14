@@ -475,17 +475,21 @@ static int analyse(int argc, char **argv, cmd_state_t *state)
    return argc > 1 ? process_command(argc, argv, state) : EXIT_SUCCESS;
 }
 
-static void parse_generic(const char *str)
+static void parse_generic(const char *str, bool soft)
 {
    char *copy LOCAL = xstrdup(str);
 
    char *split = strchr(copy, '=');
    if (split == NULL || *(split + 1) == '\0' || *copy == '\0')
-      fatal("invalid generic specification '%s' (use -gNAME=VALUE)", str);
+      fatal("invalid generic specification '%s' (use %sNAME=VALUE)", str,
+            soft ? "--generic-default=" : "-g");
 
    *split = '\0';
 
-   elab_set_generic(copy, split + 1);
+   if (soft)
+      elab_set_generic_default(copy, split + 1);
+   else
+      elab_set_generic(copy, split + 1);
 }
 
 static void set_top_level(char **argv, int next_cmd, cmd_state_t *state)
@@ -584,6 +588,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       { "no-collapse",     no_argument,       0, 'C' },
       { "stats",           no_argument,       0, 'S' },
       { "trace",           no_argument,       0, 't' },
+      { "generic-default", required_argument, 0, 'D' },
       { 0, 0, 0, 0 }
    };
 
@@ -629,7 +634,10 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
          // No effect
          break;
       case 'g':
-         parse_generic(optarg);
+         parse_generic(optarg, false);
+         break;
+      case 'D':
+         parse_generic(optarg, true);
          break;
       case 's':
          cover_spec_file = optarg;
@@ -2347,6 +2355,8 @@ static void usage(void)
              "Fine-grained coverage collection specification, see the manual "
              "for details" },
            { "-g NAME=VALUE", "Set top level generic NAME to VALUE" },
+           { "--generic-default=NAME=VALUE",
+             "Set generic NAME to VALUE where no generic map gives one" },
            { "-j, --jit", "Enable just-in-time compilation during simulation" },
            { "-O0, -O1, -O2, -O3", "Set optimisation level (default is -O2)" },
            { "--no-collapse", "Do not collapse multiple signals into one" },
