@@ -474,7 +474,7 @@ static void vlog_const_func_cb(vlog_node_t v, void *ctx)
       }
       break;
    case V_USER_FCALL:
-      if (!(vlog_flags(vlog_ref(v)) & VLOG_F_CONST))
+      if (vlog_has_value(v) || !(vlog_flags(vlog_ref(v)) & VLOG_F_CONST))
          vlog_clear_flags(ctx, VLOG_F_CONST);
       break;
    case V_HIER_REF:
@@ -694,6 +694,13 @@ static void vlog_check_call_args(vlog_node_t v, vlog_node_t sub)
 
 static void vlog_check_user_tcall(vlog_node_t v)
 {
+   if (vlog_has_value(v)) {
+      // Hierarchical task name is resolved during elaboration
+      vlog_check_expr(vlog_value(v));
+      vlog_check_params(v);
+      return;
+   }
+
    vlog_node_t func = vlog_ref(v);
    if (vlog_kind(func) != V_TASK_DECL) {
       diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
@@ -852,6 +859,13 @@ static void vlog_check_wait(vlog_node_t v)
 
 static type_mask_t vlog_check_mod_ref(vlog_node_t v)
 {
+   if (vlog_has_value(v))
+      vlog_check_expr(vlog_value(v));
+
+   const int nparams = vlog_params(v);
+   for (int i = 0; i < nparams; i++)
+      vlog_check_expr(vlog_param(v, i));
+
    if (vlog_has_ref(v)) {
       vlog_node_t inst = vlog_ref(v);
       if (vlog_kind(inst) != V_MOD_INST) {
@@ -917,6 +931,12 @@ static type_mask_t vlog_check_part_select(vlog_node_t v)
 
 static type_mask_t vlog_check_user_fcall(vlog_node_t v)
 {
+   if (vlog_has_value(v)) {
+      // Hierarchical function name is resolved during elaboration
+      vlog_check_params(v);
+      return vlog_check_expr(vlog_value(v));
+   }
+
    vlog_node_t func = vlog_ref(v);
    if (vlog_kind(func) != V_FUNC_DECL) {
       diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));

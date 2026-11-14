@@ -223,7 +223,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT),
 
    // V_USER_FCALL
-   (I_IDENT | I_REF | I_PARAMS),
+   (I_IDENT | I_REF | I_PARAMS | I_VALUE),
 
    // V_UDP_LEVEL
    (I_SUBKIND | I_IVAL),
@@ -241,7 +241,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (0),
 
    // V_USER_TCALL
-   (I_IDENT | I_REF | I_PARAMS),
+   (I_IDENT | I_REF | I_PARAMS | I_VALUE),
 
    // V_VOID_CALL
    (I_VALUE),

@@ -49,6 +49,27 @@
 
 typedef A(tree_t) tree_list_t;
 
+typedef struct {
+   vlog_node_t  body;
+   rt_scope_t  *scope;
+} elab_href_t;
+
+typedef A(elab_href_t) href_list_t;
+
+typedef struct {
+   vlog_node_t  node;
+   ident_t     *path;
+   unsigned     npath;
+   unsigned     uses;
+} elab_defparam_t;
+
+typedef struct {
+   elab_defparam_t *defparam;
+   unsigned         depth;
+} defparam_entry_t;
+
+typedef A(defparam_entry_t) defparam_list_t;
+
 typedef struct _elab_ctx elab_ctx_t;
 typedef struct _generic_list generic_list_t;
 
@@ -75,6 +96,8 @@ typedef struct _elab_ctx {
    cover_obj_t       cscope;
    unsigned          depth;
    unsigned          errors;
+   href_list_t      *hrefs;
+   const defparam_list_t *defparams;
 } elab_ctx_t;
 
 typedef struct {
@@ -1468,6 +1491,7 @@ static void elab_inherit_context(elab_ctx_t *ctx, const elab_ctx_t *parent)
    ctx->errors   = error_count();
    ctx->pool     = parent->pool;
    ctx->cscope   = parent->cscope;
+   ctx->hrefs    = parent->hrefs;
 }
 
 static bool elab_new_errors(const elab_ctx_t *ctx)
@@ -1611,6 +1635,65 @@ static void elab_verilog_ports(vlog_node_t inst, elab_instance_t *ei,
    }
 }
 
+static void elab_match_defparams(ident_t name, const elab_ctx_t *ctx,
+                                 defparam_list_t *out)
+{
+   // Parameter overrides from enclosing scopes that refer to the
+   // instance or generate block NAME or something inside it
+   if (ctx->defparams == NULL)
+      return;
+
+   for (int i = 0; i < ctx->defparams->count; i++) {
+      defparam_entry_t e = ctx->defparams->items[i];
+      if (e.defparam->path[e.depth] == name) {
+         e.depth++;
+         APUSH(*out, e);
+      }
+   }
+}
+
+static void elab_apply_defparams(vlog_node_t mod, vlog_node_t body,
+                                 const defparam_list_t *list)
+{
+   for (int i = 0; i < list->count; i++) {
+      defparam_entry_t e = list->items[i];
+      if (e.depth != e.defparam->npath)
+         continue;
+
+      vlog_node_t target = vlog_target(e.defparam->node);
+      ident_t name = vlog_ident(target);
+
+      vlog_node_t decl = NULL;
+      const int ndecls = vlog_decls(mod);
+      for (int j = 0; j < ndecls && decl == NULL; j++) {
+         vlog_node_t d = vlog_decl(mod, j);
+         if (vlog_kind(d) == V_PARAM_DECL && vlog_ident(d) == name)
+            decl = d;
+      }
+
+      e.defparam->uses++;
+
+      if (decl == NULL) {
+         diag_t *d = diag_new(DIAG_ERROR, vlog_loc(target));
+         diag_printf(d, "module %pQ has no parameter %pQ",
+                     vlog_ident2(mod), name);
+         diag_hint(d, vlog_loc(mod), "module %pQ declared here",
+                   vlog_ident2(mod));
+         diag_emit(d);
+         continue;
+      }
+
+      const int nbody = vlog_decls(body);
+      for (int j = 0; j < nbody; j++) {
+         vlog_node_t d = vlog_decl(body, j);
+         if (vlog_kind(d) == V_LOCALPARAM && vlog_ident(d) == name) {
+            vlog_set_value(d, vlog_value(e.defparam->node));
+            break;
+         }
+      }
+   }
+}
+
 static void elab_verilog_module(tree_t comp, ident_t label, vlog_node_t mod,
                                 vlog_node_t list, vlog_node_t inst,
                                 const elab_ctx_t *ctx)
@@ -1632,13 +1715,28 @@ static void elab_verilog_module(tree_t comp, ident_t label, vlog_node_t mod,
    mod_cache_t *mc = elab_cached_module(vlog_to_object(mod), &new_ctx);
    mc->count++;
 
-   elab_instance_t *ei = ghash_get(mc->instances, list);
+   defparam_list_t defparams = AINIT;
+   elab_match_defparams(label, ctx, &defparams);
+
+   if (defparams.count > 0)
+      new_ctx.defparams = &defparams;
+
+   bool fresh = false;
+   elab_instance_t *ei = NULL;
+   if (defparams.count == 0)
+      ei = ghash_get(mc->instances, list);
+
    if (!elab_can_clone_instance(ei, &new_ctx)) {
+      fresh = true;
+
       ident_t id = ident_sprintf("%s#%d", istr(vlog_ident(mod)), mc->unique);
 
       ei = pool_calloc(ctx->pool, sizeof(elab_instance_t));
       ei->body = vlog_new_instance(mod, list, id);
       ei->first = b;
+
+      if (defparams.count > 0)
+         elab_apply_defparams(mod, ei->body, &defparams);
 
       vlog_fold(ei->body, ctx->mir, ctx->jit);
 
@@ -1654,7 +1752,9 @@ static void elab_verilog_module(tree_t comp, ident_t label, vlog_node_t mod,
       vlog_trans(ei->body, ei->block);
       vlog_lower_instance(ctx->mir, ei->body, NULL, ei->block);
 
-      ghash_put(mc->instances, list, ei);
+      if (defparams.count == 0)
+         ghash_put(mc->instances, list, ei);   // Shared with other instances
+
       mc->unique++;
    }
 
@@ -1678,10 +1778,18 @@ static void elab_verilog_module(tree_t comp, ident_t label, vlog_node_t mod,
    if (elab_new_errors(&new_ctx) == 0)
       elab_lower(b, &new_ctx);
 
+   if (fresh && new_ctx.scope != NULL
+       && (vlog_global_flags(mod) & VLOG_GF_HIER_REF)) {
+      const elab_href_t href = { ei->body, new_ctx.scope };
+      APUSH(*ctx->hrefs, href);
+   }
+
    if (elab_new_errors(&new_ctx) == 0)
       elab_verilog_sub_blocks(ei->body, &new_ctx);
 
    elab_pop_scope(&new_ctx);
+
+   ACLEAR(defparams);
 }
 
 static void elab_verilog_instance_list(vlog_node_t v, const elab_ctx_t *ctx)
@@ -1748,6 +1856,12 @@ static void elab_verilog_block(vlog_node_t v, const elab_ctx_t *ctx)
    };
    elab_inherit_context(&new_ctx, ctx);
 
+   defparam_list_t defparams = AINIT;
+   elab_match_defparams(id, ctx, &defparams);
+
+   if (defparams.count > 0)
+      new_ctx.defparams = &defparams;
+
    // TODO: use elab_instance_t to cache this
 
    ident_t id2 = ident_prefix(ctx->dotted, vlog_ident(v), '%');
@@ -1775,10 +1889,15 @@ static void elab_verilog_block(vlog_node_t v, const elab_ctx_t *ctx)
 
    elab_lower(b, &new_ctx);
 
+   const elab_href_t href = { body, new_ctx.scope };
+   APUSH(*ctx->hrefs, href);
+
    if (elab_new_errors(&new_ctx) == 0)
       elab_verilog_sub_blocks(v, &new_ctx);
 
    elab_pop_scope(&new_ctx);
+
+   ACLEAR(defparams);
 }
 
 static void *elab_verilog_for_generate_test_cb(jit_scalar_t *args, void *ctx)
@@ -1911,6 +2030,7 @@ static void elab_verilog_processes(vlog_node_t v, const elab_ctx_t *ctx)
       case V_GEN_BLOCK:
       case V_IF_GENERATE:
       case V_FOR_GENERATE:
+      case V_DEFPARAM:
          break;
       default:
          fatal_at(vlog_loc(s), "sorry, this Verilog statement is not "
@@ -1919,9 +2039,70 @@ static void elab_verilog_processes(vlog_node_t v, const elab_ctx_t *ctx)
    }
 }
 
+static elab_defparam_t *elab_new_defparam(vlog_node_t v,
+                                          const elab_ctx_t *ctx)
+{
+   vlog_node_t target = vlog_target(v);
+   assert(vlog_kind(target) == V_HIER_REF);
+
+   unsigned npath = 1;
+   for (vlog_node_t mr = vlog_value(target); vlog_has_value(mr);
+        mr = vlog_value(mr))
+      npath++;
+
+   ident_t *path = pool_calloc(ctx->pool, npath * sizeof(ident_t));
+
+   vlog_node_t mr = vlog_value(target);
+   for (int pos = npath - 1; pos >= 0; pos--) {
+      if ((path[pos] = vlog_mod_ref_name(mr)) == NULL)
+         return NULL;
+      else if (pos > 0)
+         mr = vlog_value(mr);
+   }
+
+   elab_defparam_t *dp = pool_calloc(ctx->pool, sizeof(elab_defparam_t));
+   dp->node  = v;
+   dp->path  = path;
+   dp->npath = npath;
+
+   // A name starting with the enclosing scope refers to the same place
+   if (npath > 1 && path[0] == tree_ident(ctx->out)) {
+      dp->path++;
+      dp->npath--;
+   }
+
+   return dp;
+}
+
 static void elab_verilog_sub_blocks(vlog_node_t v, const elab_ctx_t *ctx)
 {
+   defparam_list_t defparams = AINIT;
+   elab_ctx_t sub_ctx;
+
    const int nstmts = vlog_stmts(v);
+   for (int i = 0; i < nstmts; i++) {
+      vlog_node_t s = vlog_stmt(v, i);
+      if (vlog_kind(s) != V_DEFPARAM)
+         continue;
+      else if (defparams.count == 0 && ctx->defparams != NULL) {
+         for (int j = 0; j < ctx->defparams->count; j++)
+            APUSH(defparams, ctx->defparams->items[j]);
+      }
+
+      elab_defparam_t *dp = elab_new_defparam(s, ctx);
+      if (dp != NULL) {
+         const defparam_entry_t e = { dp, 0 };
+         APUSH(defparams, e);
+      }
+   }
+
+   if (defparams.count > 0) {
+      // Parameter overrides declared in this scope
+      sub_ctx = *ctx;
+      sub_ctx.defparams = &defparams;
+      ctx = &sub_ctx;
+   }
+
    for (int i = 0; i < nstmts; i++) {
       vlog_node_t s = vlog_stmt(v, i);
 
@@ -1943,6 +2124,17 @@ static void elab_verilog_sub_blocks(vlog_node_t v, const elab_ctx_t *ctx)
          break;
       }
    }
+
+   for (int i = 0; i < defparams.count; i++) {
+      const defparam_entry_t e = defparams.items[i];
+      if (e.depth == 0 && e.defparam->uses == 0) {
+         vlog_node_t target = vlog_target(e.defparam->node);
+         error_at(vlog_loc(target), "cannot find instance for parameter "
+                  "override of %pQ", vlog_ident(target));
+      }
+   }
+
+   ACLEAR(defparams);
 }
 
 static vlog_node_t elab_mixed_generics(tree_t comp, vlog_node_t mod,
@@ -2873,13 +3065,89 @@ static void elab_verilog_root(vlog_node_t v, const elab_ctx_t *ctx)
    elab_verilog_module(NULL, label, v, list, stmt, ctx);
 }
 
+static void elab_bind_hier_call(vlog_node_t v)
+{
+   // The hierarchical name of the task or function was resolved by
+   // elab_rewrite_hier_ref_cb: check the arguments and fill in default
+   // values
+   vlog_node_t href = vlog_value(v);
+   if (!vlog_has_ref(href))
+      return;   // Error reported earlier
+
+   vlog_node_t decl = vlog_ref(href);
+
+   const bool is_func = vlog_kind(v) == V_USER_FCALL;
+   if (vlog_kind(decl) != (is_func ? V_FUNC_DECL : V_TASK_DECL)) {
+      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+      diag_printf(d, "%pQ is not a %s", vlog_ident(decl),
+                  is_func ? "function" : "task");
+      diag_hint(d, vlog_loc(decl), "%pQ declared here", vlog_ident(decl));
+      diag_emit(d);
+      return;
+   }
+
+   const int nparams = vlog_params(v);
+   const int nports = vlog_ports(decl);
+
+   for (int i = 0; i < nports; i++) {
+      vlog_node_t port = vlog_port(decl, i);
+      if (i < nparams && vlog_kind(vlog_param(v, i)) != V_EMPTY)
+         continue;
+      else if (!vlog_has_value(port)) {
+         diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+         diag_printf(d, "missing %pQ argument %pQ without a default value",
+                     vlog_ident(decl), vlog_ident(port));
+         diag_hint(d, vlog_loc(port), "%pQ declared here", vlog_ident(port));
+         diag_emit(d);
+         return;
+      }
+      else if (i < nparams)
+         vlog_set_param(v, i, vlog_value(port));
+      else
+         vlog_add_param(v, vlog_value(port));
+   }
+
+   if (nparams > nports) {
+      diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
+      diag_printf(d, "expected at most %d argument%s for %pQ but have %d",
+                  nports, nports != 1 ? "s" : "", vlog_ident(decl), nparams);
+      diag_hint(d, vlog_loc(decl), "%pQ declared here", vlog_ident(decl));
+      diag_emit(d);
+      return;
+   }
+
+   vlog_set_ref(v, decl);
+}
+
 static vlog_node_t elab_rewrite_hier_ref_cb(vlog_node_t v, void *arg)
 {
+   switch (vlog_kind(v)) {
+   case V_USER_FCALL:
+   case V_USER_TCALL:
+      if (vlog_has_value(v) && !vlog_has_ref(v))
+         elab_bind_hier_call(v);
+      return v;
+   default:
+      break;
+   }
+
    if (vlog_kind(v) != V_HIER_REF)
       return v;
 
+   // Search upwards from the scope containing the reference for the
+   // first component of the name
+   rt_scope_t *scope = arg;
    vlog_node_t prefix = vlog_value(v);
-   tree_t b = vlog_walk_mod_refs(prefix, arg);
+   tree_t where = scope->where;
+   for (rt_scope_t *s = scope; s != NULL; s = s->parent) {
+      if (s->where != NULL && tree_kind(s->where) == T_BLOCK
+          && vlog_scope_has_mod_ref(prefix, s->where)) {
+         where = s->where;
+         break;
+      }
+   }
+
+   tree_t b = vlog_walk_mod_refs(prefix, where);
    if (b == NULL)
       return v;
 
@@ -2896,10 +3164,16 @@ static vlog_node_t elab_rewrite_hier_ref_cb(vlog_node_t v, void *arg)
          continue;
 
       switch (vlog_kind(vd)) {
+      case V_FUNC_DECL:   // Name of hierarchical task or function call
+      case V_TASK_DECL:
+         vlog_set_ref(v, vd);
+         return v;
       case V_NET_DECL:
       case V_VAR_DECL:
          vlog_set_ref(v, vd);
          return v;
+      case V_LOCALPARAM:
+         return vlog_value(vd);   // Parameter value of that instance
       case V_PORT_MAP:
          continue;
       default:
@@ -2925,22 +3199,31 @@ static vlog_node_t elab_rewrite_hier_ref_cb(vlog_node_t v, void *arg)
    return v;
 }
 
-static void elab_fold_hrefs(mod_cache_t *mc, const elab_ctx_t *ctx)
+static void elab_fold_hrefs(const elab_href_t *href, const elab_ctx_t *ctx)
 {
-   vlog_node_t v = vlog_from_object(mc->object);
-   if (v == NULL)
-      return;
-   else if (!(vlog_global_flags(v) & VLOG_GF_HIER_REF))
-      return;
-
-   const void *key;
-   void *value;
-   for (hash_iter_t it = HASH_BEGIN;
-        ghash_iter(mc->instances, &it, &key, &value); ) {
-      elab_instance_t *ei = value;
-      vlog_rewrite(ei->body, NULL, elab_rewrite_hier_ref_cb, ei->first);
-      vlog_fold(ei->body, ctx->mir, ctx->jit);
+   // Generate blocks were copied for elaboration and are resolved
+   // separately
+   const int nstmts = vlog_stmts(href->body);
+   for (int i = 0; i < nstmts; i++) {
+      vlog_node_t s = vlog_stmt(href->body, i);
+      switch (vlog_kind(s)) {
+      case V_GEN_BLOCK:
+      case V_IF_GENERATE:
+      case V_FOR_GENERATE:
+      case V_DEFPARAM:
+         break;
+      default:
+         vlog_rewrite(s, NULL, elab_rewrite_hier_ref_cb, href->scope);
+         break;
+      }
    }
+
+   const int ndecls = vlog_decls(href->body);
+   for (int i = 0; i < ndecls; i++)
+      vlog_rewrite(vlog_decl(href->body, i), NULL, elab_rewrite_hier_ref_cb,
+                   href->scope);
+
+   vlog_fold(href->body, ctx->mir, ctx->jit);
 }
 
 static void elab_root_cb(void *arg)
@@ -2957,11 +3240,10 @@ static void elab_root_cb(void *arg)
          elab_verilog_root(vlog, ctx);
    }
 
-   const void *key;
-   void *value;
-   for (hash_iter_t it = HASH_BEGIN;
-        hash_iter(ctx->modcache, &it, &key, &value); )
-      elab_fold_hrefs(value, ctx);
+   for (int i = 0; i < ctx->hrefs->count; i++)
+      elab_fold_hrefs(&(ctx->hrefs->items[i]), ctx);
+
+   ACLEAR(*ctx->hrefs);
 }
 
 static int elab_compar_modcache(const void *a, const void *b)
@@ -3039,6 +3321,8 @@ tree_t elab(object_t **top, int ntop, jit_t *jit, unit_registry_t *ur,
 
    lib_t work = lib_work();
 
+   href_list_t hrefs = AINIT;
+
    elab_ctx_t ctx = {
       .out       = e,
       .roots     = top,
@@ -3051,6 +3335,7 @@ tree_t elab(object_t **top, int ntop, jit_t *jit, unit_registry_t *ur,
       .mir       = mc,
       .modcache  = hash_new(16),
       .mracache  = hash_new(16),
+      .hrefs     = &hrefs,
       .dotted    = lib_name(work),
       .model     = m,
       .scope     = create_scope(m, e, NULL),

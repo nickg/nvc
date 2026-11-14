@@ -314,7 +314,18 @@ static void bind_hier_ref(vlog_node_t v, jit_handle_t scope,
    rt_model_t *m = get_model();
    rt_scope_t *s = get_active_scope(m);
 
-   tree_t b = vlog_walk_mod_refs(vlog_value(v), s->where);
+   // Search upwards for the scope containing the first component
+   vlog_node_t prefix = vlog_value(v);
+   tree_t where = s->where;
+   for (rt_scope_t *p = s; p != NULL; p = p->parent) {
+      if (p->where != NULL && tree_kind(p->where) == T_BLOCK
+          && vlog_scope_has_mod_ref(prefix, p->where)) {
+         where = p->where;
+         break;
+      }
+   }
+
+   tree_t b = vlog_walk_mod_refs(prefix, where);
    assert(b != NULL);
 
    tree_t h = tree_decl(b, 0);
@@ -327,6 +338,17 @@ static void bind_hier_ref(vlog_node_t v, jit_handle_t scope,
    if (ctx == NULL)
       jit_msg(vlog_loc(v), DIAG_FATAL, "%pi has not yet been elaborated",
               tree_ident(b));
+
+   switch (vlog_kind(vlog_ref(v))) {
+   case V_FUNC_DECL:
+   case V_TASK_DECL:
+      // Hierarchical task or function call needs the context of the
+      // instance
+      args[0].pointer = mptr_get(rts->privdata);
+      return;
+   default:
+      break;
+   }
 
    jit_t *j = jit_for_thread();
    jit_handle_t handle = jit_compile(j, tree_ident2(h));
