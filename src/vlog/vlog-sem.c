@@ -88,6 +88,18 @@ static type_mask_t get_type_mask(vlog_node_t v)
    case V_FUNC_DECL:
    case V_LOCAL_DECL:
       return get_type_mask(vlog_type(v));
+   case V_SPECPARAM:
+      {
+         // A specparam has the type of its value
+         vlog_node_t value = vlog_value(v);
+         if (vlog_kind(value) == V_MIN_TYP_MAX)
+            value = vlog_value(value);
+
+         if (vlog_kind(value) == V_REAL)
+            return TM_REAL | TM_CONST;
+         else
+            return TM_INTEGRAL | TM_CONST;
+      }
    default:
       CANNOT_HANDLE(v);
    }
@@ -356,6 +368,10 @@ static void vlog_check_consistent(vlog_node_t a, vlog_node_t b)
 
       vlog_node_t aright = vlog_right(ar);
       vlog_node_t bright = vlog_right(br);
+
+      if (vlog_kind(aleft) != V_NUMBER || vlog_kind(bleft) != V_NUMBER
+          || vlog_kind(aright) != V_NUMBER || vlog_kind(bright) != V_NUMBER)
+         continue;   // Values are not known before elaboration
 
       if (!vlog_equal_node(aleft, bleft) || !vlog_equal_node(aright, bright)) {
          diag_t *d = diag_new(DIAG_ERROR, vlog_loc(br));
@@ -806,6 +822,8 @@ static void vlog_check_module(vlog_node_t v)
 
 static void vlog_check_gate_inst(vlog_node_t v)
 {
+   vlog_check_ranges(v);
+
    const int nparams = vlog_params(v);
    for (int i = 0; i < nparams; i++)
       vlog_check_expr(vlog_param(v, i));
@@ -898,6 +916,13 @@ static type_mask_t vlog_check_index(vlog_node_t v)
 static type_mask_t vlog_check_bit_select(vlog_node_t v)
 {
    vlog_check_params(v);
+
+   vlog_node_t value = vlog_value(v);
+   if (vlog_kind(value) == V_REF && vlog_has_ref(value)) {
+      vlog_node_t decl = vlog_ref(value);
+      if (vlog_kind(decl) == V_LOCALPARAM && vlog_ranges(decl) > 0)
+         return get_type_mask(decl);   // Element of unpacked array
+   }
 
    return vlog_check_index(v);
 }
@@ -1095,6 +1120,11 @@ static type_mask_t vlog_check_sys_fcall(vlog_node_t v)
    case V_SYSTF_SQRT:
    case V_SYSTF_CEIL:
       return TM_REAL | (TM_CONST & mask);
+   case V_SYSTF_ISUNKNOWN:
+      if (vlog_params(v) != 1)
+         error_at(vlog_loc(v), "system function %pQ takes one argument",
+                  vlog_ident(v));
+      return TM_INTEGRAL;
    default:
       return TM_INTEGRAL;
    }

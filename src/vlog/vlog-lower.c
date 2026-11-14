@@ -1506,6 +1506,20 @@ static mir_value_t vlog_lower_sys_fcall(vlog_gen_t *g, vlog_node_t v)
          else
             return mir_const_vec(g->mu, t_integer, ~0, ~0);
       }
+   case V_SYSTF_ISUNKNOWN:
+      {
+         // True if any bit is X or Z which is when the reduction XOR
+         // of the argument is X
+         mir_type_t t_logic = mir_vec4_type(g->mu, 1, false);
+         mir_value_t arg = vlog_lower_rvalue(g, vlog_param(v, 0));
+         mir_type_t type = mir_get_type(g->mu, arg);
+         if (mir_get_class(g->mu, type) != MIR_TYPE_VEC4)
+            return mir_const_vec(g->mu, t_logic, 0, 0);
+
+         mir_value_t xor = mir_build_unary(g->mu, MIR_VEC_BIT_XOR, type, arg);
+         mir_value_t x = mir_const_vec(g->mu, t_logic, 1, 1);
+         return mir_build_binary(g->mu, MIR_VEC_CASE_EQ, t_logic, xor, x);
+      }
    default:
       return vlog_lower_sys_tfcall(g, v);
    }
@@ -1722,6 +1736,11 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
 
    switch (vlog_kind(v)) {
    case V_REF:
+      if (vlog_kind(vlog_ref(v)) == V_SPECPARAM) {
+         // Specparams are always inlined
+         return vlog_lower_with_context(g, vlog_value(vlog_ref(v)), context);
+      }
+      // Fall-through
    case V_BIT_SELECT:
    case V_PART_SELECT:
    case V_MEMBER_REF:
@@ -2155,6 +2174,7 @@ static mir_value_t vlog_lower_trigger(vlog_gen_t *g, vlog_node_t v)
             }
          case V_PARAM_DECL:
          case V_LOCALPARAM:
+         case V_SPECPARAM:
             return MIR_NULL_VALUE;
          default:
             CANNOT_HANDLE(v);
@@ -3507,6 +3527,34 @@ static void vlog_lower_net_process(vlog_gen_t *g, vlog_node_t v)
    }
 }
 
+static mir_value_t vlog_lower_gate_input(vlog_gen_t *g, vlog_node_t v,
+                                         mir_value_t value, int ninst, int bit)
+{
+   mir_type_t t_logic = mir_vec4_type(g->mu, 1, false);
+
+   if (ninst > 1) {
+      // In an array of instances a terminal as wide as the array
+      // connects one bit to each instance
+      mir_type_t type = mir_get_type(g->mu, value);
+      const int width = mir_get_size(g->mu, type);
+      if (width == ninst) {
+         if (mir_get_class(g->mu, type) != MIR_TYPE_VEC4)
+            value = mir_build_cast(g->mu, mir_vec4_type(g->mu, width, false),
+                                   value);
+
+         mir_type_t t_offset = mir_offset_type(g->mu);
+         mir_value_t pos = mir_const(g->mu, t_offset, bit);
+         return mir_build_extract(g->mu, t_logic, value, pos);
+      }
+      else if (width != 1)
+         fatal_at(vlog_loc(v), "terminal width %d does not match %d "
+                  "instances in array of gates %pQ", width, ninst,
+                  vlog_ident(v));
+   }
+
+   return vlog_lower_cast(g, t_logic, value);
+}
+
 static void vlog_lower_gate_inst(vlog_gen_t *g, vlog_node_t v)
 {
    mir_block_t start_bb = mir_add_block(g->mu);
@@ -3530,113 +3578,161 @@ static void vlog_lower_gate_inst(vlog_gen_t *g, vlog_node_t v)
 
    mir_set_cursor(g->mu, start_bb, MIR_APPEND);
 
-   bool negate = false;
+   mir_value_t *inputs LOCAL = xmalloc_array(nparams, sizeof(mir_value_t));
+   for (int i = first_term; i < nparams; i++)
+      inputs[i] = vlog_lower_rvalue(g, vlog_param(v, i));
+
+   int ninst = 1;
+   if (vlog_ranges(v) > 0)
+      ninst = vlog_size(vlog_range(v, 0));
+
+   mir_type_t t_vec = mir_vec4_type(g->mu, ninst, false);
+   mir_type_t t_offset = mir_offset_type(g->mu);
+
    uint8_t strength = ST_STRONG;
-   mir_value_t value = MIR_NULL_VALUE;
-   const vlog_gate_kind_t kind = vlog_subkind(v);
-   switch (kind) {
-   case V_GATE_PULLUP:
-   case V_GATE_PULLDOWN:
-      strength = vlog_subkind(vlog_param(v, 0));
-      value = mir_const_vec(g->mu, t_logic, kind == V_GATE_PULLUP, 0);
-      break;
-
-   case V_GATE_NAND:
-   case V_GATE_NOR:
-   case V_GATE_XNOR:
-      negate = true;
-   case V_GATE_AND:
-   case V_GATE_OR:
-   case V_GATE_XOR:
-      {
-         static const mir_vec_op_t op_map[] = {
-            [V_GATE_AND] = MIR_VEC_BIT_AND,
-            [V_GATE_NAND] = MIR_VEC_BIT_AND,
-            [V_GATE_OR] = MIR_VEC_BIT_OR,
-            [V_GATE_NOR] = MIR_VEC_BIT_OR,
-            [V_GATE_XOR] = MIR_VEC_BIT_XOR,
-            [V_GATE_XNOR] = MIR_VEC_BIT_XOR,
-         };
-
-         value = vlog_lower_rvalue(g, vlog_param(v, first_term));
-         value = vlog_lower_cast(g, t_logic, value);
-
-         const int nelems = nparams - first_term;
-         for (int i = 1; i < nelems; i++) {
-            vlog_node_t p = vlog_param(v, first_term + i);
-            mir_value_t arg = vlog_lower_rvalue(g, p);
-            mir_value_t cast = vlog_lower_cast(g, t_logic, arg);
-            value = mir_build_binary(g->mu, op_map[kind], t_logic, value, cast);
-         }
-
-         if (negate)
-            value = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic, value);
-      }
-      break;
-
-   case V_GATE_NOT:
-      {
-         mir_value_t input = vlog_lower_rvalue(g, vlog_param(v, nparams - 1));
-         mir_value_t cast = vlog_lower_cast(g, t_logic, input);
-         value = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic, cast);
-      }
-      break;
-
-   case V_GATE_BUF:
-      {
-         // Invert twice for correct X/Z behaviour
-         mir_value_t input = vlog_lower_rvalue(g, vlog_param(v, nparams - 1));
-         mir_value_t cast = vlog_lower_cast(g, t_logic, input);
-         value = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic, cast);
-         value = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic, value);
-      }
-      break;
-
-   case V_GATE_NOTIF0:
-   case V_GATE_NOTIF1:
-      negate = true;
-      // Fall-through
-   case V_GATE_BUFIF0:
-   case V_GATE_BUFIF1:
-      {
-         mir_value_t input = vlog_lower_rvalue(g, vlog_param(v, first_term));
-         mir_value_t cast = vlog_lower_cast(g, t_logic, input);
-
-         if (negate)
-            cast = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic, cast);
-
-         mir_value_t enable =
-            vlog_lower_rvalue(g, vlog_param(v, first_term + 1));
-         mir_value_t enable_cast = vlog_lower_cast(g, t_logic, enable);
-
-         const bool active_high =
-            kind == V_GATE_BUFIF1 || kind == V_GATE_NOTIF1;
-         mir_value_t active_value =
-            mir_const_vec(g->mu, t_logic, active_high, 0);
-         mir_value_t active_vec =
-            mir_build_binary(g->mu, MIR_VEC_CASE_EQ, t_logic, enable_cast,
-                             active_value);
-         mir_value_t active = vlog_lower_test(g, active_vec);
-         mir_value_t highz = mir_const_vec(g->mu, t_logic, 0, 1);
-
-         value = mir_build_select(g->mu, t_logic, active, cast, highz);
-      }
-      break;
-
-   default:
-      CANNOT_HANDLE(v);
+   mir_value_t result = MIR_NULL_VALUE;
+   if (ninst > 1) {
+      mir_value_t zero = mir_const_vec(g->mu, t_logic, 0, 0);
+      result = mir_build_cast(g->mu, t_vec, zero);
    }
 
-   mir_value_t unpacked =
-      mir_build_unpack(g->mu, value, strength, MIR_NULL_VALUE);
+   for (int bit = 0; bit < ninst; bit++) {
+      bool negate = false;
+      mir_value_t value = MIR_NULL_VALUE;
+      const vlog_gate_kind_t kind = vlog_subkind(v);
+      switch (kind) {
+      case V_GATE_PULLUP:
+      case V_GATE_PULLDOWN:
+         strength = vlog_subkind(vlog_param(v, 0));
+         value = mir_const_vec(g->mu, t_logic, kind == V_GATE_PULLUP, 0);
+         break;
+
+      case V_GATE_NAND:
+      case V_GATE_NOR:
+      case V_GATE_XNOR:
+         negate = true;
+      case V_GATE_AND:
+      case V_GATE_OR:
+      case V_GATE_XOR:
+         {
+            static const mir_vec_op_t op_map[] = {
+               [V_GATE_AND] = MIR_VEC_BIT_AND,
+               [V_GATE_NAND] = MIR_VEC_BIT_AND,
+               [V_GATE_OR] = MIR_VEC_BIT_OR,
+               [V_GATE_NOR] = MIR_VEC_BIT_OR,
+               [V_GATE_XOR] = MIR_VEC_BIT_XOR,
+               [V_GATE_XNOR] = MIR_VEC_BIT_XOR,
+            };
+
+            value = vlog_lower_gate_input(g, v, inputs[first_term],
+                                          ninst, bit);
+
+            const int nelems = nparams - first_term;
+            for (int i = 1; i < nelems; i++) {
+               mir_value_t cast =
+                  vlog_lower_gate_input(g, v, inputs[first_term + i],
+                                        ninst, bit);
+               value = mir_build_binary(g->mu, op_map[kind], t_logic,
+                                        value, cast);
+            }
+
+            if (negate)
+               value = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic,
+                                       value);
+         }
+         break;
+
+      case V_GATE_NOT:
+         {
+            mir_value_t cast = vlog_lower_gate_input(g, v, inputs[nparams - 1],
+                                                     ninst, bit);
+            value = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic, cast);
+         }
+         break;
+
+      case V_GATE_BUF:
+         {
+            // Invert twice for correct X/Z behaviour
+            mir_value_t cast = vlog_lower_gate_input(g, v, inputs[nparams - 1],
+                                                     ninst, bit);
+            value = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic, cast);
+            value = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic, value);
+         }
+         break;
+
+      case V_GATE_NOTIF0:
+      case V_GATE_NOTIF1:
+         negate = true;
+         // Fall-through
+      case V_GATE_BUFIF0:
+      case V_GATE_BUFIF1:
+         {
+            mir_value_t cast = vlog_lower_gate_input(g, v, inputs[first_term],
+                                                     ninst, bit);
+
+            if (negate)
+               cast = mir_build_unary(g->mu, MIR_VEC_BIT_NOT, t_logic, cast);
+
+            mir_value_t enable_cast =
+               vlog_lower_gate_input(g, v, inputs[first_term + 1],
+                                     ninst, bit);
+
+            const bool active_high =
+               kind == V_GATE_BUFIF1 || kind == V_GATE_NOTIF1;
+            mir_value_t active_value =
+               mir_const_vec(g->mu, t_logic, active_high, 0);
+            mir_value_t active_vec =
+               mir_build_binary(g->mu, MIR_VEC_CASE_EQ, t_logic, enable_cast,
+                                active_value);
+            mir_value_t active = vlog_lower_test(g, active_vec);
+            mir_value_t highz = mir_const_vec(g->mu, t_logic, 0, 1);
+
+            value = mir_build_select(g->mu, t_logic, active, cast, highz);
+         }
+         break;
+
+      default:
+         CANNOT_HANDLE(v);
+      }
+
+      if (ninst == 1)
+         result = value;
+      else
+         result = mir_build_insert(g->mu, value, result,
+                                   mir_const(g->mu, t_offset, bit));
+   }
 
    vlog_select_t lvalue = vlog_lower_select(g, vlog_target(v));
+
+   if (ninst > 1 && lvalue.size != ninst)
+      fatal_at(vlog_loc(v), "output terminal width %d does not match %d "
+               "instances in array of gates %pQ", lvalue.size, ninst,
+               vlog_ident(v));
+
+   mir_value_t tmp = MIR_NULL_VALUE;
+   if (ninst > 1) {
+      mir_type_t t_elem = mir_logic_type(g->mu);
+      mir_type_t t_array = mir_carray_type(g->mu, ninst, t_elem);
+      tmp = vlog_get_temp(g, t_array);
+   }
+
+   mir_value_t unpacked = mir_build_unpack(g->mu, result, strength, tmp);
 
    mir_value_t nets =
       mir_build_array_ref(g->mu, lvalue.obj, lvalue.dst_offset);
 
    mir_build_put_driver(g->mu, nets, lvalue.count, unpacked);
    mir_build_wait(g->mu, start_bb);
+}
+
+static bool vlog_is_pulled_net(vlog_node_t v)
+{
+   // A tri0 or tri1 net has a driver added by vlog_simp
+   if (vlog_kind(v) != V_NET_DECL)
+      return false;
+
+   const vlog_net_kind_t kind = vlog_subkind(v);
+   return kind == V_NET_TRI0 || kind == V_NET_TRI1;
 }
 
 static void vlog_lower_port_map(vlog_gen_t *g, vlog_node_t v)
@@ -3850,7 +3946,11 @@ static void vlog_lower_tcheck(vlog_gen_t *g, vlog_node_t tcheck)
          mir_value_t t_zero = mir_const(g->mu, t_time, 0);
          mir_value_t stamp_var = mir_add_var(g->mu, t_time,  MIR_NULL_STAMP,
                                              ident_new("stamp"), 0);
-         mir_build_store(g->mu, stamp_var, t_zero);
+
+         // No time stamp before the first stamp event: any check event
+         // is far enough from this one
+         mir_value_t never = mir_const(g->mu, t_time, INT64_MIN / 2);
+         mir_build_store(g->mu, stamp_var, never);
          mir_build_return(g->mu, MIR_NULL_VALUE);
 
          mir_block_t start_bb = mir_add_block(g->mu);
@@ -3895,8 +3995,14 @@ static void vlog_lower_tcheck(vlog_gen_t *g, vlog_node_t tcheck)
 
          mir_value_t stamp_display = stamp;
          if (fail_simul) {
+            // Simultaneous events violate the check unless the limit is
+            // zero
             mir_value_t stamp_cond_n = mir_build_not(g->mu, stamp_cond);
-            ok = mir_build_and(g->mu, ok, stamp_cond_n);
+            mir_value_t zero_limit =
+               mir_build_cmp(g->mu, MIR_CMP_EQ, limit_time, t_zero);
+            mir_value_t simul_ok = mir_build_or(g->mu, stamp_cond_n,
+                                                zero_limit);
+            ok = mir_build_and(g->mu, ok, simul_ok);
             stamp_display = mir_build_select(g->mu, t_time, stamp_cond,
                                              now, stamp);
          }
@@ -4262,6 +4368,7 @@ static void vlog_lower_task_decl(mir_unit_t *mu, object_t *obj)
    mir_add_param(mu, t_context, MIR_NULL_STAMP, ident_new("context"));
 
    const int nports = vlog_ports(v);
+   mir_value_t *ptrs LOCAL = xmalloc_array(nports, sizeof(mir_value_t));
    for (int i = 0; i < nports; i++) {
       vlog_node_t port = vlog_port(v, i);
       const type_info_t *pti = vlog_type_info(&g, vlog_type(port));
@@ -4280,6 +4387,12 @@ static void vlog_lower_task_decl(mir_unit_t *mu, object_t *obj)
 
          mir_value_t init = mir_build_load(mu, param);
          mir_build_store(mu, local, init);
+
+         // The task may suspend so the pointer must be kept in a
+         // variable rather than read from the parameter at the end
+         ident_t pname = ident_sprintf("%s.ptr", istr(name));
+         ptrs[i] = mir_add_var(mu, t_pointer, pti->stamp, pname, 0);
+         mir_build_store(mu, ptrs[i], param);
       }
    }
 
@@ -4303,9 +4416,9 @@ static void vlog_lower_task_decl(mir_unit_t *mu, object_t *obj)
       assert(!mir_is_null(local));
       assert(hops == 0);
 
-      mir_value_t param = mir_get_param(mu, i + 1);
+      mir_value_t ptr = mir_build_load(mu, ptrs[i]);
       mir_value_t result = mir_build_load(mu, local);
-      mir_build_store(mu, param, result);
+      mir_build_store(mu, ptr, result);
    }
 
 
@@ -4662,6 +4775,80 @@ void vlog_lower_instance(mir_context_t *mc, vlog_node_t body, ident_t parent,
    mir_put_unit(mc, mu);
 }
 
+static void vlog_add_driven_decls(vlog_node_t v, hset_t *set)
+{
+   switch (vlog_kind(v)) {
+   case V_REF:
+      if (vlog_has_ref(v)) {
+         vlog_node_t d = vlog_ref(v);
+         hset_insert(set, d);
+         if (vlog_kind(d) == V_PORT_DECL && vlog_has_ref(d))
+            hset_insert(set, vlog_ref(d));
+      }
+      break;
+   case V_BIT_SELECT:
+   case V_PART_SELECT:
+      vlog_add_driven_decls(vlog_value(v), set);
+      break;
+   case V_CONCAT:
+      {
+         const int nparams = vlog_params(v);
+         for (int i = 0; i < nparams; i++)
+            vlog_add_driven_decls(vlog_param(v, i), set);
+      }
+      break;
+   default:
+      break;
+   }
+}
+
+static bool vlog_port_has_driver(vlog_node_t body, vlog_node_t port,
+                                 hset_t **set)
+{
+   // True if a continuous assignment or gate in the module drives the
+   // net of an input port
+   if (*set == NULL) {
+      *set = hset_new(16);
+
+      const int nstmts = vlog_stmts(body);
+      for (int i = 0; i < nstmts; i++) {
+         vlog_node_t s = vlog_stmt(body, i);
+         switch (vlog_kind(s)) {
+         case V_ASSIGN:
+         case V_GATE_INST:
+            vlog_add_driven_decls(vlog_target(s), *set);
+            break;
+         default:
+            break;
+         }
+      }
+   }
+
+   vlog_node_t d = vlog_ref(port);
+   if (vlog_kind(d) == V_NET_DECL && vlog_has_value(d))
+      return true;
+
+   return hset_contains(*set, port) || hset_contains(*set, d);
+}
+
+static bool vlog_is_initialised_var(vlog_node_t v)
+{
+   switch (vlog_kind(v)) {
+   case V_REF:
+      if (!vlog_has_ref(v))
+         return false;
+      else {
+         vlog_node_t d = vlog_ref(v);
+         return vlog_kind(d) == V_VAR_DECL && vlog_has_value(d);
+      }
+   case V_BIT_SELECT:
+   case V_PART_SELECT:
+      return vlog_is_initialised_var(vlog_value(v));
+   default:
+      return false;
+   }
+}
+
 void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
 {
    tree_t hier = tree_decl(b, 0);
@@ -4695,6 +4882,7 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
    };
 
    hash_t *map = hash_new(16);
+   hset_t *driven = NULL;
 
    const int vhdl_ndecls = tree_decls(b);
    const int vlog_ndecls = vlog_decls(body);
@@ -4752,6 +4940,14 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
       case V_BIT_SELECT:
       case V_PART_SELECT:
          {
+            if (vlog_is_pulled_net(vlog_ref(port)) && !vlog_is_net(value))
+               break;   // Pull driver cannot be added to a variable
+            else if (vlog_subkind(port) == V_PORT_INPUT
+                     && !vlog_is_net(value)
+                     && (vlog_is_initialised_var(value)
+                         || vlog_port_has_driver(body, port, &driven)))
+               break;   // Port net is separate from the variable
+
             vlog_select_t lvalue = vlog_lower_select(&g, vlog_value(v));
             const type_info_t *ti = vlog_type_info(&g, vlog_type(port));
             if (!mir_is_signal(mu, lvalue.obj))
@@ -5009,6 +5205,9 @@ void vlog_lower_block(mir_context_t *mc, ident_t parent, tree_t b)
    vlog_lower_cleanup(&g);
 
    hash_free(map);
+
+   if (driven != NULL)
+      hset_free(driven);
 
    mir_optimise(mu, MIR_PASS_O1);
    mir_put_unit(mc, mu);

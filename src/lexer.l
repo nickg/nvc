@@ -788,6 +788,7 @@ PROTECT           ?i:protect
 <VLOG>"|=>"              { return tSUFFIXNON; }
 <VLOG>"##"               { return tCYCLEDLY; }
 <VLOG>"var"              { return KEYWORD_2005(tVAR); }
+<VLOG>"const"            { return KEYWORD_2005(tCONST); }
 <VLOG>"specify"          { return tSPECIFY; }
 <VLOG>"endspecify"       { return tENDSPECIFY; }
 <VLOG>"primitive"        { return tPRIMITIVE; }

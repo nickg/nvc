@@ -1027,6 +1027,71 @@ static PLI_INT32 itor_tf(PLI_BYTE8 *userdata)
    return 0;
 }
 
+static PLI_INT32 realtobits_tf(PLI_BYTE8 *userdata)
+{
+   vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
+   assert(call != NULL);
+
+   vpiHandle argv = vpi_iterate(vpiArgument, call);
+   vpiHandle arg = vpi_scan(argv);
+   assert(arg != NULL);
+
+   s_vpi_value value = { .format = vpiRealVal };
+   vpi_get_value(arg, &value);
+
+   vpi_release_handle(arg);
+   vpi_release_handle(argv);
+
+   uint64_t bits;
+   memcpy(&bits, &value.value.real, sizeof(bits));
+
+   // Returned like a time value as both are 64-bit unsigned
+   s_vpi_time timeval = {
+      .type = vpiSimTime,
+      .high = bits >> 32,
+      .low  = bits & 0xffffffff
+   };
+
+   s_vpi_value result = {
+      .format = vpiTimeVal,
+      .value = { .time = &timeval },
+   };
+
+   vpi_put_value(call, &result, NULL, 0);
+
+   vpi_release_handle(call);
+   return 0;
+}
+
+static PLI_INT32 bitstoreal_tf(PLI_BYTE8 *userdata)
+{
+   vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
+   assert(call != NULL);
+
+   vpiHandle argv = vpi_iterate(vpiArgument, call);
+   vpiHandle arg = vpi_scan(argv);
+   assert(arg != NULL);
+
+   s_vpi_value value = { .format = vpiHexStrVal };
+   vpi_get_value(arg, &value);
+
+   // Low 64 bits of the argument, an undefined value gives zero
+   const char *str = value.value.str;
+   const size_t len = strlen(str);
+   const uint64_t bits = strtoull(str + (len > 16 ? len - 16 : 0), NULL, 16);
+
+   vpi_release_handle(arg);
+   vpi_release_handle(argv);
+
+   s_vpi_value result = { .format = vpiRealVal };
+   memcpy(&result.value.real, &bits, sizeof(bits));
+
+   vpi_put_value(call, &result, NULL, 0);
+
+   vpi_release_handle(call);
+   return 0;
+}
+
 static PLI_INT32 real_unary_tf(double (*fn)(double))
 {
    vpiHandle call = vpi_handle(vpiSysTfCall, NULL);
@@ -1346,6 +1411,18 @@ static s_vpi_systf_data builtins[] = {
       .tfname      = "$itor",
       .sysfunctype = vpiRealFunc,
       .calltf      = itor_tf
+   },
+   {
+      .type        = vpiSysFunc,
+      .tfname      = "$realtobits",
+      .sysfunctype = vpiTimeFunc,
+      .calltf      = realtobits_tf
+   },
+   {
+      .type        = vpiSysFunc,
+      .tfname      = "$bitstoreal",
+      .sysfunctype = vpiRealFunc,
+      .calltf      = bitstoreal_tf
    },
    {
       .type        = vpiSysFunc,

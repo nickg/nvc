@@ -274,6 +274,7 @@ unsigned vlog_width(vlog_node_t v)
    case V_COND_EXPR:
       return MAX(vlog_width(vlog_left(v)), vlog_width(vlog_right(v)));
    case V_MIN_TYP_MAX:
+   case V_SPECPARAM:
       return vlog_width(vlog_value(v));
    case V_UNARY:
       switch (vlog_subkind(v)) {
@@ -331,6 +332,8 @@ unsigned vlog_width(vlog_node_t v)
       case V_SYSTF_UNSIGNED:
       case V_SYSTF_SIGNED:
          return vlog_width(vlog_param(v, 0));
+      case V_SYSTF_ISUNKNOWN:
+         return 1;
       default:
          return 32;  // TODO: call VPI
       }

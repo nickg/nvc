@@ -271,6 +271,9 @@ static vlog_node_t fold_const_expr(vlog_node_t v, fold_ctx_t *ctx)
 
 static vlog_node_t fold_localparam(vlog_node_t v, fold_ctx_t *ctx)
 {
+   if (vlog_ranges(v) > 0)
+      return v;   // Elements are selected by fold_bit_select
+
    vlog_node_t value = vlog_value(v);
    switch (get_fold_state(value, ctx)) {
    case FOLD_CONST:
@@ -453,6 +456,49 @@ static vlog_node_t fold_if_generate(vlog_node_t v, fold_ctx_t *ctx)
    return NULL;   // None of the conditions are true
 }
 
+static vlog_node_t fold_bit_select(vlog_node_t v, fold_ctx_t *ctx)
+{
+   // Replace a constant select of an unpacked array local parameter
+   // with the expression for that element
+
+   vlog_node_t value = vlog_value(v);
+   if (vlog_kind(value) != V_REF || !vlog_has_ref(value))
+      return v;
+
+   vlog_node_t decl = vlog_ref(value);
+   if (vlog_kind(decl) != V_LOCALPARAM || vlog_ranges(decl) != 1)
+      return v;
+   else if (vlog_params(v) != 1)
+      return v;
+
+   vlog_node_t elems = vlog_value(decl);
+   if (vlog_kind(elems) != V_CONCAT || vlog_has_value(elems))
+      return v;
+
+   vlog_node_t r = vlog_range(decl, 0);
+   vlog_node_t lnode = fold_const_expr(vlog_left(r), ctx);
+   vlog_node_t rnode = fold_const_expr(vlog_right(r), ctx);
+   vlog_node_t sel = fold_const_expr(vlog_param(v, 0), ctx);
+
+   int64_t left, right, index;
+   if (lnode == NULL || !vlog_get_const(lnode, &left)
+       || rnode == NULL || !vlog_get_const(rnode, &right)
+       || sel == NULL || !vlog_get_const(sel, &index))
+      return v;
+
+   const int64_t pos = left >= right ? left - index : index - left;
+   const int nelems = vlog_params(elems);
+
+   if (pos < 0 || pos >= nelems || index < MIN(left, right)
+       || index > MAX(left, right)) {
+      error_at(vlog_loc(v), "index %"PRIi64" outside of %pQ range %"PRIi64
+               ":%"PRIi64, index, vlog_ident(decl), left, right);
+      return v;
+   }
+
+   return vlog_param(elems, pos);
+}
+
 static vlog_node_t fold_func_decl(vlog_node_t v, fold_ctx_t *ctx)
 {
    assert(ctx->func == v);
@@ -500,6 +546,8 @@ static vlog_node_t vlog_fold_post_cb(vlog_node_t v, void *context)
       return fold_dimension(v, context);
    case V_PART_SELECT:
       return fold_part_select(v, context);
+   case V_BIT_SELECT:
+      return fold_bit_select(v, context);
    case V_CONCAT:
    case V_PARAM_ASSIGN:
    case V_ENUM_NAME:
