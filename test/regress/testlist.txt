@@ -57,6 +57,7 @@ agg4            normal
 ieee3           normal
 default1        normal
 generic1        normal
+genphys1        normal,gD=3ns
 signal7         normal
 synopsys1       normal
 block1          normal
@@ -285,6 +286,8 @@ case6           normal
 issue183        normal
 issue185        normal,gold
 toplevel2       normal,gI=2,gS=2
+genpath1        normal,gm.gen(1).g.W=9,gm.blk.b.W=8,gm.comp.W=7,gx.W=6,g*.TAG=x
+genpath2        shell
 issue186        normal
 issue194        normal
 issue196        normal

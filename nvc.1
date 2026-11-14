@@ -391,6 +391,30 @@ dotted path to the generic.  For example
 .Fl g\ INIT='1' ,
 and
 .Fl g\ UUT.STR="hello" .
+The path contains the labels of instances, blocks and generate
+statements below the top level, with the index of a for-generate
+iteration in parentheses as in
+.Fl g\ GEN(2).UUT.WIDTH=8 ;
+a path with only the instance labels applies to the instance in every
+generate iteration.
+A name containing
+.Ql *
+is a pattern matched against these paths, and a pattern starting with
+.Ql *.
+also matches the top-level generic, so
+.Fl g\ '*.WIDTH=8'
+sets every generic named WIDTH.
+The value replaces any value from a generic map.
+.\" --generic-default
+.It Fl \-generic-default= Ns Ar name Ns = Ns Ar value
+Like
+.Fl g
+but only for generics that have no value in a generic map, as if
+.Ar value
+were the default value of the generic.
+A
+.Fl g
+override takes precedence.
 .\" --no-collapse
 .It Fl \-no-collapse
 Do not collapse ports into a single signal.  Normally if a signal at one
