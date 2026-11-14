@@ -205,7 +205,7 @@ static void build_sensitivity(vlog_node_t ctrl, vlog_node_t v, hset_t *set,
       break;
    case V_USER_FCALL:
    case V_USER_TCALL:
-      if (is_comb)
+      if (is_comb && vlog_has_ref(v))
          build_sensitivity(ctrl, vlog_ref(v), set, is_comb);
       // Fall-through
    case V_CONCAT:
@@ -368,6 +368,9 @@ static vlog_node_t simp_concat(vlog_node_t v)
 
 static vlog_node_t simp_call_args(vlog_node_t v)
 {
+   if (vlog_has_value(v))
+      return v;   // Hierarchical name is resolved during elaboration
+
    vlog_node_t sub = vlog_ref(v);
 
    const int nparams = vlog_params(v);

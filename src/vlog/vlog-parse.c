@@ -1245,6 +1245,32 @@ static void p_part_select_range(vlog_node_t ps)
    vlog_set_right(ps, p_constant_expression());
 }
 
+static bool scan_hier_select(void)
+{
+   // True if the next tokens are a constant bit select followed by a
+   // dot as in "gen[2].x": only looks within the token lookahead
+   assert(peek() == tLSQUARE);
+
+   for (int n = 2, depth = 1; n < TOKENQ_SIZE - 1; n++) {
+      switch (peek_nth(n)) {
+      case tLSQUARE:
+         depth++;
+         break;
+      case tRSQUARE:
+         if (--depth == 0)
+            return peek_nth(n + 1) == tDOT;
+         break;
+      case tSEMI:
+      case tEOF:
+         return false;
+      default:
+         break;
+      }
+   }
+
+   return false;
+}
+
 static vlog_node_t p_hierarchical_identifier(ident_t id)
 {
    // [ $root . ] { identifier constant_bit_select . } identifier
@@ -1259,19 +1285,31 @@ static vlog_node_t p_hierarchical_identifier(ident_t id)
    vlog_set_loc(mr, CURRENT_LOC);
    vlog_symtab_lookup(symtab, mr);
 
+   if (optional(tLSQUARE)) {
+      vlog_add_param(mr, p_constant_expression());
+      consume(tRSQUARE);
+   }
+
    ident_t suffix;
    for (;;) {
       consume(tDOT);
 
       suffix = p_identifier();
 
-      if (peek() != tDOT)
+      if (peek() != tDOT && peek() != tLSQUARE)
+         break;
+      else if (peek() == tLSQUARE && !scan_hier_select())
          break;
 
       vlog_node_t next = vlog_new(V_MOD_REF);
       vlog_set_ident(next, suffix);
       vlog_set_loc(next, &state.last_loc);
       vlog_set_value(next, mr);
+
+      if (optional(tLSQUARE)) {
+         vlog_add_param(next, p_constant_expression());
+         consume(tRSQUARE);
+      }
 
       mr = next;
    };
@@ -1297,6 +1335,10 @@ static vlog_node_t p_select(ident_t id)
       prefix = p_hierarchical_identifier(id);
    else if (d == NULL && peek() == tDOT) {
       // Assume this is a hierarchical reference to a later instance
+      prefix = p_hierarchical_identifier(id);
+   }
+   else if (d == NULL && peek() == tLSQUARE && scan_hier_select()) {
+      // Reference into a loop generate block
       prefix = p_hierarchical_identifier(id);
    }
    else {
@@ -1418,6 +1460,29 @@ static vlog_node_t p_system_tf_call(vlog_kind_t kind)
    return v;
 }
 
+static bool scan_hier_tf_name(void)
+{
+   // True if the next tokens may start a hierarchical task or function
+   // name: the first component is an instance or not declared yet
+   if (peek() != tID || peek_nth(2) != tDOT)
+      return false;
+
+   vlog_node_t d = peek_reference();
+   return d == NULL || vlog_kind(d) == V_MOD_INST;
+}
+
+static token_t peek_after_hier_name(void)
+{
+   // Token after identifier { . identifier }: only looks within the
+   // token lookahead
+   int n = 2;
+   while (n + 2 < TOKENQ_SIZE && peek_nth(n) == tDOT
+          && peek_nth(n + 1) == tID)
+      n += 2;
+
+   return peek_nth(n);
+}
+
 static vlog_node_t p_tf_call(vlog_kind_t kind)
 {
    // ps_or_hierarchical_tf_identifier { attribute_instance }
@@ -1426,7 +1491,16 @@ static vlog_node_t p_tf_call(vlog_kind_t kind)
    BEGIN("task or function call");
 
    vlog_node_t v = vlog_new(kind);
-   vlog_set_ident(v, p_identifier());
+
+   ident_t id = p_identifier();
+   if (peek() == tDOT) {
+      // Hierarchical task or function name resolved during elaboration
+      vlog_node_t href = p_hierarchical_identifier(id);
+      vlog_set_ident(v, vlog_ident(href));
+      vlog_set_value(v, href);
+   }
+   else
+      vlog_set_ident(v, id);
 
    optional_attributes();
 
@@ -1436,7 +1510,10 @@ static vlog_node_t p_tf_call(vlog_kind_t kind)
    }
 
    vlog_set_loc(v, CURRENT_LOC);
-   vlog_symtab_lookup(symtab, v);
+
+   if (!vlog_has_value(v))
+      vlog_symtab_lookup(symtab, v);
+
    return v;
 }
 
@@ -1493,7 +1570,7 @@ static vlog_node_t p_subroutine_call(vlog_kind_t kind)
 
    if (peek() == tSYSTASK)
       return p_system_tf_call(kind);
-   else if (peek_nth(2) == tDOT)
+   else if (peek_nth(2) == tDOT && !scan_hier_tf_name())
       return p_method_call();
    else
       return p_tf_call(kind);
@@ -1766,8 +1843,8 @@ static vlog_node_t p_primary(void)
          head = p_subroutine_call(V_USER_FCALL);
          break;
       case tDOT:
-         if (peek_nth(4) == tLPAREN)
-            head = p_subroutine_call(V_METHOD_CALL);
+         if (peek_after_hier_name() == tLPAREN)
+            head = p_subroutine_call(V_USER_FCALL);
          else
             head = p_select(p_identifier());
          break;
@@ -3455,6 +3532,17 @@ static vlog_node_t p_statement_item(ident_t id)
       case tSEMI:
       case tATTRBEGIN:
          return p_subroutine_call_statement();
+      case tDOT:
+         if (scan_hier_tf_name()) {
+            switch (peek_after_hier_name()) {
+            case tLPAREN:
+            case tSEMI:
+               return p_subroutine_call_statement();
+            default:
+               break;
+            }
+         }
+         // Fall-through
       default:
          {
             vlog_node_t lhs = p_variable_lvalue(), v;
@@ -4940,7 +5028,7 @@ static vlog_node_t p_generate_block(void)
 
    vlog_node_t b = vlog_new(V_GEN_BLOCK);
 
-   if (scan(tID, tBEGIN)) {
+   if (peek() == tBEGIN || (peek() == tID && peek_nth(2) == tCOLON)) {
       ident_t label = NULL;
       if (peek() == tID) {
          vlog_set_ident(b, (label = p_identifier()));
@@ -4981,7 +5069,10 @@ static vlog_node_t p_generate_block(void)
    }
    else {
       vlog_set_ident(b, default_label("genblk"));
+
+      vlog_symtab_push(symtab, b);
       p_generate_item(b);
+      vlog_symtab_pop(symtab);
    }
 
    vlog_set_loc(b, CURRENT_LOC);

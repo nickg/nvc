@@ -22,6 +22,7 @@
 #include "vlog/vlog-util.h"
 
 #include <assert.h>
+#include <inttypes.h>
 
 bool vlog_is_net(vlog_node_t v)
 {
@@ -628,6 +629,7 @@ vlog_node_t vlog_get_dim(vlog_node_t v, int n)
    switch (vlog_kind(v)) {
    case V_REF:
    case V_MEMBER_REF:
+   case V_HIER_REF:
       {
          vlog_node_t decl = vlog_ref(v), dt = vlog_type(decl);
 
@@ -656,25 +658,25 @@ vlog_node_t vlog_get_dim(vlog_node_t v, int n)
    }
 }
 
-tree_t vlog_walk_mod_refs(vlog_node_t v, tree_t where)
+ident_t vlog_mod_ref_name(vlog_node_t v)
 {
-   assert(vlog_kind(v) == V_MOD_REF);
-
-   if (vlog_has_value(v)) {
-      if ((where = vlog_walk_mod_refs(vlog_value(v), where)) == NULL)
-         return NULL;
-   }
-   else if (!vlog_has_ref(v)) {
-      where = tree_container(where);
-      assert(tree_kind(where) == T_ELAB);
-   }
-   else {
-      assert(vlog_kind(vlog_ref(v)) == V_MOD_INST);
-      assert(tree_kind(where) == T_BLOCK);
-   }
-
    ident_t id = vlog_ident(v);
+   if (vlog_params(v) == 0)
+      return id;
 
+   // Name of a loop generate block
+   int64_t index;
+   if (!vlog_get_const(vlog_param(v, 0), &index)) {
+      error_at(vlog_loc(vlog_param(v, 0)), "generate block index must be "
+               "a constant expression");
+      return NULL;
+   }
+
+   return ident_sprintf("%s[%"PRIi64"]", istr(id), index);
+}
+
+static tree_t vlog_find_block(tree_t where, ident_t id)
+{
    const int nstmts = tree_stmts(where);
    for (int i = 0; i < nstmts; i++) {
       tree_t s = tree_stmt(where, i);
@@ -682,6 +684,40 @@ tree_t vlog_walk_mod_refs(vlog_node_t v, tree_t where)
          return s;
    }
 
-   error_at(vlog_loc(v), "cannot find %pQ in hierarchical identifier", id);
    return NULL;
+}
+
+bool vlog_scope_has_mod_ref(vlog_node_t v, tree_t where)
+{
+   assert(vlog_kind(v) == V_MOD_REF);
+
+   while (vlog_has_value(v))
+      v = vlog_value(v);
+
+   ident_t id = vlog_mod_ref_name(v);
+   return id != NULL && vlog_find_block(where, id) != NULL;
+}
+
+tree_t vlog_walk_mod_refs(vlog_node_t v, tree_t where)
+{
+   assert(vlog_kind(v) == V_MOD_REF);
+
+   const bool first = !vlog_has_value(v);
+   if (!first && (where = vlog_walk_mod_refs(vlog_value(v), where)) == NULL)
+      return NULL;
+
+   ident_t id = vlog_mod_ref_name(v);
+   if (id == NULL)
+      return NULL;
+
+   tree_t b = vlog_find_block(where, id);
+   if (b == NULL && first && tree_kind(where) != T_ELAB) {
+      // Not in this scope: look for a top-level instance
+      b = vlog_find_block(tree_container(where), id);
+   }
+
+   if (b == NULL)
+      error_at(vlog_loc(v), "cannot find %pQ in hierarchical identifier", id);
+
+   return b;
 }

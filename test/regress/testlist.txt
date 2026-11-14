@@ -1216,6 +1216,7 @@ issue1313       normal,2008
 string1         verilog
 issue1317       normal,2008
 tfcall5         verilog
+vhiercall1      verilog
 signed2         verilog
 wide2           verilog
 rand3           verilog
@@ -1284,6 +1285,7 @@ ivtest24        verilog
 signed3         verilog
 vlog36          verilog
 issue1469       verilog
+vgenitem1       verilog
 issue1473       vhpi,mixed
 issue1394       fail,gold
 ieee20          fail,gold,2008
@@ -1364,6 +1366,7 @@ array21         verilog
 ivtest44        verilog
 ivtest45        verilog
 gate1           verilog
+vdefparam1      verilog
 real11          verilog
 select22        verilog
 file16          verilog
@@ -1424,6 +1427,7 @@ href1           verilog
 vlog43          verilog
 force4          normal,2008
 vlog44          verilog
+vgenhref1       verilog
 vlog45          verilog
 ivtest60        verilog
 tfcall10        verilog
