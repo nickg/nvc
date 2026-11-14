@@ -94,7 +94,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_VALUE | I_SUBKIND),
 
    // V_GATE_INST
-   (I_SUBKIND | I_PARAMS | I_IDENT | I_REF | I_TARGET),
+   (I_SUBKIND | I_PARAMS | I_IDENT | I_REF | I_TARGET | I_RANGES),
 
    // V_STRENGTH
    (I_SUBKIND),
@@ -193,7 +193,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_TARGET | I_SUBKIND),
 
    // V_LOCALPARAM
-   (I_IDENT | I_VALUE | I_TYPE),
+   (I_IDENT | I_VALUE | I_TYPE | I_RANGES),
 
    // V_CASE
    (I_SUBKIND | I_VALUE | I_STMTS),
