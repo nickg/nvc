@@ -210,19 +210,10 @@ static void vhdl_cover_stmt(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent)
    cover_put_u32(g->data, item, COV_ATTR_SOURCE, src);
 }
 
-static void vhdl_cover_expr(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent,
-                            unsigned *nth)
+static void vhdl_cover_expr_item(vhdl_cover_t *g, tree_t t,
+                                 lazy_cscope_t *parent, unsigned *nth)
 {
-   if (!cover_enabled(g->data, COVER_MASK_EXPRESSION))
-      return;
-   else if (tree_kind(t) != T_FCALL)
-      return;
-   else if (!vhdl_is_logical(tree_subkind(tree_ref(t))))
-      return;
-
    loc_t loc = *tree_loc(t);
-   if (is_coverage_off(g, loc))
-      return;
 
    cover_flags_t flags = 0, bin_flags[4] = {};
    int nbins;
@@ -318,6 +309,20 @@ static void vhdl_cover_expr(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent,
 
       cover_put_ident(g->data, bins[i], COV_ATTR_HIER, hier);
    }
+}
+
+static void vhdl_cover_expr(vhdl_cover_t *g, tree_t t, lazy_cscope_t *parent,
+                            unsigned *nth)
+{
+   if (!cover_enabled(g->data, COVER_MASK_EXPRESSION))
+      return;
+   else if (tree_kind(t) != T_FCALL)
+      return;
+   else if (!vhdl_is_logical(tree_subkind(tree_ref(t))))
+      return;
+
+   if (!is_coverage_off(g, *tree_loc(t)))
+      vhdl_cover_expr_item(g, t, parent, nth);
 
    const int nparams = tree_params(t);
    for (int i = 0; i < nparams; i++)

@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<scope name="WORK">
+  <scope name="COVER31" block_name="COVER31-TEST" file="cover31.vhd" line="4">
+    <scope name="_P0" line="9">
+      <scope name="_S0" line="13">
+        <expression hier="WORK.COVER31._P0._S0._E0.BIN_0_1" data="1"/>
+        <expression hier="WORK.COVER31._P0._S0._E0.BIN_1_0" data="1"/>
+        <expression hier="WORK.COVER31._P0._S0._E0.BIN_1_1" data="1"/>
+      </scope>
+      <scope name="_S2" line="24">
+        <expression hier="WORK.COVER31._P0._S2._E0.BIN_0_1" data="1"/>
+        <expression hier="WORK.COVER31._P0._S2._E0.BIN_1_0" data="1"/>
+        <expression hier="WORK.COVER31._P0._S2._E0.BIN_1_1" data="1"/>
+      </scope>
+      <scope name="_S3" line="29">
+        <expression hier="WORK.COVER31._P0._S3._E0.BIN_0_0" data="2"/>
+        <expression hier="WORK.COVER31._P0._S3._E0.BIN_0_1" data="1"/>
+        <expression hier="WORK.COVER31._P0._S3._E0.BIN_1_0" data="0"/>
+        <expression hier="WORK.COVER31._P0._S3._E0.BIN_1_1" data="1"/>
+      </scope>
+    </scope>
+  </scope>
+</scope>

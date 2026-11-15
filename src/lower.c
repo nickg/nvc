@@ -1799,6 +1799,8 @@ static void lower_logic_expr_coverage(lower_unit_t *lu, cover_obj_t item,
 {
    if (vcode_unit_kind(lu->vunit) == VCODE_UNIT_PROPERTY)
       return;
+   else if (cover_is_null(item))
+      return;
 
    // Corresponds to how std_ulogic enum is translated
    vcode_type_t vc_logic = vcode_reg_type(lhs);
@@ -2455,6 +2457,9 @@ static vcode_reg_t lower_expr_coverge(lower_unit_t *lu, cover_obj_t item,
 {
    assert(cover_enabled(lu->cover, COVER_MASK_EXPRESSION));
 
+   if (cover_is_null(item))
+      return result;
+
    vcode_reg_t lhs_n = VCODE_INVALID_REG;
    vcode_reg_t rhs_n = VCODE_INVALID_REG;
 
@@ -2540,9 +2545,14 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t t, int *nth,
       return lower_rvalue(lu, t);
 
    cover_obj_t item = cover_get_item(lu->cover, gs->cscope,
-                                     COV_ITEM_EXPRESSION, (*nth)++);
-   if (cover_is_null(item))
-      return lower_rvalue(lu, t);
+                                     COV_ITEM_EXPRESSION, *nth);
+   if (!cover_is_null(item)) {
+      const loc_t iloc = cover_get_loc(lu->cover, item, COV_ATTR_LOC);
+      if (loc_eq(&iloc, tree_loc(t)))
+         (*nth)++;
+      else
+         item = COVER_NULL_OBJ;
+   }
 
    tree_t p0 = tree_value(tree_param(t, 0)), p1 = NULL;
    if (kind != S_SCALAR_NOT)
