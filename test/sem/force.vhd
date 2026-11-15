@@ -41,5 +41,12 @@ begin
         wait;
     end process;
 
+    p3: process is
+        procedure proc (variable x : integer) is
+        begin
+            x <= force 1;               -- Error
+        end procedure;
+    begin
+    end process;
 
 end architecture;

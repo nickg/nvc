@@ -5958,10 +5958,10 @@ static bool sem_check_case(tree_t t, nametab_t *tab)
          diag_hint(d, tree_loc(test), "array has %d dimensions",
                    dimension_of(type));
       else if (type_is_array(type))
-         diag_hint(d, tree_loc(test), "type %s is not a character array",
-                   type_pp(type));
+         diag_hint(d, tree_loc(test), "type %pT is not a character array",
+                   type);
       else
-         diag_hint(d, tree_loc(test), "type is %s", type_pp(type));
+         diag_hint(d, tree_loc(test), "type is %pT", type);
       diag_lrm(d, STD_08, "10.9");
       diag_emit(d);
       return false;
@@ -5995,8 +5995,8 @@ static bool sem_check_case(tree_t t, nametab_t *tab)
                return false;
 
             if (!sem_check_type(name, type, tab))
-               sem_error(name, "case choice must have type %s but found %s",
-                         type_pp(type), type_pp(tree_type(name)));
+               sem_error(name, "case choice must have type %pT but found %pT",
+                         type, tree_type(name));
             else if (!(*static_fn)(name))
                sem_error(name, "case choice must be %s static", static_str);
          }
@@ -6066,7 +6066,7 @@ static bool sem_check_match_case(tree_t t, nametab_t *tab)
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
       diag_printf(d, "type of expression in a matching case statement must be "
                   "BIT, STD_ULOGIC, or a one-dimensional array of these types");
-      diag_hint(d, tree_loc(value), "type is %s", type_pp(type));
+      diag_hint(d, tree_loc(value), "type is %pT", type);
       diag_lrm(d, STD_08, "10.9");
       diag_emit(d);
       return false;
@@ -6091,8 +6091,8 @@ static bool sem_check_return(tree_t t, nametab_t *tab)
 
       type_t expect = tree_type(t);
       if (!sem_check_type(value, expect, tab))
-         sem_error(t, "expected return type %s but have %s",
-                   type_pp(expect), type_pp(tree_type(value)));
+         sem_error(t, "expected return type %pT but have %pT",
+                   expect, tree_type(value));
    }
    else if (tree_kind(sub) == T_FUNC_BODY)
       sem_error(t, "return in function must have an expression");
@@ -6117,8 +6117,8 @@ static bool sem_check_cond_return(tree_t t, nametab_t *tab)
    type_t std_bool = std_type(NULL, STD_BOOLEAN);
 
    if (!sem_check_type(value, std_bool, tab))
-      sem_error(value, "type of condition must be %s but have %s",
-                type_pp(std_bool), type_pp(tree_type(value)));
+      sem_error(value, "type of condition must be %pT but have %pT",
+                std_bool, tree_type(value));
 
    return true;
 }
@@ -6132,8 +6132,8 @@ static bool sem_check_while(tree_t t, nametab_t *tab)
       return false;
 
    if (!sem_check_type(value, std_bool, tab))
-      sem_error(value, "type of loop condition must be %s but is %s",
-                type_pp(std_bool), type_pp(tree_type(value)));
+      sem_error(value, "type of loop condition must be %pT but is %pT",
+                std_bool, tree_type(value));
 
    return true;
 }
@@ -6171,9 +6171,9 @@ static bool sem_check_loop_control(tree_t t, nametab_t *tab)
 
       type_t std_bool = std_type(NULL, STD_BOOLEAN);
       if (!type_eq(tree_type(value), std_bool))
-         sem_error(value, "type of %s condition must be %s but is %s",
+         sem_error(value, "type of %s condition must be %pT but is %pT",
                    (tree_kind(t) == T_EXIT) ? "exit" : "next",
-                   type_pp(std_bool), type_pp(tree_type(value)));
+                   std_bool, tree_type(value));
    }
 
    return true;
@@ -6195,9 +6195,8 @@ static bool sem_check_attr_spec(tree_t t, nametab_t *tab)
 
    type_t type = tree_type(t);
    if (!sem_check_type(value, type, tab))
-      sem_error(t, "expected attribute specification for %s to have type %s "
-                "but found %s", istr(tree_ident(t)), type_pp(type),
-                type_pp(tree_type(value)));
+      sem_error(t, "expected attribute specification for %pI to have type %pT "
+                "but found %pT", tree_ident(t), type, tree_type(value));
 
    if (!tree_has_ref(t))
       return false;
@@ -6206,9 +6205,8 @@ static bool sem_check_attr_spec(tree_t t, nametab_t *tab)
    const class_t class = tree_class(t);
 
    if (class_of(decl) != class)
-      sem_error(t, "class of object %s is %s not %s",
-                istr(tree_ident(decl)), class_str(class_of(decl)),
-                class_str(class));
+      sem_error(t, "class of object %pI is %pC not %s",
+                tree_ident(decl), decl, class_str(class));
 
    switch (is_well_known(tree_ident(t))) {
    case W_NEVER_WAITS:
@@ -6463,11 +6461,11 @@ static bool sem_check_spec(tree_t t, nametab_t *tab)
 
          if (match == NULL) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-            diag_printf(d, "generic %s in component %s has no corresponding "
-                        "generic in entity %s", istr(tree_ident(cg)),
-                        istr(tree_ident(comp)), istr(tree_ident(entity)));
-            diag_hint(d, tree_loc(cg), "generic %s declared here",
-                      istr(tree_ident(cg)));
+            diag_printf(d, "generic %pI in component %pI has no corresponding "
+                        "generic in entity %pI", tree_ident(cg),
+                        tree_ident(comp), tree_ident(entity));
+            diag_hint(d, tree_loc(cg), "generic %pI declared here",
+                      tree_ident(cg));
             diag_emit(d);
 
             ok = false;
@@ -6484,15 +6482,15 @@ static bool sem_check_spec(tree_t t, nametab_t *tab)
 
             if (tree_ref(pmap) != tree_ref(expect)) {
                diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-               diag_printf(d, "generic package %s in component %s does not "
-                           "match entity %s", istr(tree_ident(cg)),
-                           istr(tree_ident(comp)), istr(tree_ident(entity)));
-               diag_hint(d, tree_loc(cg), "declaration of generic %s in "
-                         "component as instance of %s", istr(tree_ident(cg)),
-                         istr(tree_ident(pmap)));
-               diag_hint(d, tree_loc(match), "declaration of generic %s in "
-                         "entity as instance of %s", istr(tree_ident(match)),
-                         istr(tree_ident(expect)));
+               diag_printf(d, "generic package %pI in component %pI does not "
+                           "match entity %pI", tree_ident(cg), tree_ident(comp),
+                           tree_ident(entity));
+               diag_hint(d, tree_loc(cg), "declaration of generic %pI in "
+                         "component as instance of %pI", tree_ident(cg),
+                         tree_ident(pmap));
+               diag_hint(d, tree_loc(match), "declaration of generic %pI in "
+                         "entity as instance of %pI", tree_ident(match),
+                         tree_ident(expect));
                diag_emit(d);
 
                ok = false;
@@ -6585,11 +6583,11 @@ static bool sem_check_spec(tree_t t, nametab_t *tab)
 
          if (match == NULL) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-            diag_printf(d, "port %s in component %s has no corresponding port "
-                        "in entity %s", istr(tree_ident(cp)),
-                        istr(tree_ident(comp)), istr(tree_ident(entity)));
-            diag_hint(d, tree_loc(cp), "port %s declared here",
-                      istr(tree_ident(cp)));
+            diag_printf(d, "port %pI in component %pI has no corresponding "
+                        "port in entity %pI", tree_ident(cp), tree_ident(comp),
+                        tree_ident(entity));
+            diag_hint(d, tree_loc(cp), "port %pI declared here",
+                      tree_ident(cp));
             diag_emit(d);
 
             ok = false;
@@ -6635,12 +6633,11 @@ static bool sem_check_spec(tree_t t, nametab_t *tab)
 
          if (!open_ok) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-            diag_printf(d, "port %s in entity %s without a default value "
-                        "has no corresponding port in component %s",
-                        istr(tree_ident(ep)), istr(tree_ident(entity)),
-                        istr(tree_ident(comp)));
-            diag_hint(d, tree_loc(ep), "port %s declared here",
-                      istr(tree_ident(ep)));
+            diag_printf(d, "port %pI in entity %pI without a default value "
+                        "has no corresponding port in component %pI",
+                        tree_ident(ep), tree_ident(entity), tree_ident(comp));
+            diag_hint(d, tree_loc(ep), "port %pI declared here",
+                      tree_ident(ep));
             diag_emit(d);
 
             ok = false;
@@ -6667,12 +6664,11 @@ static bool sem_check_configuration(tree_t t, nametab_t *tab)
       diag_t *d = pedantic_diag(tree_loc(t));
       if (d != NULL) {
          ident_t ename = ident_rfrom(tree_ident(of), '.');
-         diag_printf(d, "configuration declaration %s must reside in the "
-                     "same library as entity %s", istr(tree_ident(t)),
-                     istr(ename));
-         diag_hint(d, NULL, "entity %s is in library %s which is not the same "
-                   "as the current working library %s",
-                   istr(ename), istr(elib), istr(lib_name(lib_work())));
+         diag_printf(d, "configuration declaration %pI must reside in the "
+                     "same library as entity %pI", tree_ident(t), ename);
+         diag_hint(d, NULL, "entity %pI is in library %pI which is not the "
+                   "same as the current working library %pI", ename, elib,
+                   lib_name(lib_work()));
          diag_lrm(d, STD_08, "3.4");
          diag_emit(d);
          return false;
@@ -6886,11 +6882,10 @@ static bool sem_check_force_target(tree_t target, port_mode_t mode,
    case T_PARAM_DECL:
       if (tree_class(decl) != C_SIGNAL) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
-         diag_printf(d, "%s is not a valid target of simple %s assignment",
-                     what, istr(tree_ident(decl)));
+         diag_printf(d, "%pI is not a valid target of simple %s assignment",
+                     tree_ident(decl), what);
          diag_hint(d, tree_loc(target), "target of simple %s assignment", what);
-         diag_hint(d, tree_loc(decl), "declared with class %s",
-                   class_str(tree_class(decl)));
+         diag_hint(d, tree_loc(decl), "declared with class %pC", decl);
          diag_emit(d);
          return false;
       }
@@ -6899,29 +6894,27 @@ static bool sem_check_force_target(tree_t target, port_mode_t mode,
                    "of mode IN");
       break;
 
-      case T_EXTERNAL_NAME:
-         if (tree_class(decl) != C_SIGNAL) {
-            tree_t tail = tree_part(decl, tree_parts(decl) - 1);
-            diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
-            diag_printf(d, "external name %s is not a valid target of "
-                        "simple %s assignment", istr(tree_ident(tail)), what);
-            diag_hint(d, tree_loc(target), "target of signal assignment");
-            diag_hint(d, tree_loc(decl), "declared with class %s",
-                      class_str(tree_class(decl)));
-            diag_emit(d);
-            return false;
-         }
-         break;
+   case T_EXTERNAL_NAME:
+      if (tree_class(decl) != C_SIGNAL) {
+         tree_t tail = tree_part(decl, tree_parts(decl) - 1);
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
+         diag_printf(d, "external name %pI is not a valid target of "
+                     "simple %s assignment", tree_ident(tail), what);
+         diag_hint(d, tree_loc(target), "target of signal assignment");
+         diag_hint(d, tree_loc(decl), "declared with class %pC", decl);
+         diag_emit(d);
+         return false;
+      }
+      break;
 
    case T_VAR_DECL:
    case T_CONST_DECL:
       {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
-         diag_printf(d, "%s %s is not a valid target of simple %s assignment",
-                     class_str(class_of(decl)), istr(tree_ident(decl)), what);
+         diag_printf(d, "%pC %pI is not a valid target of simple %s assignment",
+                     decl, tree_ident(decl), what);
          diag_hint(d, tree_loc(target), "target of simple %s assignment", what);
-         diag_hint(d, tree_loc(decl), "declared as %s",
-                   class_str(class_of(decl)));
+         diag_hint(d, tree_loc(decl), "declared as %pC", decl);
          diag_emit(d);
          return false;
       }
@@ -7065,14 +7058,17 @@ static bool sem_check_view_decl(tree_t t, nametab_t *tab)
    }
 
    if (mask_popcount(&have) != nfields) {
-      LOCAL_TEXT_BUF tb = tb_new();
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+      diag_printf(d, "missing mode view element defintion for ");
+
       for (int i = 0, missing = 0; i < nfields; i++) {
          if (!mask_test(&have, i))
-            tb_printf(tb, "%s%s", missing++ > 0 ? ", " : "",
-                      istr(tree_ident(type_field(rtype, i))));
+            diag_printf(d, "%s%pI", missing++ > 0 ? ", " : "",
+                        tree_ident(type_field(rtype, i)));
       }
 
-      sem_error(t, "missing mode view element defintion for %s", tb_get(tb));
+      diag_emit(d);
+      return false;
    }
 
    return true;
@@ -7336,6 +7332,6 @@ bool sem_check(tree_t t, nametab_t *tab)
    case T_INERTIAL:
       return sem_check_inertial(t, tab);
    default:
-      sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
+      fatal_trace("cannot check %pK", t);
    }
 }

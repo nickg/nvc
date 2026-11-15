@@ -430,7 +430,7 @@ void pop_scope(nametab_t *tab)
    for (spec_t *it = tab->top_scope->specs, *next; it != NULL; it = next) {
       if (it->kind == SPEC_EXACT && it->matches == 0
           && !tab->top_scope->suppress)
-         error_at(tree_loc(it->tree), "instance %s not found", istr(it->ident));
+         error_at(tree_loc(it->tree), "instance %pI not found", it->ident);
 
       next = it->next;
       free(it);
@@ -906,10 +906,9 @@ static void warn_hidden_decl(scope_t *s, decl_t *outer, tree_t inner)
       return;
 
    diag_t *d = diag_new(DIAG_WARN, tree_loc(inner));
-   diag_printf(d, "declaration of %s hides an earlier declaration with the "
-               "same type", istr(tree_ident(inner)));
-   diag_hint(d, tree_loc(inner), "by the %s declaration here",
-             class_str(class_of(inner)));
+   diag_printf(d, "declaration of %pI hides an earlier declaration with the "
+               "same type", tree_ident(inner));
+   diag_hint(d, tree_loc(inner), "by the %pC declaration here", inner);
    diag_hint(d, tree_loc(outer->tree), "this declaration is hidden");
    diag_emit(d);
 }
@@ -960,7 +959,7 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
             dd->visibility = HIDDEN;    // Library hidden by design unit
          else if (dd->origin == s) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
-            diag_printf(d, "%s already declared in this region", istr(name));
+            diag_printf(d, "%pI already declared in this region", name);
             diag_hint(d, tree_loc(dd->tree), "previous declaration was here");
             diag_hint(d, tree_loc(decl), "duplicate declaration");
             diag_suppress(d, s->suppress);
@@ -1008,7 +1007,7 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
          }
          else if (dd->kind == T_ENUM_LIT && tkind == T_ENUM_LIT) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
-            diag_printf(d, "duplicate enumeration literal %s", istr(sym->name));
+            diag_printf(d, "duplicate enumeration literal %pI", sym->name);
             diag_hint(d, tree_loc(decl), "duplicate definition here");
             diag_hint(d, tree_loc(dd->tree), "previous definition was here");
             diag_suppress(d, s->suppress || type_has_error(type));
@@ -1039,9 +1038,9 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
          tree_t of = tree_ref(decl);
          if (of == tree_ref(dd->tree)) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
-            diag_printf(d, "duplicate specification for attribute %s of %s %s",
-                        istr(tree_ident(decl)), class_str(tree_class(decl)),
-                        istr(tree_ident(of)));
+            diag_printf(d, "duplicate specification for attribute %pI of "
+                        "%s %pI", tree_ident(decl), class_str(tree_class(decl)),
+                        tree_ident(of));
             diag_hint(d, tree_loc(dd->tree), "previous specification was here");
             diag_hint(d, tree_loc(decl), "duplicate specification");
             diag_suppress(d, s->suppress);
@@ -1543,7 +1542,7 @@ void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
    for (p = &(scope->specs); *p != NULL; p = &((*p)->next)) {
       if (kind == SPEC_EXACT && compare_name((*p)->ident, ident)) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(spec));
-         diag_printf(d, "duplicate specification for instance %s", istr(ident));
+         diag_printf(d, "duplicate specification for instance %pI", ident);
          diag_hint(d, tree_loc((*p)->tree), "previous specification was here");
          diag_hint(d, tree_loc(spec), "duplicate specification here");
          diag_emit(d);
@@ -1759,7 +1758,7 @@ static void hint_for_typo(scope_t *top_scope, diag_t *d, ident_t name,
    }
 
    if (bestd <= (ident_len(name) <= 4 ? 2 : 3))
-      diag_hint(d, diag_get_loc(d), "did you mean %s?", istr(best->name));
+      diag_hint(d, diag_get_loc(d), "did you mean %pI?", best->name);
 }
 
 static void hint_for_hidden(nametab_t *tab, diag_t *d, tree_t ref)
@@ -1773,15 +1772,15 @@ static void hint_for_hidden(nametab_t *tab, diag_t *d, tree_t ref)
    for (int i = 0; i < sym->ndecls; i++) {
       const decl_t *dd = get_decl(sym, i);
       if (dd->visibility == HIDDEN && get_type_or_null(dd->tree) != NULL)
-         diag_hint(d, tree_loc(dd->tree), "declaration of %s %pI is hidden",
-                   class_str(class_of(dd->tree)), sym->name);
+         diag_hint(d, tree_loc(dd->tree), "declaration of %pC %pI is hidden",
+                   dd->tree, sym->name);
    }
 
    if (tree_has_ref(ref)) {
       tree_t decl = tree_ref(ref);
       if (!loc_invalid_p(tree_loc(decl)))
-         diag_hint(d, tree_loc(decl), "name %pI refers to this %s",
-                   sym->name, class_str(class_of(decl)));
+         diag_hint(d, tree_loc(decl), "name %pI refers to this %pC",
+                   sym->name, decl);
    }
 }
 
@@ -2061,9 +2060,9 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       }
       else if (tab->top_scope->overload && !tab->top_scope->overload->error) {
          diag_t *d = diag_new(DIAG_ERROR, loc);
-         diag_printf(d, "no possible overload of %s has formal %s",
-                     istr(tab->top_scope->overload->name), istr(name));
-         diag_hint(d, loc, "formal argument name %s", istr(name));
+         diag_printf(d, "no possible overload of %pI has formal %pI",
+                     tab->top_scope->overload->name, name);
+         diag_hint(d, loc, "formal argument name %pI", name);
          hint_for_typo(tab->top_scope, d, name, N_OBJECT);
 
          const unsigned count = tab->top_scope->overload->candidates.count;
@@ -2103,31 +2102,29 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
             for (int i = 0; i < psym->ndecls; i++) {
                const decl_t *dd = get_decl(psym, i);
                if (dd->visibility == HIDDEN)
-                  diag_hint(d, tree_loc(dd->tree), "%s %s is hidden",
-                            class_str(class_of(dd->tree)), istr(psym->name));
+                  diag_hint(d, tree_loc(dd->tree), "%pC %pI is hidden",
+                            dd->tree, psym->name);
                else if (dd->kind == T_LIBRARY) {
                   lib_t lib = lib_require(psym->name);
                   if (lib_had_errors(lib, name)) {
-                     diag_printf(d, "design unit depends on %s which was "
-                                 "analysed with errors", istr(name));
+                     diag_printf(d, "design unit depends on %pI which was "
+                                 "analysed with errors", name);
                      tab->top_scope->suppress = true;
                   }
                   else
-                     diag_printf(d, "design unit %s not found in library %s",
-                                 istr(ident_rfrom(name, '.')),
-                                 istr(psym->name));
+                     diag_printf(d, "design unit %pI not found in library %pI",
+                                 ident_rfrom(name, '.'), psym->name);
                   break;
                }
                else {
-                  diag_printf(d, "name %s not found in %s %s",
-                              istr(ident_rfrom(name, '.')),
-                              class_str(class_of(dd->tree)), istr(psym->name));
+                  diag_printf(d, "name %pI not found in %pC %pI",
+                              ident_rfrom(name, '.'), dd->tree, psym->name);
                   break;
                }
             }
          }
          else
-            diag_printf(d, "no visible declaration for %s", istr(name));
+            diag_printf(d, "no visible declaration for %pI", name);
 
          hint_for_typo(tab->top_scope, d, name, N_OBJECT | N_TYPE | N_FUNC);
          diag_emit(d);
@@ -2168,17 +2165,15 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 
    diag_t *d = diag_new(DIAG_ERROR, loc);
    if (hidden > 0 && hidden == sym->ndecls) {
-      diag_printf(d, "declaration of %s is hidden", istr(name));
+      diag_printf(d, "declaration of %pI is hidden", name);
       diag_hint(d, NULL, "the $bold$--relaxed$$ option suppresses this error");
    }
    else if (overload == 0)
-      diag_printf(d, "multiple conflicting visible declarations of %s",
-                  istr(name));
+      diag_printf(d, "multiple conflicting visible declarations of %pI", name);
    else
-      diag_printf(d, "ambiguous use of %s %s",
+      diag_printf(d, "ambiguous use of %s %pI",
                   what == T_ENUM_LIT ? "enumeration literal"
-                  : (what == T_UNIT_DECL ? "physical literal" : "name"),
-                  istr(name));
+                  : (what == T_UNIT_DECL ? "physical literal" : "name"), name);
 
    for (int i = 0; i < sym->ndecls; i++) {
       const decl_t *dd = get_decl(sym, i);
@@ -2191,7 +2186,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       case POTENTIAL: tb_cat(tb, "potentially visible"); break;
       case ATTRIBUTE: continue;
       }
-      tb_printf(tb, " declaration of %s", istr(name));
+      tb_printf(tb, " declaration of %pI", name);
 
       type_t type = get_type_or_null(dd->tree);
       if (type != NULL && !is_type_decl(dd->tree))
@@ -2205,14 +2200,14 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       if (has_named_origin) {
          tree_t primary = is_design_unit(dd->origin->container)
             ? primary_unit_of(dd->origin->container) : dd->origin->container;
-         tb_printf(tb, " from %s%s", istr(tree_ident(primary)),
+         tb_printf(tb, " from %pI%s", tree_ident(primary),
                    primary != dd->origin->container ? " body" : "");
       }
 
       diag_hint(d, tree_loc(dd->tree), "%s", tb_get(tb));
    }
 
-   diag_hint(d, loc, "use of name %s here", istr(name));
+   diag_hint(d, loc, "use of name %pI here", name);
    diag_emit(d);
 
    return NULL;
@@ -2251,9 +2246,9 @@ tree_t resolve_subprogram_name(nametab_t *tab, const loc_t *loc, ident_t name,
       return NULL;
    else {
       const char *signature = strchr(type_pp(constraint), '[');
-      error_at(loc, "no visible subprogram%s %s matches signature %s",
+      error_at(loc, "no visible subprogram%s %pI matches signature %s",
                allow_enum ? " or enumeration literal" : "",
-               istr(name), signature);
+               name, signature);
       return NULL;
    }
 }
@@ -2388,8 +2383,8 @@ static tree_t resolve_selected_name(nametab_t *tab, tree_t t)
       const symbol_t *sym = symbol_for(s, tree_ident(t));
       if (sym == NULL) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-         diag_printf(d, "name %pI not found in %s %pI", suffix,
-                     class_str(class_of(decl)), tree_ident(decl));
+         diag_printf(d, "name %pI not found in %pC %pI", suffix, decl,
+                     tree_ident(decl));
          hint_for_typo(s, d, suffix, N_OBJECT | N_SUBPROGRAM | N_TYPE);
          diag_emit(d);
 
@@ -2420,9 +2415,9 @@ static tree_t resolve_selected_name(nametab_t *tab, tree_t t)
          default:
             if (!is_enclosing(tab, decl)) {
                diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-               diag_printf(d, "expanded name cannot reference %pI in %s %pI "
-                           "outside of the construct itself", suffix,
-                           class_str(class_of(decl)), tree_ident(decl));
+               diag_printf(d, "expanded name cannot reference %pI in %pC %pI "
+                           "outside of the construct itself", suffix, decl,
+                           tree_ident(decl));
                diag_lrm(d, STD_08, "8.3");
                diag_emit(d);
             }
@@ -2618,8 +2613,8 @@ tree_t resolve_uninstantiated_subprogram(nametab_t *tab, tree_t name,
       if (is_uninstantiated_subprogram(m.items[0]))
          return m.items[0];
       else {
-         error_at(tree_loc(name), "%s %pI is not an uninstantiated subprogram",
-                  class_str(class_of(m.items[0])), sym->name);
+         error_at(tree_loc(name), "%pC %pI is not an uninstantiated subprogram",
+                  m.items[0], sym->name);
          return NULL;
       }
    }
@@ -2770,13 +2765,13 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
          return;
       }
       else if ((unit = lib_get_allow_error(lib, unit_name, &error)) == NULL) {
-         error_at(tree_loc(use), "design unit %s not found in library %s",
-                  istr(what), istr(lib_name));
+         error_at(tree_loc(use), "design unit %pI not found in library %pI",
+                  what, lib_name);
          return;
       }
       else if (error) {
-         error_at(tree_loc(use), "design unit %s was analysed with errors",
-                  istr(unit_name));
+         error_at(tree_loc(use), "design unit %pI was analysed with errors",
+                  unit_name);
          return;
       }
 
@@ -2801,9 +2796,8 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
    else {
       const symbol_t *sym = symbol_for(s, what);
       if (sym == NULL) {
-         error_at(tree_loc(use), "name %s not found in %s %s",
-                  istr(what), class_str(class_of(unit)),
-                  istr(tree_ident(unit)));
+         error_at(tree_loc(use), "name %pI not found in %pC %pI",
+                  what, unit, tree_ident(unit));
          return;
       }
 
@@ -2878,8 +2872,7 @@ void insert_names_from_context(nametab_t *tab, tree_t unit)
             insert_names_from_context(tab, tree_ref(c));
          break;
       default:
-         fatal_trace("nametab cannot handle context kind %s",
-                     tree_kind_str(tree_kind(c)));
+         fatal_trace("nametab cannot handle context kind %pK", c);
       }
    }
 }
@@ -2897,7 +2890,7 @@ void insert_names_for_psl(nametab_t *tab)
       lib_t lnvc = lib_require(nvc_i);
       tree_t psl_support = lib_get(lnvc, psl_support_i);
       if (psl_support == NULL)
-         fatal("required package %s not found", istr(psl_support_i));
+         fatal("required package %pI not found", psl_support_i);
 
       tree_t u = tree_new(T_USE);
       tree_set_ident(u, psl_support_i);
@@ -2912,30 +2905,28 @@ void insert_names_for_psl(nametab_t *tab)
 
 static void missing_generic_cb(diag_t *d, ident_t id, void *arg)
 {
-   diag_printf(d, "%s has no generic named %s",
-               istr(tree_ident((tree_t)arg)), istr(id));
+   diag_printf(d, "%pI has no generic named %pI", tree_ident((tree_t)arg), id);
 }
 
 static void missing_port_cb(diag_t *d, ident_t id, void *arg)
 {
    tree_t unit = arg;
 
-   diag_printf(d, "%s has no port named %s",
-               istr(tree_ident(arg)), istr(id));
-   diag_hint(d, diag_get_loc(d), "use of name %s in port map", istr(id));
+   diag_printf(d, "%pI has no port named %pI", tree_ident(arg), id);
+   diag_hint(d, diag_get_loc(d), "use of name %pI in port map", id);
 
    const int nports = tree_ports(unit);
    if (nports > 0) {
       LOCAL_TEXT_BUF tb = tb_new();
-      tb_printf(tb, "%s %s has port%s ",
+      tb_printf(tb, "%s %pI has port%s ",
                 tree_kind(unit) == T_COMPONENT ? "component" : "entity",
-                istr(tree_ident(unit)), nports > 1 ? "s" : "");
+                tree_ident(unit), nports > 1 ? "s" : "");
       for (int j = 0; j < nports; j++) {
          if (j > 0 && j == nports - 1)
             tb_cat(tb, " and ");
          else if (j > 0)
             tb_cat(tb, ", ");
-         tb_cat(tb, istr(tree_ident(tree_port(unit, j))));
+         tb_printf(tb, "%pI", tree_ident(tree_port(unit, j)));
       }
       diag_hint(d, tree_loc(unit), "%s", tb_get(tb));
    }
@@ -3527,7 +3518,7 @@ static tree_t finish_overload_resolution(overload_t *o)
       }
 
       if (diag_hints(d) > 0)
-         diag_hint(d, tree_loc(o->tree), "use of name %s here", istr(o->name));
+         diag_hint(d, tree_loc(o->tree), "use of name %pI here", o->name);
 
       if (explicit == 1 && !prefer_explicit)
          diag_hint(d, NULL, "this would be resolved in favour of the "
@@ -3537,7 +3528,7 @@ static tree_t finish_overload_resolution(overload_t *o)
    }
    else if (o->candidates.count == 0 && !o->error && !o->trial) {
       LOCAL_TEXT_BUF tb = tb_new();
-      tb_printf(tb, "%s [", istr(o->name));
+      tb_printf(tb, "%pI [", o->name);
       qsort(o->params.items, o->params.count, sizeof(tree_t), param_compar);
       for (unsigned i = 0; i < o->params.count; i++)
          tb_printf(tb, "%s%pT", i > 0 ? ", " : "",
@@ -3825,8 +3816,8 @@ static void overload_next_argument(overload_t *o, tree_t p)
 
    if (type == NULL && !o->error) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
-      diag_printf(d, "invalid use of %s %pI in subprogram actual",
-                  class_str(class_of(value)), tree_ident(value));
+      diag_printf(d, "invalid use of %pC %pI in subprogram actual",
+                  value, tree_ident(value));
       hint_for_hidden(o->nametab, d, value);
       diag_emit(d);
 
@@ -3992,10 +3983,10 @@ void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
    else if (!tab->top_scope->suppress) {
       const char *signature = strchr(type_pp(type), '[');
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(inst));
-      diag_printf(d, "no visible subprogram %s matches signature %s",
-                  istr(type_ident(type)), signature);
+      diag_printf(d, "no visible subprogram %pI matches signature %s",
+                  type_ident(type), signature);
       diag_hint(d, tree_loc(box), "while resolving interface subprogram "
-                "default for %s", istr(type_ident(type)));
+                "default for %pI", type_ident(type));
 
       if (tree_flags(g) & TREE_F_PREDEFINED) {
          type_t actual = NULL;
@@ -4004,7 +3995,7 @@ void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
 
          if (actual != NULL && !type_is_none(actual)) {
             diag_hint(d, NULL, "add a use clause that makes the operators for "
-                      "%s visible", istr(type_ident(actual)));
+                      "%pI visible", type_ident(actual));
 
             if (standard() == STD_08)
                diag_hint(d, NULL, "the 2008 LRM is unclear on the visibility "
@@ -4262,8 +4253,8 @@ static tree_t resolve_fcall(nametab_t *tab, tree_t fcall, tree_t decl,
 {
    type_t ftype = tree_type(decl);
    if (!type_has_result(ftype)) {
-      error_at(tree_loc(fcall), "procedure %s not allowed in an expression",
-               istr(tree_ident(fcall)));
+      error_at(tree_loc(fcall), "procedure %pI not allowed in an expression",
+               tree_ident(fcall));
       tree_set_type(fcall, type_new(T_NONE));
       return fcall;
    }
@@ -4300,10 +4291,10 @@ static tree_t resolve_fcall(nametab_t *tab, tree_t fcall, tree_t decl,
       tree_set_ref(fcall, decl);
 
    if ((flags & TREE_F_KNOWS_SUBTYPE) && tab->top_type_set->target == NULL)
-      error_at(tree_loc(fcall), "function %s with return identifier %s "
+      error_at(tree_loc(fcall), "function %pI with return identifier %pI "
                "cannot be called in this context as the result subtype "
-               "is not known", istr(tree_ident(decl)),
-               istr(type_ident(type_result(ftype))));
+               "is not known", tree_ident(decl),
+               type_ident(type_result(ftype)));
 
    if (could_be_index)
       return resolve_fcall_or_index(tab, fcall, decl);
@@ -4540,7 +4531,7 @@ static tree_t try_solve_literal(nametab_t *tab, tree_t t)
          if (decl == NULL)
             return NULL;
          else if (class_of(decl) != C_UNITS) {
-            error_at(tree_loc(t), "%s is not a physical unit", istr(id));
+            error_at(tree_loc(t), "%pI is not a physical unit", id);
             type = type_new(T_NONE);
          }
          else {
@@ -4726,8 +4717,8 @@ static tree_t solve_record_ref(nametab_t *tab, tree_t t)
 
    type_t prefix_type = get_type_or_null(prefix);
    if (prefix_type == NULL) {
-      error_at(tree_loc(prefix), "%s %pI cannot be the prefix of a selected "
-               "name", class_str(class_of(prefix)), tree_ident(prefix));
+      error_at(tree_loc(prefix), "%pC %pI cannot be the prefix of a selected "
+               "name", prefix, tree_ident(prefix));
       tree_set_type(t, type_new(T_NONE));
       return t;
    }
@@ -5156,8 +5147,8 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
                type = tree_type(a);
             }
             else {
-               error_at(tree_loc(prefix), "object %s has no attribute %s",
-                        istr(tree_ident(prefix)), istr(tree_ident(t)));
+               error_at(tree_loc(prefix), "object %pI has no attribute %pI",
+                        tree_ident(prefix), tree_ident(t));
                type = type_new(T_NONE);
             }
          }
@@ -5165,7 +5156,7 @@ static tree_t try_solve_attr_ref(nametab_t *tab, tree_t t)
       break;
 
    default:
-      fatal_trace("unhandled attribute %s", istr(tree_ident(t)));
+      fatal_trace("unhandled attribute %pI", tree_ident(t));
    }
 
    tree_set_type(t, type);
@@ -5184,7 +5175,7 @@ static tree_t solve_attr_ref(nametab_t *tab, tree_t t)
       return t;
 
    default:
-      fatal_trace("attribute %s cannot be ambiguous", istr(tree_ident(t)));
+      fatal_trace("attribute %pI cannot be ambiguous", tree_ident(t));
    }
 }
 

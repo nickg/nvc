@@ -53,7 +53,7 @@ static void name_for_diag(diag_t *d, vlog_node_t v, const char *alt)
 {
    switch (vlog_kind(v)) {
    case V_REF:
-      diag_printf(d, "'%s'", istr(vlog_ident(v)));
+      diag_printf(d, "%pQ", vlog_ident(v));
       break;
    default:
       diag_printf(d, "%s", alt);
@@ -222,9 +222,8 @@ static void vlog_check_same_type(vlog_node_t left, type_mask_t lmask,
          vlog_node_t rtype = vlog_get_type(right);
 
          if (ltype != rtype)
-            error_at(vlog_loc(right), "value of type '%s' is not compatible "
-                     "with '%s'", istr(vlog_ident(rtype)),
-                     istr(vlog_ident(ltype)));
+            error_at(vlog_loc(right), "value of type %pQ is not compatible "
+                     "with %pQ", vlog_ident(rtype), vlog_ident(ltype));
       }
    }
    else
@@ -359,8 +358,7 @@ static void vlog_check_consistent(vlog_node_t a, vlog_node_t b)
 
       if (!vlog_equal_node(aleft, bleft) || !vlog_equal_node(aright, bright)) {
          diag_t *d = diag_new(DIAG_ERROR, vlog_loc(br));
-         diag_printf(d, "inconsistent dimensions for '%s'",
-                     istr(vlog_ident(b)));
+         diag_printf(d, "inconsistent dimensions for %pQ", vlog_ident(b));
          diag_hint(d, vlog_loc(a), "earlier declaration here");
          diag_emit(d);
       }
@@ -383,8 +381,8 @@ static void vlog_check_port_decl(vlog_node_t v)
 
       if (!is_implicit_data_type(type)) {
          diag_t *d = diag_new(DIAG_ERROR, vlog_loc(ref));
-         diag_printf(d, "completely declared port '%s' cannot be declared "
-                     "again in a data type declaration", istr(vlog_ident(v)));
+         diag_printf(d, "completely declared port %pQ cannot be declared "
+                     "again in a data type declaration", vlog_ident(v));
          diag_hint(d, vlog_loc(v), "port declaration contains a data type");
          diag_hint(d, vlog_loc(ref), "redeclared here");
          diag_emit(d);
@@ -697,9 +695,8 @@ static void vlog_check_user_tcall(vlog_node_t v)
    vlog_node_t func = vlog_ref(v);
    if (vlog_kind(func) != V_TASK_DECL) {
       diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
-      diag_printf(d, "'%s' is not a task", istr(vlog_ident(func)));
-      diag_hint(d, vlog_loc(func), "'%s' declared here",
-                istr(vlog_ident(func)));
+      diag_printf(d, "%pQ is not a task", vlog_ident(func));
+      diag_hint(d, vlog_loc(func), "%pQ declared here", vlog_ident(func));
       diag_emit(d);
       return;
    }
@@ -796,8 +793,8 @@ static void vlog_check_module(vlog_node_t v)
    for (int i = 0; i < nports; i++) {
       vlog_node_t ref = vlog_port(v, i);
       if (!vlog_has_ref(ref))
-         error_at(vlog_loc(ref), "missing port declaration for '%s'",
-                  istr(vlog_ident(ref)));
+         error_at(vlog_loc(ref), "missing port declaration for %pQ",
+                  vlog_ident(ref));
    }
 
    vlog_check_decls(v);
@@ -920,9 +917,8 @@ static type_mask_t vlog_check_user_fcall(vlog_node_t v)
    vlog_node_t func = vlog_ref(v);
    if (vlog_kind(func) != V_FUNC_DECL) {
       diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
-      diag_printf(d, "'%s' is not a function", istr(vlog_ident(func)));
-      diag_hint(d, vlog_loc(func), "'%s' declared here",
-                istr(vlog_ident(func)));
+      diag_printf(d, "%pQ is not a function", vlog_ident(func));
+      diag_hint(d, vlog_loc(func), "%pQ declared here", vlog_ident(func));
       diag_emit(d);
       return TM_ERROR;
    }

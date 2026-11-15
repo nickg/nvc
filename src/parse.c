@@ -450,22 +450,21 @@ static tree_t find_binding(tree_t inst)
    switch (tree_class(inst)) {
    case C_COMPONENT:
       if (kind != T_COMPONENT) {
-         parse_error(tree_loc(inst), "%s %s is not a component declaration",
-                     what, istr(name));
+         parse_error(tree_loc(inst), "%s %pI is not a component declaration",
+                     what, name);
          return NULL;
       }
       break;
    case C_ENTITY:
       if (kind != T_ENTITY && kind != T_ARCH) {
-         parse_error(tree_loc(inst), "%s %s is not an entity",
-                     what, istr(name));
+         parse_error(tree_loc(inst), "%s %pI is not an entity", what, name);
          return NULL;
       }
       break;
    case C_CONFIGURATION:
       if (kind != T_CONFIGURATION) {
-         parse_error(tree_loc(inst), "%s %s is not a configuration",
-                     what, istr(name));
+         parse_error(tree_loc(inst), "%s %pI is not a configuration",
+                     what, name);
          return NULL;
       }
       break;
@@ -2555,7 +2554,7 @@ static void find_disconnect_specification(tree_t guard, tree_t target)
    tree_t decl = tree_ref(target);
 
    // TODO: use insert_spec for this
-   ident_t name = ident_prefix(tree_ident(decl), ident_new("disconnect"), '$');
+   ident_t name = ident_sprintf("%s$disconnect", istr(tree_ident(decl)));
 
    tree_t spec = NULL;
    query_name(nametab, name, &spec);
@@ -2681,9 +2680,8 @@ static tree_t find_generic_subprogram_body(tree_t inst, tree_t decl)
    if (body == NULL) {
       tree_t du = find_enclosing(nametab, S_DESIGN_UNIT);
       if (tree_kind(du) != T_PACKAGE)
-         parse_error(CURRENT_LOC, "subprogram %s cannot be instantiated "
-                     "until its body has been analysed",
-                     istr(tree_ident(decl)));
+         parse_error(CURRENT_LOC, "subprogram %pI cannot be instantiated "
+                     "until its body has been analysed", tree_ident(decl));
       else {
          // Will be instantiated at end of package body
          tree_set_ref(inst, decl);
@@ -2897,8 +2895,8 @@ static void p_context_reference(tree_t unit)
          tree_set_ref(c, ctx);
       }
       else if (ctx != NULL)
-         parse_error(CURRENT_LOC, "%s%s is not a context declaration",
-                     is_design_unit(ctx) ? "design unit " : "", istr(name));
+         parse_error(CURRENT_LOC, "%s%pI is not a context declaration",
+                     is_design_unit(ctx) ? "design unit " : "", name);
 
       tree_add_context(unit, c);
    } while (optional(tCOMMA));
@@ -3100,8 +3098,8 @@ static tree_t p_discrete_range(tree_t head)
                return p_range(tmp);
             }
             else
-               parse_error(CURRENT_LOC, "name %s in discrete range does not "
-                           "refer to a type", istr(tree_ident(expr1)));
+               parse_error(CURRENT_LOC, "name %pI in discrete range does not "
+                           "refer to a type", tree_ident(expr1));
          }
          else if (!type_is_none(type))
             parse_error(CURRENT_LOC, "expecting a discrete range");
@@ -5861,8 +5859,8 @@ static void p_interface_package_declaration(tree_t parent, tree_kind_t kind)
 
    tree_t pack = resolve_name(nametab, CURRENT_LOC, unit_name);
    if (pack != NULL && !is_uninstantiated_package(pack)) {
-      parse_error(CURRENT_LOC, "unit %s is not an uninstantiated package",
-                  istr(unit_name));
+      parse_error(CURRENT_LOC, "unit %pI is not an uninstantiated package",
+                  unit_name);
       pack = NULL;
    }
 
@@ -6198,8 +6196,8 @@ static void p_attribute_specification(tree_t parent)
    if (attr_decl == NULL)
       type = type_new(T_NONE);
    else if (tree_kind(attr_decl) != T_ATTR_DECL) {
-      parse_error(CURRENT_LOC, "name %s is not an attribute declaration",
-                  istr(head));
+      parse_error(CURRENT_LOC, "name %pI is not an attribute declaration",
+                  head);
       type = type_new(T_NONE);
    }
    else
@@ -6351,7 +6349,7 @@ static type_t p_physical_type_definition(tree_t range, ident_t id)
       ident_t trailing = p_identifier();
       if (trailing != id)
          parse_error(&yylloc, "expected physical type definition trailing "
-                     "identifier to match %s", istr(id));
+                     "identifier to match %pI", id);
    }
 
    return t;
@@ -6521,7 +6519,7 @@ static type_t p_record_type_definition(ident_t id)
       ident_t trailing = p_identifier();
       if (trailing != id)
          parse_error(&yylloc, "expected record type definition trailing "
-                     "identifier to match %s", istr(id));
+                     "identifier to match %pI", id);
    }
 
    return r;
@@ -7324,8 +7322,7 @@ static tree_t p_subprogram_instantiation_declaration(void)
    if (decl != NULL) {
       if (class_of(decl) != class_of(inst)) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
-         diag_printf(d, "%pI is a %s not a %s", tree_ident(decl),
-                     class_str(class_of(decl)), class_str(class_of(inst)));
+         diag_printf(d, "%pI is a %pC not a %pC", tree_ident(decl), decl, inst);
          diag_hint(d, tree_loc(decl), "%pI declared here", tree_ident(decl));
          diag_emit(d);
       }
@@ -7731,7 +7728,7 @@ static void p_disconnection_specification(tree_t container)
       tree_set_ref(d, resolve_name(nametab, CURRENT_LOC, it->ident));
 
       // TODO: we should use insert_spec for this
-      ident_t name = ident_prefix(it->ident, ident_new("disconnect"), '$');
+      ident_t name = ident_sprintf("%s$disconnect", istr(it->ident));
       insert_name(nametab, d, name);
 
       tree_add_decl(container, d);
@@ -7801,8 +7798,8 @@ static tree_t p_group_declaration(void)
    ident_t template_name = p_identifier();
    tree_t template = resolve_name(nametab, CURRENT_LOC, template_name);
    if (template != NULL && tree_kind(template) != T_GROUP_TEMPLATE) {
-      parse_error(CURRENT_LOC, "%s does not name a group template",
-                  istr(template_name));
+      parse_error(CURRENT_LOC, "%pI does not name a group template",
+                  template_name);
       template = NULL;
    }
 
@@ -7933,8 +7930,8 @@ static tree_t p_protected_type_body(ident_t id)
          tree_set_primary(body, decl);
          break;
       default:
-         parse_error(CURRENT_LOC, "object %s is not a protected type "
-                     "declaration", istr(id));
+         parse_error(CURRENT_LOC, "object %pI is not a protected type "
+                     "declaration", id);
          decl = NULL;
       }
    }
@@ -7988,8 +7985,8 @@ static tree_t p_package_instantiation_declaration(tree_t unit)
    tree_t pack = resolve_name(nametab, CURRENT_LOC, unit_name);
 
    if (pack != NULL && !is_uninstantiated_package(pack)) {
-      parse_error(CURRENT_LOC, "unit %s is not an uninstantiated package",
-                  istr(unit_name));
+      parse_error(CURRENT_LOC, "unit %pI is not an uninstantiated package",
+                  unit_name);
       pack = NULL;
    }
 
@@ -8011,8 +8008,8 @@ static tree_t p_package_instantiation_declaration(tree_t unit)
    tree_t body = NULL;
    if (pack != NULL) {
       if (package_needs_body(pack) && (body = body_of(pack)) == NULL)
-         parse_error(CURRENT_LOC, "package %s cannot be instantiated until "
-                     "its body has been analysed", istr(unit_name));
+         parse_error(CURRENT_LOC, "package %pI cannot be instantiated until "
+                     "its body has been analysed", unit_name);
 
       instantiate_package(new, pack, body);
    }
@@ -8377,8 +8374,8 @@ static void p_trailing_label(ident_t label)
          parse_error(&state.last_loc, "unexpected trailing label for %s "
                      "without label", state.hint_str);
       else if (trailing != label)
-         parse_error(&state.last_loc, "expected trailing %s label to match %s",
-                     state.hint_str, istr(label));
+         parse_error(&state.last_loc, "expected trailing %s label to match %pI",
+                     state.hint_str, label);
    }
 }
 
@@ -9147,7 +9144,7 @@ static void p_configuration_specification(tree_t parent)
 
    tree_t comp = resolve_name(nametab, CURRENT_LOC, comp_name);
    if (comp != NULL && tree_kind(comp) != T_COMPONENT) {
-      parse_error(CURRENT_LOC, "%s does not name a component", istr(comp_name));
+      parse_error(CURRENT_LOC, "%pI does not name a component", comp_name);
       comp = NULL;
    }
 
@@ -9234,7 +9231,7 @@ static void p_component_configuration(tree_t unit)
 
    tree_t comp = resolve_name(nametab, CURRENT_LOC, comp_name);
    if (comp != NULL && tree_kind(comp) != T_COMPONENT) {
-      parse_error(CURRENT_LOC, "%s does not name a component", istr(comp_name));
+      parse_error(CURRENT_LOC, "%pI does not name a component", comp_name);
       comp = NULL;
    }
 
@@ -9351,25 +9348,23 @@ static tree_t p_block_configuration(tree_t of)
          {
             ident_t qual = ident_prefix(tree_ident(of), tree_ident(b), '-');
             if ((sub = lib_get_qualified(qual)) == NULL)
-               parse_error(CURRENT_LOC, "cannot find architecture %s of "
-                           "entity %s", istr(tree_ident(b)),
-                           istr(tree_ident(of)));
+               parse_error(CURRENT_LOC, "cannot find architecture %pI of "
+                           "entity %pI", tree_ident(b), tree_ident(of));
          }
          break;
       case T_ARCH:
          {
             ident_t expect = ident_rfrom(tree_ident(of), '-');
             if (!ident_casecmp(tree_ident(b), expect))
-               parse_error(CURRENT_LOC, "block specification label %s does not "
-                           "match architecture name %s", istr(tree_ident(b)),
-                           istr(expect));
+               parse_error(CURRENT_LOC, "block specification label %pI does "
+                           "not match architecture name %pI", tree_ident(b),
+                           expect);
             else
                sub = of;
          }
          break;
       default:
-         fatal_trace("unexpected unit type %s in block configuration",
-                     tree_kind_str(tree_kind(of)));
+         fatal_trace("unexpected unit type %pK in block configuration", of);
          break;
       }
    }
@@ -9377,8 +9372,8 @@ static tree_t p_block_configuration(tree_t of)
       sub = resolve_name(nametab, CURRENT_LOC, tree_ident(b));
 
    if (sub != NULL && !is_implicit_block(sub)) {
-      parse_error(CURRENT_LOC, "%s is not a block that can be configured",
-                  istr(tree_ident(b)));
+      parse_error(CURRENT_LOC, "%pI is not a block that can be configured",
+                  tree_ident(b));
       sub = NULL;
    }
 
@@ -9433,10 +9428,9 @@ static ident_t p_entity_name(tree_t *entity)
 
    if (*entity != NULL && tree_kind(*entity) != T_ENTITY) {
       diag_t *d = diag_new(DIAG_ERROR, CURRENT_LOC);
-      diag_printf(d, "%s%s is not an entity",
-                  is_design_unit(*entity) ? "design unit " : "", istr(ename));
-      diag_hint(d, tree_loc(*entity), "%s is a %s", istr(ename),
-                class_str(class_of(*entity)));
+      diag_printf(d, "%s%pI is not an entity",
+                  is_design_unit(*entity) ? "design unit " : "", ename);
+      diag_hint(d, tree_loc(*entity), "%pI is a %pC", ename, *entity);
       diag_emit(d);
       *entity = NULL;
       return ename;
@@ -10355,7 +10349,7 @@ static tree_t p_exit_statement(ident_t label)
 
       tree_t loop = resolve_name(nametab, CURRENT_LOC, id);
       if (loop != NULL && !is_loop_stmt(loop))
-         parse_error(CURRENT_LOC, "%s is not a loop statement", istr(id));
+         parse_error(CURRENT_LOC, "%pI is not a loop statement", id);
    }
    else {
       tree_t loop = find_enclosing(nametab, S_LOOP);
@@ -10391,7 +10385,7 @@ static tree_t p_next_statement(ident_t label)
 
       tree_t loop = resolve_name(nametab, CURRENT_LOC, id);
       if (loop != NULL && !is_loop_stmt(loop))
-         parse_error(CURRENT_LOC, "%s is not a loop statement", istr(id));
+         parse_error(CURRENT_LOC, "%pI is not a loop statement", id);
    }
    else {
       tree_t loop = find_enclosing(nametab, S_LOOP);
@@ -12378,8 +12372,7 @@ static psl_node_t p_sequence_instance(tree_t decl)
    psl_node_t s_decl = tree_psl(decl);
 
    if (psl_kind(s_decl) != P_SEQUENCE_DECL)
-      parse_error(CURRENT_LOC, "%s is not a PSL sequence",
-                  istr(tree_ident(decl)));
+      parse_error(CURRENT_LOC, "%pI is not a PSL sequence", tree_ident(decl));
 
    psl_node_t p = psl_new(P_SEQUENCE_INST);
    psl_set_ref(p, s_decl);
@@ -13566,7 +13559,7 @@ static tree_t p_package_body(tree_t unit)
 
    tree_t pack = resolve_name(nametab, CURRENT_LOC, qual);
    if (pack != NULL && tree_kind(pack) != T_PACKAGE) {
-      parse_error(CURRENT_LOC, "unit %s is not a package", istr(qual));
+      parse_error(CURRENT_LOC, "unit %pI is not a package", qual);
       pack = NULL;
    }
    else if (pack != NULL) {
@@ -13699,7 +13692,7 @@ static tree_t p_design_unit(void)
       ident_t standard_i = well_known(W_STD_STANDARD);
       tree_t std_pkg = lib_get(lstd, standard_i);
       if (std_pkg == NULL)
-         fatal("cannot find %s package", istr(standard_i));
+         fatal("cannot find %pI package", standard_i);
 
       tree_t u = tree_new(T_USE);
       tree_set_ident(u, standard_i);

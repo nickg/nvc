@@ -1008,11 +1008,11 @@ START_TEST(test_signal)
       {  69, "guarded signal must have resolved subtype" },
       {  78, "disconnection specification must denote a guarded signal" },
       {  79, "disconnection specification must denote a guarded signal" },
-      {  80, "S$disconnect already declared in this region" },   // XXX
+      {  80, "S$DISCONNECT already declared in this region" },   // XXX
       {  80, "type of declared signal RBIT does not match type BIT_VECTOR in" },
-      {  81, "S$disconnect already declared in this region" },   // XXX
+      {  81, "S$DISCONNECT already declared in this region" },   // XXX
       {  81, "disconnection specification must have type TIME but found RBIT" },
-      {  83, "S$disconnect already declared in this region" },   // XXX
+      {  83, "S$DISCONNECT already declared in this region" },   // XXX
       {  83, "time expression in disconnection specificiation must be static" },
       {  88, "invalid use of entity E" },
       {  95, "target of signal assignment must be a signal name or aggregate" },
@@ -2791,6 +2791,7 @@ START_TEST(test_force)
       { 31, "force expression BOOLEAN does not match type of target BIT" },
       { 39, "variable V is not a valid target of simple release assignment" },
       { 40, "target of a simple release assignment may not be an aggregate" },
+      { 47, "X is not a valid target of simple force assignment" },
       { -1, NULL }
    };
    expect_errors(expect);
