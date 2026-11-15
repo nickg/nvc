@@ -1513,4 +1513,4 @@ udp3            verilog
 issue1730       verilog
 issue1724       normal,2008
 cmdline24       shell
-specify6        shell
+specify6        verilog,normal,notimingchecks

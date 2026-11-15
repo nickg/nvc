@@ -20,6 +20,6 @@ EOF
 nvc -e cmdline22 --no-save -r 2>&1 | tee stdout1
 grep "TimingChecksOn=true" stdout1
 
-nvc --notimingchecks -e cmdline22 --no-save -r 2>&1 | tee stdout2
+nvc -e --notimingchecks cmdline22 --no-save -r 2>&1 | tee stdout2
 grep "disabling VITAL timing check" stdout2
 grep "TimingChecksOn=false" stdout2

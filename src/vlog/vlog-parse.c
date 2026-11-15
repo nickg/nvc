@@ -6725,8 +6725,7 @@ static void p_specify_item(vlog_node_t parent)
          if (tcheck == NULL)
             return;
 
-         if (opt_get_int(OPT_NO_TCHECKS) == 0)
-            vlog_add_stmt(parent, tcheck);
+         vlog_add_stmt(parent, tcheck);
       }
       break;
    default:

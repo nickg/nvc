@@ -181,13 +181,6 @@ Libraries mapped in this way will not use the normal search path.
 Select the format used for printing error and informational messages.
 The default full message format is designed for readability whereas the
 compact messages can be easily parsed by tools.
-.\" --notimingchecks
-.It Fl \-notimingchecks
-Disable Verilog
-.Ql specify
-block timing checks and set VHDL VITAL
-.Ql TimingChecksOn
-generics to false.
 .\" --seed
 .It Fl \-seed Ns = Ns Ar N
 Seed for random number generation.  Affects the
@@ -417,6 +410,14 @@ option.  For example:
 .Bd -literal -offset indent
 $ nvc -e --no-save tb -r
 .Ed
+.\" --notimingchecks
+.It Fl \-notimingchecks
+Disable Verilog
+.Ql specify
+block timing checks and set VHDL VITAL
+.Ql TimingChecksOn
+generics to false.  See
+.Sx TIMING CHECKS .
 .\"
 .It Fl O0 , Fl O1 , Fl O2 , Fl O3
 Set LLVM optimisation level.  Default is
@@ -1282,37 +1283,16 @@ a "Get Exclude Command" button.
 .\" ------------------------------------------------------------
 .Sh TIMING CHECKS
 NVC partially supports Verilog timing checks and VHDL timing
-checks via built-in VITAL libraries. To disable timing checks,
-use
+checks via built-in VITAL libraries.  The
 .Fl \-notimingchecks
-option. Violations of disabled timing checks will not be reported
-during simulation and notifiers will not trigger. The
+elaboration option disables all Verilog timing checks and sets VHDL
 .Ql TimingChecksOn
-option has different effect depending on when it is passed:
-.Bl -bullet
-.It
-If passed when analyzing Verilog files, Timing checks in the analyzed
-files are ignored by NVC. Subsequent elaboration and simulation will
-never enable such ignored timing checks. This is usefull to remove
-timing checks on per-file basis. Analysis of VHDL files is not affected
-by this option.
-.It
-If passed when elaborating, all Verilog timing checks are disabled and
-VHDL generics
+generics to false.  Violations of disabled timing checks are not
+reported and notifiers do not trigger.  A
 .Ql TimingChecksOn
-are set to false. When using
+value given with
 .Fl g
-to override
-.Ql TimingChecksOn
-generic together with
-.Fl \-notimingchecks
-, the
-.Fl g
-has precedence.
-.It
-If passed when running simulation, all Verilog timing checks are disabled
-but VHDL VITAL generics are not affected.
-.El
+takes precedence.
 .\" ------------------------------------------------------------
 .\" Relaxed rules
 .\" ------------------------------------------------------------

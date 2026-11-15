@@ -584,6 +584,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       { "no-collapse",     no_argument,       0, 'C' },
       { "stats",           no_argument,       0, 'S' },
       { "trace",           no_argument,       0, 't' },
+      { "notimingchecks",  no_argument,       0, 'n' },
       { 0, 0, 0, 0 }
    };
 
@@ -645,6 +646,10 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
          break;
       case 'S':
          opt_set_int(OPT_ELAB_STATS, 1);
+         break;
+      case 'n':
+         opt_set_int(OPT_NO_TCHECKS, 1);
+         meta.no_tchecks = true;
          break;
       case 0:
          // Set a flag
@@ -1099,6 +1104,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    assert(top != NULL);
 
    opt_set_int(OPT_NO_COLLAPSE, meta->no_collapse);
+   opt_set_int(OPT_NO_TCHECKS, meta->no_tchecks);
 
    wave_dumper_t *dumper = NULL;
    if (wave_fname != NULL) {
@@ -2639,7 +2645,6 @@ int main(int argc, char **argv)
       { "ignore-time",     no_argument,       0, 'i' },
       { "force-init",      no_argument,       0, 'f' }, // DEPRECATED 1.7
       { "stderr",          required_argument, 0, 'E' },
-      { "notimingchecks",  no_argument,       0, 't' },
       { "load",            required_argument, 0, 'l' },
       { "vhpi-debug",      no_argument,       0, 'D' },
       { "vhpi-trace",      no_argument,       0, 'T' },
@@ -2705,9 +2710,6 @@ int main(int argc, char **argv)
       case 'l':
          tb_append(state.plugins, ',');
          tb_cat(state.plugins, optarg);
-         break;
-      case 't':
-         opt_set_int(OPT_NO_TCHECKS, 1);
          break;
       case 'T':
          opt_set_str(OPT_PLI_TRACE, "1");

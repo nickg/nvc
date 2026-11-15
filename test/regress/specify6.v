@@ -15,6 +15,7 @@ module specify6;
         #4;
         d = 1'b1;
         #20;
+        $display("PASSED");
         $finish;
     end
 
