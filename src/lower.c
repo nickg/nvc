@@ -3270,13 +3270,17 @@ static vcode_reg_t lower_external_name(lower_unit_t *lu, tree_t ref)
       vtype = lower_type(base);
 
    ident_t scope;
+   vunit_kind_t scope_kind;
    for (vcode_unit_t vu = lu->vunit;; vu = vcode_unit_context(vu)) {
       scope = vcode_unit_name(vu);
 
-      const vunit_kind_t kind = vcode_unit_kind(vu);
-      if (kind == VCODE_UNIT_PACKAGE || kind == VCODE_UNIT_INSTANCE)
+      scope_kind = vcode_unit_kind(vu);
+      if (scope_kind == VCODE_UNIT_PACKAGE || scope_kind == VCODE_UNIT_INSTANCE)
          break;
    }
+
+   if (scope_kind == VCODE_UNIT_INSTANCE)
+      scope = NULL;   // Resolve from the active instance at runtime
 
    int hops = 0;
    vcode_var_t var = lower_search_vcode_obj(ref, lu, &hops);

@@ -4042,7 +4042,11 @@ static void irgen_op_instance_name(jit_irgen_t *g, mir_value_t n)
 static void irgen_op_bind_external(jit_irgen_t *g, mir_value_t n)
 {
    jit_value_t locus = irgen_get_arg(g, n, 0);
-   jit_handle_t handle = irgen_get_handle(g, n, 1);
+   mir_value_t scope = mir_get_arg(g->mu, n, 1);
+
+   jit_handle_t handle = JIT_HANDLE_INVALID;
+   if (!mir_is_null(scope))
+      handle = irgen_get_handle(g, n, 1);
 
    j_send(g, 0, locus);
    j_send(g, 1, jit_value_from_handle(handle));
