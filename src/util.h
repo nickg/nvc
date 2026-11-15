@@ -298,8 +298,6 @@ void *map_jit_pages(size_t align, size_t sz);
 void run_program(const char *const *args);
 char *nvc_temp_file(void);
 
-text_buf_t *safe_symbol(ident_t id);
-
 #define LOCAL_TEXT_BUF __attribute__((cleanup(_tb_cleanup))) text_buf_t *
 
 text_buf_t *tb_new(void);

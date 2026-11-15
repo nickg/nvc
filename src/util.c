@@ -1818,65 +1818,6 @@ void open_pipe(int *rfd, int *wfd)
    *wfd = fds[1];
 }
 
-#if defined _WIN32 || defined __CYGWIN__
-static struct {
-   char illegal;
-   const char *rep;
-} symbol_replacements[] = {
-   { '(', "_lp_"   },
-   { ')', "_rp_"   },
-   { '"', "_q_"    },
-   { '[', "_ls_"   },
-   { ']', "_rs_"   },
-   { '*', "_mult_" },
-   { '+', "_plus_" },
-   { '=', "_eq_"   },
-   { '\\', "_bs_"  },
-};
-
-static text_buf_t *safe_symbol_win32(const char *text)
-{
-   text_buf_t *tb = tb_new();
-
-   for (const char *p = text; *p != '\0'; p++) {
-      bool replaced = false;
-      for (size_t j = 0; j < ARRAY_LEN(symbol_replacements); j++) {
-         if (*p == symbol_replacements[j].illegal) {
-            tb_cat(tb, symbol_replacements[j].rep);
-            replaced = true;
-            break;
-         }
-      }
-
-      if (!replaced)
-         tb_append(tb, *p);
-   }
-
-   return tb;
-}
-
-#endif
-
-text_buf_t *safe_symbol(ident_t id)
-{
-   // Return a string that is safe to use as a symbol name on this platform
-
-   text_buf_t *tb = tb_new();
-   tb_istr(tb, id);
-
-#if defined _WIN32 || defined __CYGWIN__
-   if (strpbrk(tb_get(tb), "()\"[]*+=\\") == NULL)
-      return tb;
-   else {
-      text_buf_t *new = safe_symbol_win32(tb_get(tb));
-      tb_free(tb);
-      return new;
-   }
-#else
-   return tb;
-#endif
-}
-
 void __cleanup_array(void *ptr)
 {
    A(void *) *a = ptr;
