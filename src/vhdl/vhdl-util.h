@@ -31,6 +31,7 @@ void print_signature(type_t type, text_buf_t *tb);
 
 bool vhdl_is_short_circuit(subprogram_kind_t kind);
 bool vhdl_is_logical(subprogram_kind_t kind);
+bool vhdl_is_side_effect_free(tree_t t);
 
 bool vhdl_is_range_attr(tree_t t);
 

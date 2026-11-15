@@ -112,3 +112,46 @@ int nested_dimension_of(type_t type)
       ndims += dimension_of(t);
    return ndims;
 }
+
+bool vhdl_is_side_effect_free(tree_t t)
+{
+   // True if expression is side-effect free with no function calls
+   switch (tree_kind(t)) {
+   case T_REF:
+   case T_LITERAL:
+   case T_STRING:
+      return true;
+   case T_FCALL:
+      {
+         const subprogram_kind_t kind = tree_subkind(tree_ref(t));
+         if (kind == S_DIV || kind == S_DIV_PR || kind == S_DIV_RI
+             || kind == S_REM || kind == S_MOD)
+            return false;
+         else if (kind == S_USER || !is_open_coded_builtin(kind))
+            return false;
+
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++) {
+            if (!vhdl_is_side_effect_free(tree_value(tree_param(t, i))))
+               return false;
+         }
+
+         return true;
+      }
+      break;
+   case T_RECORD_REF:
+   case T_QUALIFIED:
+   case T_TYPE_CONV:
+      return vhdl_is_side_effect_free(tree_value(t));
+   case T_ATTR_REF:
+      {
+         const attr_kind_t kind = tree_subkind(t);
+         if (kind == ATTR_EVENT || kind == ATTR_ACTIVE)
+            return vhdl_is_side_effect_free(tree_name(t));
+         else
+            return false;
+      }
+   default:
+      return false;
+   }
+}

@@ -2292,9 +2292,8 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
    else if (result_kind == MIR_TYPE_VEC4 || result_kind == MIR_TYPE_VEC2) {
       mir_type_t arg_type = mir_get_type(g->mu, arg);
 
-      const mir_class_t arg_class = mir_get_class(g->mu, arg_type);
       jit_value_t abits = irgen_get_value(g, arg), bbits;
-      if (arg_class == MIR_TYPE_VEC4)
+      if (mir_is(g->mu, arg, MIR_TYPE_VEC4))
          bbits = irgen_get_slot(g, arg, 1);
       else
          bbits = jit_value_from_int64(0);
@@ -2303,7 +2302,12 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
 
       bool arg_signed;
       int arg_size;
-      if (arg_class == MIR_TYPE_INT) {
+      if (mir_is_null(arg_type)) {
+         // Untyped integer constant
+         arg_signed = true;
+         arg_size = 64;
+      }
+      else if (mir_get_class(g->mu, arg_type) == MIR_TYPE_INT) {
          const mir_repr_t repr = mir_get_repr(g->mu, arg_type);
          arg_signed = irgen_repr_signed(repr);
          arg_size = irgen_repr_bits(repr);
@@ -2346,7 +2350,7 @@ static void irgen_op_cast(jit_irgen_t *g, mir_value_t n)
             j_and(g, abits, abits, irgen_vector_mask(result_size));
 
             jit_value_t btmp = irgen_alloc_temp(g);
-            if (arg_class == MIR_TYPE_VEC4) {
+            if (mir_is(g->mu, arg, MIR_TYPE_VEC4)) {
                bbits = irgen_sign_extend(g, bbits, arg_size);
                j_and(g, btmp, bbits, irgen_vector_mask(result_size));
             }

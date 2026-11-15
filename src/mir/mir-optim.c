@@ -56,6 +56,8 @@ typedef struct {
 typedef uint32_t valnum_t;
 #define VN_INVALID UINT_MAX
 #define VN_CONST   0x80000000
+#define VN_TRUE    (VN_CONST | (SMALL_CONST_BIAS + true))
+#define VN_FALSE   (VN_CONST | (SMALL_CONST_BIAS + false))
 
 typedef struct {
    mir_value_t value;
@@ -344,7 +346,8 @@ static inline valnum_t gvn_new_value(mir_value_t canon, gvn_state_t *gvn)
 
 static inline bool gvn_tracked(mir_value_t value)
 {
-   return value.tag == MIR_TAG_NODE || value.tag == MIR_TAG_PARAM;
+   return value.tag == MIR_TAG_NODE || value.tag == MIR_TAG_PARAM
+      || value.tag == MIR_TAG_CONST;
 }
 
 static valnum_t gvn_get_value(mir_value_t value, gvn_state_t *gvn)
@@ -541,6 +544,28 @@ static void gvn_cmp(mir_unit_t *mu, mir_value_t node, mir_block_t block,
    assert(n->nargs == 3);
    assert(n->nargs <= MIR_INLINE_ARGS);
    assert(n->args[0].tag == MIR_TAG_ENUM);
+
+   if (gvn_tracked(n->args[1]) && gvn_tracked(n->args[2])) {
+      const valnum_t vn1 = gvn_get_value(n->args[1], opt->gvn);
+      const valnum_t vn2 = gvn_get_value(n->args[2], opt->gvn);
+
+      if (vn1 == vn2) {
+         switch (n->args[0].id) {
+         case MIR_CMP_EQ:   // X == X ==> true
+         case MIR_CMP_LEQ:  // X <= X ==> true
+         case MIR_CMP_GEQ:  // X >= X ==> true
+            opt->gvn->nodevn[node.id] = VN_TRUE;
+            return;
+         case MIR_CMP_NEQ:   // X != X ==> false
+         case MIR_CMP_LT:    // X < X ==> false
+         case MIR_CMP_GT:    // X > X ==> false
+            opt->gvn->nodevn[node.id] = VN_FALSE;
+            return;
+         default:
+            should_not_reach_here();
+         }
+      }
+   }
 
    switch (n->args[0].id) {
    case MIR_CMP_EQ:
@@ -865,6 +890,12 @@ static void mir_do_gvn(mir_unit_t *mu, mir_optim_t *opt)
 ////////////////////////////////////////////////////////////////////////////////
 // Dead code elimination using liveness information
 
+static bool dce_check_assert(mir_unit_t *mu, mir_value_t node)
+{
+   int64_t cval;
+   return mir_get_const(mu, mir_get_arg(mu, node, 0), &cval) && cval == 1;
+}
+
 static void mir_do_dce(mir_unit_t *mu, mir_optim_t *opt)
 {
    bit_mask_t live;
@@ -888,6 +919,13 @@ static void mir_do_dce(mir_unit_t *mu, mir_optim_t *opt)
             case MIR_OP_COPY:
             case MIR_OP_SET: break;
             default: dead = true; break;
+            }
+         }
+         else {
+            // TODO: this would be better as a simplification pass after GVN
+            switch (n->op) {
+            case MIR_OP_ASSERT: dead = dce_check_assert(mu, node); break;
+            default:            break;
             }
          }
 

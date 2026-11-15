@@ -461,6 +461,8 @@ END_TEST
 
 START_TEST(test_assign1)
 {
+   opt_set_int(OPT_LOWER_MIR, 1);
+
    input_from_file(TESTDIR "/lower/assign1.vhd");
 
    run_elab();
@@ -491,8 +493,10 @@ START_TEST(test_assign1)
       { MIR_OP_CMP, ENUM(MIR_CMP_EQ), NODE(_), CONST(-4) },
       { MIR_OP_DEBUG_LOCUS },
       { MIR_OP_ASSERT },
+      { MIR_OP_LOAD, VAR("Y") },   // TODO: redundant
       { MIR_OP_DEBUG_LOCUS },
       { MIR_OP_TRAP_MUL, NODE(_), CONST(2) },
+      { MIR_OP_STORE, VAR("X"), NODE(_) },  // TODO: redundant
       { MIR_OP_CMP, ENUM(MIR_CMP_EQ), NODE(_), CONST(-8) },
       { MIR_OP_DEBUG_LOCUS },
       { MIR_OP_ASSERT },
@@ -911,9 +915,6 @@ START_TEST(test_func1)
       static const mir_match_t bb0[] = {
          { MIR_OP_DEBUG_LOCUS },
          { MIR_OP_TRAP_ADD, PARAM("X"), CONST(1) },
-         { MIR_OP_CONST, INT64(INT32_MIN) },
-         { MIR_OP_CONST, INT64(INT32_MAX) },
-         { MIR_OP_RANGE_CHECK },
          { MIR_OP_RETURN },
       };
       mir_match(mu, 0, bb0);

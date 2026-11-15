@@ -28,10 +28,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define SMALL_CONST_BIAS (1 << (_MIR_ID_BITS - 1))
-#define SMALL_CONST_MIN  (-SMALL_CONST_BIAS)
-#define SMALL_CONST_MAX  (SMALL_CONST_BIAS - 1)
-
 block_data_t *mir_block_data(mir_unit_t *mu, mir_block_t block)
 {
    assert(block.tag == MIR_TAG_BLOCK);
@@ -1135,8 +1131,11 @@ static mir_value_t mir_build_arith(mir_unit_t *mu, mir_op_t op, mir_type_t type,
    mir_value_t result;
    if (mir_is_null(locus))
       result = mir_build_2(mu, op, type, stamp, left, right);
-   else
-      result = mir_build_3(mu, op, type, stamp, left, right, locus);
+   else {
+      // Trapping variants clamp to full type range
+      mir_stamp_t clamped = mir_stamp_clamp(mu, type, stamp);
+      result = mir_build_3(mu, op, type, clamped, left, right, locus);
+   }
 
 #ifdef DEBUG
    switch (mir_get_class(mu, type)) {

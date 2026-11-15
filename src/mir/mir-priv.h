@@ -38,6 +38,10 @@ typedef enum {
    UNIT_FREED = 3,
 } unit_state_t;
 
+#define SMALL_CONST_BIAS (1 << (_MIR_ID_BITS - 1))
+#define SMALL_CONST_MIN  (-SMALL_CONST_BIAS)
+#define SMALL_CONST_MAX  (SMALL_CONST_BIAS - 1)
+
 const type_data_t *mir_type_data(mir_unit_t *mu, mir_type_t type);
 const stamp_data_t *mir_stamp_data(mir_unit_t *mu, mir_stamp_t stamp);
 node_data_t *mir_node_data(mir_unit_t *mu, mir_value_t value);
@@ -62,6 +66,7 @@ mir_stamp_t mir_stamp_div(mir_unit_t *mu, mir_stamp_t left, mir_stamp_t right);
 mir_stamp_t mir_stamp_rem(mir_unit_t *mu, mir_stamp_t left, mir_stamp_t right);
 mir_stamp_t mir_stamp_cmp(mir_unit_t *mu, mir_cmp_t cmp, mir_stamp_t left,
                           mir_stamp_t right);
+mir_stamp_t mir_stamp_clamp(mir_unit_t *mu, mir_type_t type, mir_stamp_t stamp);
 mir_stamp_t mir_stamp_union(mir_unit_t *mu, mir_stamp_t left,
                             mir_stamp_t right);
 mir_stamp_t mir_stamp_cast(mir_unit_t *mu, mir_type_t type, mir_stamp_t stamp);

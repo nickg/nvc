@@ -18,6 +18,7 @@
 #include "util.h"
 #include "common.h"
 #include "mir/mir-unit.h"
+#include "rt/assert.h"
 #include "tree.h"
 #include "type.h"
 #include "vhdl/vhdl-lower.h"
@@ -292,7 +293,7 @@ static void check_scalar_bounds(vhdl_gen_t *g, const type_info_t *ti,
    int64_t low, high;
    if (folded_bounds(r, &low, &high)) {
       if (mir_within_int(g->mu, value, low, high)) {
-         mir_comment(g->mu, "Elided scalar bounds check");
+         mir_comment(g->mu, "Elided scalar bounds check for %pM", &value);
          return;
       }
       else {
@@ -391,21 +392,36 @@ mir_value_t vhdl_lower_array_stride(vhdl_gen_t *g, const type_info_t *ti,
    return stride;
 }
 
-#if 0
-mir_value_t lower_total_elements(mir_unit_t *mu, const type_info_t *ti,
-                                 mir_value_t array)
+mir_value_t vhdl_lower_total_elements(mir_unit_t *mu, const type_info_t *ti,
+                                      mir_value_t array)
 {
    mir_type_t t_offset = mir_offset_type(mu);
 
    if (ti->size < SIZE_MAX && ti->stride < SIZE_MAX)
       return mir_const(mu, t_offset, ti->size * ti->stride);
 
-   mir_value_t total = lower_array_length(mu, ti, array);
-   mir_value_t stride = lower_array_stride(mu, ti, array);
-
-   return mir_build_mul(mu, t_offset, total, stride);
+   // TODO:
+   //  mir_value_t total = lower_array_length(mu, ti, array);
+   //  mir_value_t stride = lower_array_stride(mu, ti, array);
+   //
+   // return mir_build_mul(mu, t_offset, total, stride);
+   assert(false);
 }
-#endif
+
+static mir_value_t vhdl_lower_unwrap(vhdl_gen_t *g, mir_value_t array)
+{
+   mir_type_t type = mir_get_type(g->mu, array);
+   switch (mir_get_class(g->mu, type)) {
+   case MIR_TYPE_UARRAY:
+      return mir_build_unwrap(g->mu, array);
+   case MIR_TYPE_POINTER:
+   case MIR_TYPE_SIGNAL:
+      return array;
+   default:
+      mir_dump(g->mu);
+      fatal_trace("cannot unwrap %pM", &array);
+   }
+}
 
 static mir_value_t vhdl_lower_subprogram_arg(vhdl_gen_t *g, tree_t t, int nth,
                                              mir_value_t context)
@@ -513,6 +529,24 @@ static mir_value_t vhdl_lower_arith(vhdl_gen_t *g, tree_t t,
    }
 }
 
+static mir_value_t vhdl_lower_comparison(vhdl_gen_t *g, tree_t t,
+                                         subprogram_kind_t builtin,
+                                         mir_value_t arg0, mir_value_t arg1)
+{
+   mir_cmp_t cmp;
+   switch (builtin) {
+   case S_SCALAR_EQ:  cmp = MIR_CMP_EQ; break;
+   case S_SCALAR_NEQ: cmp = MIR_CMP_NEQ; break;
+   case S_SCALAR_LT:  cmp = MIR_CMP_LT; break;
+   case S_SCALAR_GT:  cmp = MIR_CMP_GT; break;
+   case S_SCALAR_LE:  cmp = MIR_CMP_LEQ; break;
+   case S_SCALAR_GE:  cmp = MIR_CMP_GEQ; break;
+   default:           should_not_reach_here();
+   }
+
+   return mir_build_cmp(g->mu, cmp, arg0, arg1);
+}
+
 static mir_value_t vhdl_lower_builtin(vhdl_gen_t *g, tree_t t,
                                       subprogram_kind_t builtin,
                                       mir_value_t out[2])
@@ -529,6 +563,13 @@ static mir_value_t vhdl_lower_builtin(vhdl_gen_t *g, tree_t t,
    }
 
    switch (builtin) {
+   case S_SCALAR_EQ:
+   case S_SCALAR_NEQ:
+   case S_SCALAR_LT:
+   case S_SCALAR_GT:
+   case S_SCALAR_LE:
+   case S_SCALAR_GE:
+      return vhdl_lower_comparison(g, t, builtin, arg0, arg1);
    case S_MUL:
    case S_ADD:
    case S_SUB:
@@ -850,10 +891,91 @@ static void vhdl_lower_wait(vhdl_gen_t *g, tree_t t)
    (void)is_static;
    (void)ntriggers;
 
+   const bool has_delay = tree_has_delay(t);
+   const bool has_value = tree_has_value(t);
+
+   mir_value_t delay = MIR_NULL_VALUE;
+   if (has_delay) {
+      delay = vhdl_lower_rvalue(g, tree_delay(t));
+      mir_build_sched_process(g->mu, delay);
+   }
+
+   assert(!has_value);
+
    mir_block_t resume_bb = mir_add_block(g->mu);
    mir_build_wait(g->mu, resume_bb);
 
    mir_set_cursor(g->mu, resume_bb, MIR_APPEND);
+}
+
+static void vhdl_lower_assert(vhdl_gen_t *g, tree_t t)
+{
+   // TODO: statement coverage
+
+   tree_t value = tree_value(t);
+
+   mir_value_t test_val = MIR_NULL_VALUE, hint[2] = {};
+
+   if (!tree_has_message(t) && tree_kind(value) == T_FCALL) {
+      const subprogram_kind_t kind = tree_subkind(tree_ref(value));
+      const bool can_hint = kind == S_SCALAR_EQ || kind == S_SCALAR_NEQ
+         || kind == S_SCALAR_LT || kind == S_SCALAR_LE
+         || kind == S_SCALAR_GT || kind == S_SCALAR_GE;
+
+      if (can_hint)
+         test_val = vhdl_lower_builtin(g, value, kind, hint);
+   }
+
+   if (mir_is_null(test_val))
+      test_val = vhdl_lower_rvalue(g, value);
+
+   int64_t value_const;
+   if (mir_get_const(g->mu, test_val, &value_const) && value_const)
+      return;
+
+   mir_block_t fail_bb = MIR_NULL_BLOCK, exit_bb = MIR_NULL_BLOCK;
+
+   tree_t message = tree_has_message(t) ? tree_message(t) : NULL;
+   tree_t severity = tree_has_severity(t) ? tree_severity(t) : NULL;
+
+   // If evaluating the message or severity expressions can have side
+   // effects then branch to a new block
+   const bool has_side_effects =
+      (message != NULL && !vhdl_is_side_effect_free(message))
+      || (severity != NULL && !vhdl_is_side_effect_free(severity));
+
+   if (has_side_effects) {
+      fail_bb = mir_add_block(g->mu);
+      exit_bb = mir_add_block(g->mu);
+      mir_build_cond(g->mu, test_val, exit_bb, fail_bb);
+      mir_set_cursor(g->mu, fail_bb, MIR_APPEND);
+   }
+
+   mir_value_t message_val = MIR_NULL_VALUE, length_reg = MIR_NULL_VALUE;
+   if (message != NULL) {
+      mir_value_t message_wrapped = vhdl_lower_rvalue(g, message);
+      message_val = vhdl_lower_unwrap(g, message_wrapped);
+
+      const type_info_t *ti = type_info(g, tree_type(message));
+      length_reg = vhdl_lower_total_elements(g->mu, ti, message_wrapped);
+   }
+
+   mir_value_t severity_val = MIR_NULL_VALUE;
+   if (severity != NULL)
+      severity_val = vhdl_lower_rvalue(g, severity);
+   else {
+      mir_type_t t_severity = mir_int_type(g->mu, 0, 3);
+      severity_val = mir_const(g->mu, t_severity, SEVERITY_ERROR);
+   }
+
+   mir_value_t locus = mir_build_debug_locus(g->mu, tree_to_object(value));
+   mir_build_assert(g->mu, test_val, message_val, length_reg, severity_val,
+                    locus, hint[0], hint[1]);
+
+   if (!mir_is_null(exit_bb)) {
+      mir_build_jump(g->mu, exit_bb);
+      mir_set_cursor(g->mu, exit_bb, MIR_APPEND);
+   }
 }
 
 static void vhdl_lower_stmts(vhdl_gen_t *g, tree_t t)
@@ -870,6 +992,9 @@ static void vhdl_lower_stmts(vhdl_gen_t *g, tree_t t)
          break;
       case T_WAIT:
          vhdl_lower_wait(g, s);
+         break;
+      case T_ASSERT:
+         vhdl_lower_assert(g, s);
          break;
       default:
          CANNOT_HANDLE(s);

@@ -1849,49 +1849,6 @@ static void lower_logic_expr_coverage(lower_unit_t *lu, cover_obj_t item,
    }
 }
 
-static bool lower_side_effect_free(tree_t expr)
-{
-   // True if expression is side-effect free with no function calls
-   switch (tree_kind(expr)) {
-   case T_REF:
-   case T_LITERAL:
-   case T_STRING:
-      return true;
-   case T_FCALL:
-      {
-         const subprogram_kind_t kind = tree_subkind(tree_ref(expr));
-         if (kind == S_DIV || kind == S_DIV_PR || kind == S_DIV_RI
-             || kind == S_REM || kind == S_MOD)
-            return false;
-         else if (kind == S_USER || !is_open_coded_builtin(kind))
-            return false;
-
-         const int nparams = tree_params(expr);
-         for (int i = 0; i < nparams; i++) {
-            if (!lower_side_effect_free(tree_value(tree_param(expr, i))))
-               return false;
-         }
-
-         return true;
-      }
-      break;
-   case T_RECORD_REF:
-   case T_QUALIFIED:
-   case T_TYPE_CONV:
-      return lower_side_effect_free(tree_value(expr));
-   case T_ATTR_REF:
-      {
-         const attr_kind_t kind = tree_subkind(expr);
-         if (kind == ATTR_EVENT || kind == ATTR_ACTIVE)
-            return lower_side_effect_free(tree_name(expr));
-         else
-            return false;
-      }
-   default:
-      return false;
-   }
-}
-
 static vcode_var_t lower_temp_var(lower_unit_t *lu, const char *prefix,
                                   vcode_type_t vtype)
 {
@@ -1956,7 +1913,7 @@ static vcode_reg_t lower_short_circuit(lower_unit_t *lu, tree_t fcall,
       }
    }
 
-   if (lower_side_effect_free(tree_value(tree_param(fcall, 1)))) {
+   if (vhdl_is_side_effect_free(tree_value(tree_param(fcall, 1)))) {
       vcode_reg_t r1 = lower_subprogram_arg(lu, fcall, 1, VCODE_INVALID_REG);
       switch (builtin) {
       case S_SCALAR_AND:  return emit_and(r0, r1);
@@ -2550,7 +2507,7 @@ static vcode_reg_t lower_logical(lower_unit_t *lu, tree_t t, int *nth,
 
    vcode_reg_t r0 = lower_logical(lu, p0, nth, gs);
 
-   if (vhdl_is_short_circuit(kind) && !lower_side_effect_free(p1)) {
+   if (vhdl_is_short_circuit(kind) && !vhdl_is_side_effect_free(p1)) {
       vcode_block_t arg1_bb = emit_block();
       vcode_block_t after_bb = emit_block();
 
@@ -5778,8 +5735,8 @@ static void lower_assert(lower_unit_t *lu, tree_t stmt, gen_stack_t *gs)
    // If evaluating the message or severity expressions can have side
    // effects then branch to a new block
    const bool has_side_effects =
-      (message != NULL && !lower_side_effect_free(message))
-      || (severity != NULL && !lower_side_effect_free(severity));
+      (message != NULL && !vhdl_is_side_effect_free(message))
+      || (severity != NULL && !vhdl_is_side_effect_free(severity));
 
    if (has_side_effects) {
       fail_bb = emit_block();
