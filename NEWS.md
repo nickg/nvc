@@ -21,7 +21,9 @@
   system task argument.
 - Added support for Verilog named events and the `->` and `->>` event
   trigger statements.
-- Several other minor bugs were resolved (#1678, #1718, #1685, #1726).
+- Various fixes and improvements to Cobertura coverage export (#1684).
+- Several other minor bugs were resolved (#1678, #1718, #1685, #1726,
+  #1730, #1722, #1724).
 
 ## Version 1.23.1 - 2026-10-28
 - Fixed a crash after a severity `failure` assertion failure during

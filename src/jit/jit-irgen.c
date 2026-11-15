@@ -4042,7 +4042,11 @@ static void irgen_op_instance_name(jit_irgen_t *g, mir_value_t n)
 static void irgen_op_bind_external(jit_irgen_t *g, mir_value_t n)
 {
    jit_value_t locus = irgen_get_arg(g, n, 0);
-   jit_handle_t handle = irgen_get_handle(g, n, 1);
+   mir_value_t scope = mir_get_arg(g->mu, n, 1);
+
+   jit_handle_t handle = JIT_HANDLE_INVALID;
+   if (!mir_is_null(scope))
+      handle = irgen_get_handle(g, n, 1);
 
    j_send(g, 0, locus);
    j_send(g, 1, jit_value_from_handle(handle));
@@ -4564,6 +4568,7 @@ static void irgen_op_unary(jit_irgen_t *g, mir_value_t n)
          [MIR_VEC_BIT_NOT] = JIT_VEC_NOT,
          [MIR_VEC_BIT_AND] = JIT_VEC_AND1,
          [MIR_VEC_BIT_OR] = JIT_VEC_OR1,
+         [MIR_VEC_BIT_XOR] = JIT_VEC_XOR1,
          [MIR_VEC_LOG_NOT] = JIT_VEC_LOG_NOT,
          [MIR_VEC_SUB] = JIT_VEC_NEGATE,
       };

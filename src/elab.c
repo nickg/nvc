@@ -2153,14 +2153,13 @@ static void elab_cover_block(elab_ctx_t *ctx, tree_t unit)
 
    cover_obj_t parent_inst = cover_get_obj(ctx->cover, parent, COV_ATTR_INST);
 
-   if (cover_is_null(parent))
-      parent = cover_get_obj(ctx->cover, parent_inst, COV_ATTR_ROOT);
-
    cover_obj_t inst = cover_inst_new(ctx->cover, tree_ident(block), parent_inst,
                                      block_name, lib_name(ctx->library),
                                      ctx->dotted);
-   ctx->cscope = cover_scope_new(ctx->cover, inst, parent, CSCOPE_INSTANCE,
-                                 tree_ident(block), *tree_loc(block));
+
+   ctx->cscope = cover_scope_new(ctx->cover, inst, COVER_NULL_OBJ,
+                                 CSCOPE_INSTANCE, tree_ident(block),
+                                 *tree_loc(block));
 }
 
 static void elab_architecture(tree_t inst, tree_t arch, const elab_ctx_t *ctx)

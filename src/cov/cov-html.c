@@ -1074,22 +1074,16 @@ static void cover_print_summary_table_row(html_gen_t *g, FILE *f, const rpt_stat
 }
 
 static void cover_print_nav_hier_node(html_gen_t *g, FILE *f, cover_obj_t inst,
-                                      cover_obj_t sel)
+                                      cover_obj_t selected)
 {
    cover_obj_t scope = cover_get_obj(g->data, inst, COV_ATTR_ROOT);
 
    const char *link = rpt_get_hier(g->rpt, inst)->name_hash;
 
    bool open = false;
-   for (cover_obj_t it = sel; !open && !cover_is_null(it);) {
-      open |= cover_equals(it, scope);
-
-      cover_obj_t parent = cover_get_obj(g->data, it, COV_ATTR_PARENT);
-      if (cover_is_null(parent))
-         break;
-
-      it = parent;
-   }
+   for (cover_obj_t it = selected; !open && !cover_is_null(it);
+        it = cover_get_obj(g->data, it, COV_ATTR_PARENT))
+      open |= cover_equals(it, inst);
 
    const bool leaf = cover_count(g->data, inst, COV_REL_CHILDREN) == 0;
    if (!leaf) {
@@ -1100,7 +1094,7 @@ static void cover_print_nav_hier_node(html_gen_t *g, FILE *f, cover_obj_t inst,
    ident_t name = cover_get_ident(g->data, scope, COV_ATTR_NAME);
 
    fprintf(f, "<a href=\"%s.html\"", link);
-   if (cover_equals(scope, sel))
+   if (cover_equals(inst, selected))
       fprintf(f, " class=\"nav-sel\"");
    fprintf(f, ">%s</a>\n", istr(name));
 
@@ -1110,13 +1104,14 @@ static void cover_print_nav_hier_node(html_gen_t *g, FILE *f, cover_obj_t inst,
       cover_iter_t it = cover_begin(g->data, inst, COV_REL_CHILDREN);
       cover_obj_t child;
       while (cover_next(&it, &child))
-         cover_print_nav_hier_node(g, f, child, sel);
+         cover_print_nav_hier_node(g, f, child, selected);
 
       fprintf(f, "</details>\n");
    }
 }
 
-static void cover_print_hier_nav_tree(html_gen_t *g, FILE *f, cover_obj_t scope)
+static void cover_print_hier_nav_tree(html_gen_t *g, FILE *f,
+                                      cover_obj_t selected)
 {
    fprintf(f, "<h2 style=\"float: left; margin-top: 50px; \">Hierarchy</h2>\n");
 
@@ -1131,7 +1126,7 @@ static void cover_print_hier_nav_tree(html_gen_t *g, FILE *f, cover_obj_t scope)
    cover_iter_t it = cover_begin(g->data, COVER_NULL_OBJ, COV_REL_CHILDREN);
    cover_obj_t root;
    while (cover_next(&it, &root))
-      cover_print_nav_hier_node(g, f, root, scope);
+      cover_print_nav_hier_node(g, f, root, selected);
 
    fprintf(f, "</details>\n");
    fprintf(f, "</nav>\n\n");
@@ -1145,7 +1140,7 @@ static void cover_report_inst(html_gen_t *g, int lvl, cover_obj_t inst)
    cover_obj_t scope = cover_get_obj(g->data, inst, COV_ATTR_ROOT);
 
    cover_print_html_header(f);
-   cover_print_hier_nav_tree(g, f, scope);
+   cover_print_hier_nav_tree(g, f, inst);
    cover_print_inst_name(g, f, scope);
 
    const rpt_file_t *src = rpt_get_file(g->rpt, scope);

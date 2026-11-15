@@ -1510,4 +1510,6 @@ deassign1       verilog
 issue1726       normal,2008
 vlog52          verilog,gold
 udp3            verilog
+issue1730       verilog
+issue1724       normal,2008
 vlog54          verilog

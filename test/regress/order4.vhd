@@ -1,5 +1,5 @@
 package p1 is
-    constant c1 : integer := 5;
+    constant c1 : integer := time'pos(6 ns);
 end package;
 
 -------------------------------------------------------------------------------

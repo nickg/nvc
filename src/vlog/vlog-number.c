@@ -1189,6 +1189,15 @@ int vec2_or1(int size, const uint64_t *a)
    return result;
 }
 
+int vec2_xor1(int size, const uint64_t *a)
+{
+   int result = 0;
+   for (int i = 0; i < BIGNUM_WORDS(size); i++)
+      result ^= __builtin_parityll(a[i]);
+
+   return result;
+}
+
 void vec2_and2(int size, uint64_t *a, const uint64_t *b)
 {
    for (int i = 0; i < BIGNUM_WORDS(size); i++)

@@ -20,9 +20,9 @@
 #include "cov/cov-api.h"
 #include "cov/cov-priv.h"
 #include "cov/cov-structs.h"
+#include "fbuf.h"
 #include "hash.h"
 #include "ident.h"
-#include "lib.h"
 #include "mask.h"
 #include "option.h"
 #include "printf.h"
@@ -51,7 +51,7 @@ static const struct {
 };
 
 #define COVER_FILE_MAGIC   0x6e636462   // ASCII "ncdb"
-#define COVER_FILE_VERSION 13
+#define COVER_FILE_VERSION 14
 
 static inline cover_obj_t cover_make_obj(unsigned tag, unsigned id)
 {
@@ -252,28 +252,37 @@ cover_obj_t cover_scope_new(cover_data_t *db, cover_obj_t inst,
    if (db == NULL)
       return COVER_NULL_OBJ;
 
-   assert(!cover_is_null(parent));
-   assert(!cover_is_null(db->root_scope));
-
-   cover_scope_t *pd = cover_scope_data(db, parent);
    cover_inst_t *id = cover_inst_data(db, inst);
+   const bool is_root = cover_is_null(id->root);
 
    cover_scope_t new = {
       .kind    = kind,
-      .parent  = parent,
       .inst    = inst,
       .name    = name,
       .loc     = loc,
-      .hier    = ident_prefix(pd->hier, new.name, '.'),
    };
+
+   if (is_root) {
+      assert(cover_is_null(parent));
+      new.hier = id->hier;
+   }
+   else {
+      assert(!cover_is_null(parent));
+
+      cover_scope_t *pd = cover_scope_data(db, parent);
+      assert(cover_equals(pd->inst, inst));
+
+      new.parent = parent;
+      new.hier = ident_prefix(pd->hier, new.name, '.');
+   }
 
    cover_obj_t obj = cover_make_obj(COVER_TAG_SCOPE, db->scopes.count);
    APUSH(db->scopes, new);
 
-   cover_append(db, parent, COV_REL_CHILDREN, obj);
-
-   if (cover_is_null(id->root))
+   if (is_root)
       id->root = obj;
+   else
+      cover_append(db, parent, COV_REL_CHILDREN, obj);
 
    cover_scope_t *sd = cover_scope_data(db, obj);
    sd->emit = cover_should_emit_scope(db, obj);
@@ -509,8 +518,6 @@ void cover_write(cover_data_t *db, fbuf_t *f, cover_dump_t dt)
       fbuf_put_uint(f, db->roots.items[i].id);
    }
 
-   cover_write_obj(f, db->root_scope);
-
    loc_write_end(loc_wr);
    ident_write_end(ident_ctx);
 }
@@ -523,17 +530,6 @@ cover_data_t *cover_data_init(cover_mask_t mask, int array_limit, int threshold)
    db->threshold   = threshold;
    db->inst_map    = hash_new(16);
    db->pool        = pool_new();
-
-   ident_t work_name = lib_name(lib_work());
-
-   cover_scope_t root = {
-      .loc = LOC_INVALID,
-      .name = work_name,
-      .hier = work_name,
-   };
-
-   db->root_scope = cover_make_obj(COVER_TAG_SCOPE, 0);
-   APUSH(db->scopes, root);
 
    return db;
 }
@@ -739,8 +735,6 @@ cover_data_t *cover_read(fbuf_t *f, uint32_t pre_mask)
       db->roots.items[i] = obj;
    }
 
-   db->root_scope = cover_read_obj(f);
-
    ident_read_end(ident_ctx);
    loc_read_end(loc_rd);
 
@@ -803,7 +797,7 @@ static cover_obj_t cover_clone_scope(cover_data_t *dst_db,
                                      const cover_data_t *src_db,
                                      cover_obj_t src_scope,
                                      cover_obj_t parent_scope,
-                                     cover_obj_t parent_inst)
+                                     cover_obj_t inst)
 {
    cover_obj_t obj = cover_make_obj(COVER_TAG_SCOPE, dst_db->scopes.count);
    APUSH(dst_db->scopes, *cover_scope_data_const(src_db, src_scope));
@@ -812,7 +806,7 @@ static cover_obj_t cover_clone_scope(cover_data_t *dst_db,
    copy->parent = parent_scope;
    copy->items = (cover_array_t)AINIT;
    copy->children = (cover_array_t)AINIT;
-   copy->inst = parent_inst;
+   copy->inst = inst;
 
    cover_iter_t item_it = cover_begin(src_db, src_scope, COV_REL_ITEMS);
    cover_obj_t item;
@@ -821,17 +815,10 @@ static cover_obj_t cover_clone_scope(cover_data_t *dst_db,
       cover_append(dst_db, obj, COV_REL_ITEMS, copy);
    }
 
-   cover_obj_t src_inst = cover_get_obj(src_db, src_scope, COV_ATTR_INST);
-
    cover_iter_t child_it = cover_begin(src_db, src_scope, COV_REL_CHILDREN);
    cover_obj_t child;
    while (cover_next(&child_it, &child)) {
-      // TODO: remove this check
-      if (!cover_equals(cover_get_obj(src_db, child, COV_ATTR_INST), src_inst))
-         continue;
-
-      cover_obj_t copy = cover_clone_scope(dst_db, src_db, child, obj,
-                                           parent_inst);
+      cover_obj_t copy = cover_clone_scope(dst_db, src_db, child, obj, inst);
       cover_append(dst_db, obj, COV_REL_CHILDREN, copy);
    }
 
@@ -973,13 +960,8 @@ static void cover_merge_scope(cover_data_t *dst_db,
       }
    }
 
-   cover_obj_t src_inst = cover_get_obj(src_db, src_scope, COV_ATTR_INST);
    cover_iter_t src_child_it = cover_begin(src_db, src_scope, COV_REL_CHILDREN);
    while (cover_next(&src_child_it, &src)) {
-      // TODO: remove this check
-      if (!cover_equals(cover_get_obj(src_db, src, COV_ATTR_INST), src_inst))
-         continue;
-
       ident_t src_name = cover_get_ident(src_db, src, COV_ATTR_NAME);
 
       bool found = false;
@@ -1010,10 +992,12 @@ static void cover_merge_inst(cover_data_t *dst_db,
                              cover_obj_t src_inst,
                              merge_mode_t mode)
 {
-   cover_obj_t dst_root = cover_get_obj(dst_db, dst_inst, COV_ATTR_ROOT);
-   cover_obj_t src_root = cover_get_obj(src_db, src_inst, COV_ATTR_ROOT);
+   if (!cover_is_null(dst_inst)) {
+      cover_obj_t dst_root = cover_get_obj(dst_db, dst_inst, COV_ATTR_ROOT);
+      cover_obj_t src_root = cover_get_obj(src_db, src_inst, COV_ATTR_ROOT);
 
-   cover_merge_scope(dst_db, src_db, dst_root, src_root, mode);
+      cover_merge_scope(dst_db, src_db, dst_root, src_root, mode);
+   }
 
    cover_iter_t src_it = cover_begin(src_db, src_inst, COV_REL_CHILDREN);
    cover_obj_t src_child;
@@ -1470,13 +1454,6 @@ cover_obj_t cover_get_obj(const cover_data_t *db, cover_obj_t obj,
          case COV_ATTR_ROOT:   return inst->root;
          case COV_ATTR_PARENT: return inst->parent;
          default:              return COVER_NULL_OBJ;
-         }
-      }
-   case COVER_TAG_NULL:
-      {
-         switch (attr) {
-         case COV_ATTR_ROOT: return db->root_scope;
-         default:            return COVER_NULL_OBJ;
          }
       }
    default:
