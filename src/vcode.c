@@ -2420,7 +2420,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += vcode_dump_reg(op->result);
                col += nvc_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               col += nvc_printf(" scope $magenta$%s$$ ", istr(op->ident));
+               if (op->ident != NULL)
+                  col += nvc_printf(" scope $magenta$%pi$$ ", op->ident);
                for (int i = 1; i < op->args.count; i++) {
                   if (i > 1) col += printf(", ");
                   col += vcode_dump_reg(op->args.items[i]);

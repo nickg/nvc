@@ -3172,7 +3172,10 @@ mir_value_t mir_build_bind_external(mir_unit_t *mu, mir_value_t locus,
                                     int nargs)
 {
    mir_type_t pointer = mir_get_var_pointer(mu, type);
-   mir_value_t link = mir_add_linkage(mu, scope);
+
+   mir_value_t link = MIR_NULL_VALUE;
+   if (scope != NULL)
+      link = mir_add_linkage(mu, scope);
 
    node_data_t *n = mir_add_node(mu, MIR_OP_BIND_EXTERNAL, pointer, stamp,
                                  nargs + 2);

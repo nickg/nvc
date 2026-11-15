@@ -93,9 +93,25 @@ static void bind_external_name(tree_t name, jit_handle_t scope,
    assert(tree_kind(name) == T_EXTERNAL_NAME);
 
    jit_t *j = jit_for_thread();
-   tree_t where = tree_from_object(jit_get_object(j, scope));
+   tree_t where;
+   ident_t path;
+   if (scope == JIT_HANDLE_INVALID) {
+      rt_scope_t *active = get_active_scope(get_model());
+      assert(active != NULL);
+
+      while (is_signal_scope(active))
+         active = active->parent;
+
+      assert(active->kind == SCOPE_INSTANCE);
+      where = active->where;
+      path  = active->name;
+   }
+   else {
+      where = tree_from_object(jit_get_object(j, scope));
+      path  = jit_get_name(j, scope);
+   }
+
    tree_t container = NULL, next = NULL;
-   ident_t path = jit_get_name(j, scope);
    int next_arg = 2;
 
    const int nparts = tree_parts(name);
