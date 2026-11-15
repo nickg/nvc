@@ -26,7 +26,7 @@
 
 typedef union {
    struct {
-      uint64_t data : 56;
+      int64_t  data : 56;
       uint64_t tag : 8;
    };
    struct {

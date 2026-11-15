@@ -465,79 +465,60 @@ START_TEST(test_assign1)
 
    run_elab();
 
-   vcode_unit_t v0 = find_unit("WORK.ASSIGN1.P1");
-   vcode_select_unit(v0);
+   mir_unit_t *mu = find_unit2("WORK.ASSIGN1.P1");
 
-   fail_unless(vcode_count_vars() == 2);
+   ck_assert_int_eq(mir_count_vars(mu), 2);
 
-   const check_bb_t bb0[] = {
-      { VCODE_OP_CONST, .value = 64 },
-      { VCODE_OP_STORE, .name = "X" },
-      { VCODE_OP_CONST, .value = -4 },
-      { VCODE_OP_STORE, .name = "Y" },
-      { VCODE_OP_RETURN }
+   static const mir_match_t bb0[] = {
+      { MIR_OP_STORE, VAR("X"), CONST(64) },
+      { MIR_OP_STORE, VAR("Y"), CONST(-4) },
+      { MIR_OP_RETURN },
    };
+   mir_match(mu, 0, bb0);
 
-   CHECK_BB(0);
-
-   const check_bb_t bb1[] = {
-      { VCODE_OP_CONST, .value = 4000000 },
-      { VCODE_OP_SCHED_PROCESS },
-      { VCODE_OP_WAIT,  .target = 2 }
+   static const mir_match_t bb1[] = {
+      { MIR_OP_SCHED_PROCESS, CONST(4000000) },
+      { MIR_OP_WAIT, BLOCK(2) },
    };
+   mir_match(mu, 1, bb1);
 
-   CHECK_BB(1);
-
-   const check_bb_t bb2[] = {
-      { VCODE_OP_LOAD,  .name = "X" },
-      { VCODE_OP_CONST, .value = 64 },
-      { VCODE_OP_CMP },
-      { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_ASSERT },
-      { VCODE_OP_LOAD,  .name = "Y" },
-      { VCODE_OP_CONST, .value = -4 },
-      { VCODE_OP_CMP },
-      { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_ASSERT },
-      { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_TRAP_MUL },
-      { VCODE_OP_CONST,  .value = -8 },
-      { VCODE_OP_CMP },
-      { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_ASSERT },
-      { VCODE_OP_CONST, .value = 5 },
-      { VCODE_OP_STORE, .name = "X" },
-      { VCODE_OP_CONST, .value = 7 },
-      { VCODE_OP_STORE, .name = "Y" },
-      { VCODE_OP_CONST, .value = 1000000 },
-      { VCODE_OP_SCHED_PROCESS },
-      { VCODE_OP_WAIT,  .target = 3 }
+   static const mir_match_t bb2[] = {
+      { MIR_OP_LOAD, VAR("X") },
+      { MIR_OP_CMP, ENUM(MIR_CMP_EQ), NODE(_), CONST(64) },
+      { MIR_OP_DEBUG_LOCUS },
+      { MIR_OP_ASSERT },
+      { MIR_OP_LOAD, VAR("Y") },
+      { MIR_OP_CMP, ENUM(MIR_CMP_EQ), NODE(_), CONST(-4) },
+      { MIR_OP_DEBUG_LOCUS },
+      { MIR_OP_ASSERT },
+      { MIR_OP_DEBUG_LOCUS },
+      { MIR_OP_TRAP_MUL, NODE(_), CONST(2) },
+      { MIR_OP_CMP, ENUM(MIR_CMP_EQ), NODE(_), CONST(-8) },
+      { MIR_OP_DEBUG_LOCUS },
+      { MIR_OP_ASSERT },
+      { MIR_OP_STORE, VAR("X"), CONST(5) },
+      { MIR_OP_STORE, VAR("Y"), CONST(7) },
+      { MIR_OP_SCHED_PROCESS, CONST(1000000) },
+      { MIR_OP_WAIT, BLOCK(3) },
    };
+   mir_match(mu, 2, bb2);
 
-   CHECK_BB(2);
-
-   const check_bb_t bb3[] = {
-      { VCODE_OP_LOAD, .name = "X" },
-      { VCODE_OP_LOAD, .name = "Y" },
-      { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_TRAP_ADD },
-      { VCODE_OP_CONST, .value = 12 },
-      { VCODE_OP_CMP },
-      { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_ASSERT },
-      { VCODE_OP_WAIT, .target = 4 }
+   static const mir_match_t bb3[] = {
+      { MIR_OP_LOAD, VAR("X") },
+      { MIR_OP_LOAD, VAR("Y") },
+      { MIR_OP_DEBUG_LOCUS },
+      { MIR_OP_TRAP_ADD },
+      { MIR_OP_CMP, ENUM(MIR_CMP_EQ) },
+      { MIR_OP_DEBUG_LOCUS },
+      { MIR_OP_ASSERT },
+      { MIR_OP_WAIT, BLOCK(4) },
    };
+   mir_match(mu, 3, bb3);
 
-   CHECK_BB(3);
-
-   const check_bb_t bb4[] = {
-      { VCODE_OP_JUMP, .target = 1 }
+   static const mir_match_t bb4[] = {
+      { MIR_OP_JUMP, BLOCK(1) },
    };
-
-   CHECK_BB(4);
+   mir_match(mu, 4, bb4);
 
    fail_if_errors();
 }
