@@ -40,12 +40,13 @@ static vlog_node_t      last_attr;
 static vlog_node_t      atom_types[DT_BIT + 1];
 static unsigned         next_namespace;
 static uint64_t         time_scale;
+static uint64_t         time_precision;
 
 static const struct {
    const char *name;
    uint64_t value;
 } time_units[] = {
-   { "s", UINT64_C(60000000000000) },
+   { "s", UINT64_C(1000000000000000) },
    { "ms", 1000000000000 },
    { "us", 1000000000 },
    { "ns", 1000000 },
@@ -109,6 +110,7 @@ static void set_timescale(uint64_t unit_value, uint64_t unit_scale,
    }
 
    time_scale = unit_value * unit_scale;
+   time_precision = prec_value * prec_scale;
 }
 
 static void skip_over_attributes(void)
@@ -1409,6 +1411,9 @@ static vlog_node_t p_system_tf_call(vlog_kind_t kind)
    vlog_set_ident(v, id);
    vlog_set_subkind(v, subk);
 
+   if (kind == V_SYS_TCALL)
+      vlog_set_ival(v, time_scale);
+
    if (optional(tLPAREN)) {
       p_list_of_arguments(v);
       consume(tRPAREN);
@@ -1483,6 +1488,55 @@ static vlog_node_t p_method_call(void)
    vlog_set_loc(v, CURRENT_LOC);
    vlog_symtab_lookup(symtab, v);
    return v;
+}
+
+static vlog_node_t scale_time_function(vlog_node_t v)
+{
+   // The simulator counts femtoseconds but $time and $realtime return the
+   // time in units of the current `timescale
+
+   if (time_scale == 1 || vlog_kind(v) != V_SYS_FCALL)
+      return v;
+
+   const char *name = istr(vlog_ident(v));
+
+   vlog_node_t k;
+   if (strcmp(name, "$time") == 0) {
+      const jit_scalar_t scale = { .integer = time_scale };
+      const jit_scalar_t zero = { .integer = 0 };
+
+      k = vlog_new(V_NUMBER);
+      vlog_set_number(k, number_from_jit(64, false, scale, zero));
+
+      // Round to the nearest time unit with ties rounding up
+      const jit_scalar_t half = { .integer = time_scale / 2 };
+
+      vlog_node_t h = vlog_new(V_NUMBER);
+      vlog_set_number(h, number_from_jit(64, false, half, zero));
+      vlog_set_loc(h, vlog_loc(v));
+
+      vlog_node_t sum = vlog_new(V_BINARY);
+      vlog_set_subkind(sum, V_BINARY_PLUS);
+      vlog_set_left(sum, v);
+      vlog_set_right(sum, h);
+      vlog_set_loc(sum, vlog_loc(v));
+      v = sum;
+   }
+   else if (strcmp(name, "$realtime") == 0) {
+      k = vlog_new(V_REAL);
+      vlog_set_dval(k, time_scale);
+   }
+   else
+      return v;
+
+   vlog_set_loc(k, vlog_loc(v));
+
+   vlog_node_t div = vlog_new(V_BINARY);
+   vlog_set_subkind(div, V_BINARY_DIVIDE);
+   vlog_set_left(div, v);
+   vlog_set_right(div, k);
+   vlog_set_loc(div, vlog_loc(v));
+   return div;
 }
 
 static vlog_node_t p_subroutine_call(vlog_kind_t kind)
@@ -1786,7 +1840,7 @@ static vlog_node_t p_primary(void)
       head = p_primary_literal();
       break;
    case tSYSTASK:
-      head = p_subroutine_call(V_SYS_FCALL);
+      head = scale_time_function(p_subroutine_call(V_SYS_FCALL));
       break;
    case tLPAREN:
       consume(tLPAREN);
@@ -2355,6 +2409,41 @@ static vlog_node_t p_event_control(void)
    return v;
 }
 
+static vlog_node_t scale_delay(vlog_node_t v)
+{
+   // Delays are counted in femtoseconds but an expression is written in
+   // units of the current `timescale
+
+   if (time_scale == 1)
+      return v;
+
+   if (vlog_kind(v) == V_NUMBER && number_is_defined(vlog_number(v))) {
+      int64_t value;
+      if (__builtin_mul_overflow(number_integer(vlog_number(v)), time_scale,
+                                 &value))
+         error_at(vlog_loc(v), "time value cannot be represented");
+
+      vlog_node_t n = vlog_new(V_NUMBER);
+      vlog_set_number(n, number_from_int(value));
+      vlog_set_loc(n, vlog_loc(v));
+      return n;
+   }
+
+   const jit_scalar_t scale = { .integer = time_scale };
+   const jit_scalar_t zero = { .integer = 0 };
+
+   vlog_node_t k = vlog_new(V_NUMBER);
+   vlog_set_number(k, number_from_jit(64, false, scale, zero));
+   vlog_set_loc(k, vlog_loc(v));
+
+   vlog_node_t mul = vlog_new(V_BINARY);
+   vlog_set_subkind(mul, V_BINARY_TIMES);
+   vlog_set_left(mul, v);
+   vlog_set_right(mul, k);
+   vlog_set_loc(mul, vlog_loc(v));
+   return mul;
+}
+
 static vlog_node_t p_delay_value(void)
 {
    // unsigned_number | real_number | ps_identifier | time_literal | 1step
@@ -2363,7 +2452,11 @@ static vlog_node_t p_delay_value(void)
 
    switch (peek()) {
    case tREAL:
-      return p_real_number();
+      {
+         vlog_node_t v = p_real_number();
+         vlog_set_dval(v, vlog_dval(v) * time_scale);
+         return v;
+      }
    case tID:
       {
          vlog_node_t v = vlog_new(V_REF);
@@ -2371,7 +2464,7 @@ static vlog_node_t p_delay_value(void)
          vlog_set_loc(v, CURRENT_LOC);
 
          vlog_symtab_lookup(symtab, v);
-         return v;
+         return scale_delay(v);
       }
    case tTIMELIT:
       {
@@ -2426,7 +2519,7 @@ static vlog_node_t p_delay_control(void)
    if (peek() != tLPAREN)
       vlog_set_value(v, p_delay_value());
    else
-      vlog_set_value(v, p_mintypmax_expression());
+      vlog_set_value(v, scale_delay(p_mintypmax_expression()));
 
    vlog_set_loc(v, CURRENT_LOC);
    return v;
@@ -7501,6 +7594,7 @@ static vlog_node_t p_module_declaration(void)
    BEGIN("module declaration");
 
    vlog_node_t mod = vlog_new(V_MODULE);
+   vlog_set_ival(mod, time_precision);
 
    optional_attributes();
 
@@ -8534,6 +8628,7 @@ void reset_verilog_parser(void)
    last_attr = NULL;
    next_namespace = 1;
    time_scale = 1;
+   time_precision = 0;
 
    if (symtab != NULL) {
       vlog_symtab_free(symtab);

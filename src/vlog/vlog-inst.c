@@ -136,6 +136,9 @@ vlog_node_t vlog_new_instance(vlog_node_t mod, vlog_node_t inst, ident_t id)
 
    switch (vlog_kind(mod)) {
    case V_MODULE:
+      vlog_set_ident2(v, vlog_ident2(mod));
+      vlog_set_ival(v, vlog_ival(mod));
+      break;
    case V_PRIMITIVE:
    case V_PROGRAM:
       vlog_set_ident2(v, vlog_ident2(mod));

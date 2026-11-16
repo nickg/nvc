@@ -28,7 +28,7 @@ STATIC_ASSERT(V_LAST_NODE_KIND < 256);
 
 static const imask_t has_map[V_LAST_NODE_KIND] = {
    // V_MODULE
-   (I_IDENT | I_PORTS | I_STMTS | I_DECLS | I_IDENT2),
+   (I_IDENT | I_PORTS | I_STMTS | I_DECLS | I_IDENT2 | I_IVAL),
 
    // V_PORT_DECL
    (I_IDENT | I_SUBKIND | I_IDENT2 | I_REF | I_RANGES | I_TYPE | I_VALUE),
@@ -55,7 +55,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT | I_DECLS | I_STMTS),
 
    // V_SYS_TCALL
-   (I_IDENT | I_PARAMS | I_SUBKIND),
+   (I_IDENT | I_PARAMS | I_SUBKIND | I_IVAL),
 
    // V_STRING
    (I_NUMBER),
@@ -208,7 +208,7 @@ static const imask_t has_map[V_LAST_NODE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // V_INST_BODY
-   (I_IDENT | I_IDENT2 | I_PORTS | I_STMTS | I_DECLS),
+   (I_IDENT | I_IDENT2 | I_PORTS | I_STMTS | I_DECLS | I_IVAL),
 
    // V_PORT_CONN
    (I_IDENT | I_VALUE),

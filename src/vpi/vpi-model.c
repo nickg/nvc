@@ -221,6 +221,7 @@ typedef struct _vpi_context {
    text_buf_t    *valuestr;
    mem_pool_t    *pool;
    vpiObjectList  recycle;
+   int64_t        precision;   // Simulation time precision in fs
 } vpi_context_t;
 
 static c_vpiObject *build_expr(vlog_node_t v, c_abstractScope *scope);
@@ -234,6 +235,58 @@ static inline vpi_context_t *vpi_context(void)
 {
    assert(global_context != NULL);
    return global_context;
+}
+
+static rt_model_t *vpi_get_model(vpi_context_t *c);
+
+static int time_exponent(int64_t fs)
+{
+   // Convert a time in femtoseconds to a power of ten seconds
+   int exp = -15;
+   for (; fs >= 10; fs /= 10)
+      exp++;
+   return exp;
+}
+
+static void scan_time_precision(tree_t scope, int64_t *precision)
+{
+   const int ndecls = tree_decls(scope);
+   if (tree_kind(scope) == T_BLOCK && ndecls > 0) {
+      tree_t hier = tree_decl(scope, 0);
+      if (tree_kind(hier) == T_HIER) {
+         tree_t wrap = tree_ref(hier);
+         if (tree_kind(wrap) == T_VERILOG) {
+            vlog_node_t v = tree_vlog(wrap);
+            if (vlog_kind(v) == V_INST_BODY) {
+               // Zero if the module has no `timescale directive
+               const int64_t p = vlog_ival(v);
+               if (p > 0 && p < *precision)
+                  *precision = p;
+            }
+         }
+      }
+   }
+
+   const int nstmts = tree_stmts(scope);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(scope, i);
+      if (tree_kind(s) == T_BLOCK)
+         scan_time_precision(s, precision);
+   }
+}
+
+static int64_t simulation_precision(vpi_context_t *c)
+{
+   // The smallest time precision of all modules in the design
+
+   if (c->precision == 0) {
+      int64_t precision = INT64_MAX;
+      scan_time_precision(root_scope(vpi_get_model(c))->where, &precision);
+
+      c->precision = (precision == INT64_MAX) ? 1 : precision;
+   }
+
+   return c->precision;
 }
 
 static handle_slot_t *decode_handle(vpi_context_t *c, vpiHandle handle)
@@ -1080,12 +1133,28 @@ PLI_INT32 vpi_get(PLI_INT32 property, vpiHandle object)
    VPI_TRACE("property=%s object=%s", vpi_property_str(property),
              handle_pp(object));
 
+   if (object == NULL) {
+      switch (property) {
+      case vpiTimeUnit:
+      case vpiTimePrecision:
+         return time_exponent(simulation_precision(vpi_context()));
+      default:
+         return vpiUndefined;
+      }
+   }
+
    c_vpiObject *obj = from_handle(object);
    if (obj == NULL)
       return vpiUndefined;
 
    if (property == vpiType)
       return obj->type;
+
+   if (property == vpiTimeUnit) {
+      c_sysTfCall *call = is_sysTfCall(obj);
+      if (call != NULL && vlog_kind(call->tfcall.where) == V_SYS_TCALL)
+         return time_exponent(vlog_ival(call->tfcall.where));
+   }
 
    c_constant *con = is_constantOrParam(obj);
    if (con != NULL) {
