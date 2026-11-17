@@ -15,9 +15,10 @@ runs:
           mingw-w64-clang-x86_64-zstd
           mingw-w64-clang-x86_64-clang
           mingw-w64-clang-x86_64-readline
-          mingw-w64-clang-x86_64-python3
+          mingw-w64-clang-x86_64-python
           unzip
           git
+          flex
           autoconf
           automake-wrapper
     - name: Download TCL binaries

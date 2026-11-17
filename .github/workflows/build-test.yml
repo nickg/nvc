@@ -171,6 +171,7 @@ jobs:
             mingw-w64-clang-x86_64-zstd
             mingw-w64-clang-x86_64-readline
             git
+            flex
             autoconf
             automake-wrapper
       - name: Generate configure script
