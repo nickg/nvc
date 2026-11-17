@@ -194,7 +194,12 @@ static void lookup_member(vlog_symtab_t *st, vlog_node_t v)
    }
 
    const vlog_kind_t kind = vlog_kind(type);
-   if (kind != V_STRUCT_DECL && kind != V_UNION_DECL && kind != V_CLASS_DECL) {
+   if (kind == V_DATA_TYPE && vlog_subkind(type) == DT_EVENT) {
+      error_at(vlog_loc(v), "sorry, event methods are not yet supported");
+      return;
+   }
+   else if (kind != V_STRUCT_DECL && kind != V_UNION_DECL
+            && kind != V_CLASS_DECL) {
       diag_t *d = diag_new(DIAG_ERROR, vlog_loc(prefix));
       if (vlog_kind(prefix) == V_REF)
          diag_printf(d, "%pQ", vlog_ident(prefix));

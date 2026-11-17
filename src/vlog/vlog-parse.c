@@ -3271,10 +3271,20 @@ static vlog_node_t p_event_trigger(void)
 
    BEGIN("event trigger");
 
-   consume(tIFIMPL);
-
    vlog_node_t v = vlog_new(V_EVENT_TRIGGER);
-   vlog_set_ident(v, p_identifier());
+
+   if (optional(tNBTRIGGER)) {
+      vlog_set_subkind(v, V_TRIGGER_NONBLOCKING);
+
+      if (peek() == tHASH)
+         vlog_set_delay(v, p_delay_or_event_control());
+   }
+   else {
+      consume(tIFIMPL);
+      vlog_set_subkind(v, V_TRIGGER_BLOCKING);
+   }
+
+   vlog_set_target(v, p_variable_lvalue());
 
    consume(tSEMI);
 
@@ -3515,6 +3525,7 @@ static vlog_node_t p_statement_item(ident_t id)
    case tCASEZ:
       return p_case_statement();
    case tIFIMPL:
+   case tNBTRIGGER:
       return p_event_trigger();
    case tASSIGN:
    case tDEASSIGN:
@@ -3532,7 +3543,7 @@ static vlog_node_t p_statement_item(ident_t id)
    default:
       one_of(tID, tAT, tHASH, tBEGIN, tFORK, tSYSTASK, tVOID, tIF, tFOREVER,
              tWHILE, tREPEAT, tDO, tFOR, tWAIT, tCASE, tCASEX, tCASEZ, tIFIMPL,
-             tASSIGN, tDEASSIGN, tFORCE, tRELEASE, tRETURN, tASSERT);
+             tNBTRIGGER, tASSIGN, tDEASSIGN, tFORCE, tRELEASE, tRETURN, tASSERT);
       drop_tokens_until(&state, tSEMI);
       return vlog_new(V_SEQ_BLOCK);  // Dummy statement
    }

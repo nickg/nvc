@@ -362,6 +362,22 @@ static void vlog_dump_nbassign(vlog_node_t v, int indent)
    print_syntax(";");
 }
 
+static void vlog_dump_event_trigger(vlog_node_t v, int indent)
+{
+   if (vlog_subkind(v) == V_TRIGGER_NONBLOCKING)
+      print_syntax("->> ");
+   else
+      print_syntax("-> ");
+
+   if (vlog_has_delay(v)) {
+      vlog_dump(vlog_delay(v), 0);
+      print_syntax(" ");
+   }
+
+   vlog_dump(vlog_target(v), 0);
+   print_syntax(";");
+}
+
 static void vlog_dump_bassign(vlog_node_t v, int indent)
 {
    vlog_dump(vlog_target(v), 0);
@@ -1160,6 +1176,9 @@ void vlog_dump(vlog_node_t v, int indent)
       break;
    case V_NBASSIGN:
       vlog_dump_nbassign(v, indent);
+      break;
+   case V_EVENT_TRIGGER:
+      vlog_dump_event_trigger(v, indent);
       break;
    case V_BASSIGN:
       vlog_dump_bassign(v, indent);

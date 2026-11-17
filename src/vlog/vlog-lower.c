@@ -192,6 +192,11 @@ static const type_info_t *vlog_type_info(vlog_gen_t *g, vlog_node_t v)
       ti->size = vlog_size(v);
       ti->type = mir_vec2_type(g->mu, ti->size, issigned);
       break;
+   case DT_EVENT:
+      // An event is a wrapping counter incremented by each trigger
+      ti->size = 32;
+      ti->type = mir_vec2_type(g->mu, ti->size, false);
+      break;
    default:
       CANNOT_HANDLE(v);
    }
@@ -2635,6 +2640,35 @@ static void vlog_lower_non_blocking_assignment(vlog_gen_t *g, vlog_node_t v)
    }
 }
 
+static void vlog_lower_event_trigger(vlog_gen_t *g, vlog_node_t v)
+{
+   // An event variable is a counter which is incremented to trigger it
+
+   vlog_node_t target = vlog_target(v);
+
+   mir_value_t cur = vlog_lower_rvalue(g, target);
+   mir_type_t type = mir_get_type(g->mu, cur);
+   mir_value_t one = mir_const_vec(g->mu, type, 1, 0);
+   mir_value_t inc = mir_build_binary(g->mu, MIR_VEC_ADD, type, cur, one);
+
+   if (vlog_subkind(v) == V_TRIGGER_BLOCKING) {
+      vlog_assign_variable(g, target, inc, NULL);
+      return;
+   }
+
+   mir_type_t t_time = mir_time_type(g->mu);
+   mir_value_t after = mir_const(g->mu, t_time, 0);
+
+   vlog_select_t lvalue = vlog_lower_select(g, target);
+   mir_value_t nets = mir_build_array_ref(g->mu, lvalue.obj, lvalue.dst_offset);
+   mir_type_t t_elem = mir_logic_type(g->mu);
+   mir_type_t t_array = mir_carray_type(g->mu, lvalue.size, t_elem);
+   mir_value_t tmp = vlog_get_temp(g, t_array);
+   mir_value_t unpacked = mir_build_unpack(g->mu, inc, 0, tmp);
+   mir_value_t src = mir_build_array_ref(g->mu, unpacked, lvalue.src_offset);
+   mir_build_sched_deposit(g->mu, nets, lvalue.count, src, after);
+}
+
 static void vlog_lower_if(vlog_gen_t *g, vlog_node_t v, gen_stack_t *gs)
 {
    mir_block_t exit_bb = MIR_NULL_BLOCK;
@@ -3125,6 +3159,9 @@ static void vlog_lower_stmts(vlog_gen_t *g, vlog_node_t v, gen_stack_t *gs)
          break;
       case V_NBASSIGN:
          vlog_lower_non_blocking_assignment(g, s);
+         break;
+      case V_EVENT_TRIGGER:
+         vlog_lower_event_trigger(g, s);
          break;
       case V_FORCE:
       case V_ASSIGN:  // Legacy procedural assign
@@ -4083,6 +4120,9 @@ static void vlog_lower_var_decl(vlog_gen_t *g, vlog_node_t v, tree_t wrap)
    }
    else if (mir_get_class(g->mu, ti->unpacked) == MIR_TYPE_REAL)
       value = mir_const_real(g->mu, ti->unpacked, 0.0);
+   else if (vlog_kind(vlog_type(v)) == V_DATA_TYPE
+            && vlog_subkind(vlog_type(v)) == DT_EVENT)
+      value = mir_const(g->mu, ti->unpacked, LOGIC_0);
    else
       value = mir_const(g->mu, ti->unpacked, LOGIC_X);
 
