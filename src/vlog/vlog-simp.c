@@ -59,6 +59,44 @@ static vlog_node_t simp_net_decl(vlog_node_t decl, vlog_node_t mod)
 
       vlog_add_stmt(mod, g);
    }
+   else if ((kind == V_NET_TRI0 || kind == V_NET_TRI1)
+            && vlog_ranges(decl) == 0) {
+      // A tri0 or tri1 net is pulled to 0 or 1 when nothing else drives
+      // it, see 1800-2023 section 6.6.5
+      vlog_node_t a = vlog_new(V_ASSIGN);
+      vlog_set_loc(a, vlog_loc(decl));
+
+      ident_t name = vlog_ident(decl);
+      vlog_set_ident(a, ident_prefix(name, ident_new("pull"), '#'));
+
+      vlog_node_t s = vlog_new(V_STRENGTH);
+      vlog_set_subkind(s, ST_PULLUP);
+      vlog_add_param(a, s);
+
+      vlog_node_t target = vlog_new(V_REF);
+      vlog_set_loc(target, vlog_loc(decl));
+      vlog_set_ident(target, name);
+      vlog_set_ref(target, decl);
+      vlog_set_target(a, target);
+
+      // All ones or all zeros for any width: ~0 is extended to the width
+      // of the target before it is inverted
+      vlog_node_t zero = vlog_new(V_NUMBER);
+      vlog_set_loc(zero, vlog_loc(decl));
+      vlog_set_number(zero, number_from_int(0));
+
+      if (kind == V_NET_TRI1) {
+         vlog_node_t ones = vlog_new(V_UNARY);
+         vlog_set_loc(ones, vlog_loc(decl));
+         vlog_set_subkind(ones, V_UNARY_BITNEG);
+         vlog_set_value(ones, zero);
+         vlog_set_value(a, ones);
+      }
+      else
+         vlog_set_value(a, zero);
+
+      vlog_add_stmt(mod, a);
+   }
 
    return decl;
 }

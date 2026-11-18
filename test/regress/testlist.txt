@@ -1078,6 +1078,7 @@ vlog13          verilog
 issue1094       normal,2008
 issue1060       fail,gold,vhpi
 ivtest5         verilog
+visunknown1     verilog
 guard5          normal
 driver23        normal,2008
 conv16          normal,2008
@@ -1119,6 +1120,7 @@ cover27         shell
 issue1143       normal,2008
 real7           fail,gold,2008
 vlog14          verilog
+vzeroev1        verilog
 issue1208       normal,2019
 ieee18          fail,gold,2008
 issue1213       normal,vhpi,2008
@@ -1163,6 +1165,7 @@ issue1260       normal,2008
 mixed5          mixed
 vlog22          verilog
 ivtest12        verilog
+vportdrv1       verilog
 vlog23          verilog
 vlog24          verilog
 tfcall2         verilog
@@ -1183,6 +1186,7 @@ ivtest14        verilog
 issue1269       normal,2008
 ivtest15        verilog
 tfcall4         verilog
+vtaskout1       verilog
 cmdline17       shell
 issue1282       verilog
 ivtest16        verilog
@@ -1268,6 +1272,7 @@ vhpi19          vhpi
 issue1433       shell
 reflect6        normal,2019
 vlog32          verilog
+vlparray1       verilog
 vlog33          verilog
 vlog35          verilog,gold
 issue1427       normal,2008
@@ -1315,6 +1320,7 @@ xprop3          verilog
 xprop4          verilog
 binary6         verilog
 binary7         verilog
+vfunctime1      verilog
 ivtest30        verilog,gold
 ivtest31        verilog,gold
 issue1516       mixed,2008
@@ -1323,6 +1329,7 @@ tfcall6         verilog
 display3        verilog,gold
 ivtest32        verilog
 ivtest33        verilog
+vspecparam1     verilog,fail,gold
 ivtest34        verilog
 ivtest35        verilog
 ivtest36        verilog
@@ -1335,6 +1342,7 @@ select10        verilog
 select11        verilog
 select12        verilog
 select13        verilog
+vrealbits1      verilog,gold
 select14        verilog
 select15        verilog
 select16        verilog
@@ -1350,6 +1358,7 @@ select18        verilog
 select19        verilog
 select20        verilog
 ivtest41        verilog
+vtripull1       verilog
 ivtest42        verilog,gold
 display4        verilog,gold
 struct1         verilog
@@ -1377,6 +1386,7 @@ ivtest50        verilog,gold
 struct3         verilog
 ivtest51        verilog
 gate2           verilog
+vgatearr1       verilog
 issue1541       normal
 issue1539       normal,2008
 issue1534       normal,2008
@@ -1394,6 +1404,7 @@ issue1517       cover=statement
 issue1518       verilog
 ivtest55        verilog,gold
 real13          verilog
+vportrange1     verilog
 concat8         verilog
 case16          verilog
 case17          verilog
@@ -1416,6 +1427,7 @@ vlog41          verilog,gold,fail
 string4         verilog
 conf6           normal,2008
 vlog42          verilog
+vemptyarg1      verilog,gold
 issue1587       normal,2008
 cmdline21       shell
 ivtest58        verilog

@@ -289,7 +289,7 @@ static bool scan_block_item_declaration(void)
    if (scan_type_declaration())
       return true;
 
-   return scan(tLOCALPARAM, tPARAMETER);
+   return scan(tLOCALPARAM, tPARAMETER, tCONST);
 }
 
 static bool scan_tf_item_declaration(void)
@@ -297,7 +297,7 @@ static bool scan_tf_item_declaration(void)
    if (scan_type_declaration())
       return true;
 
-   return scan(tINPUT, tOUTPUT, tINOUT, tLOCALPARAM, tPARAMETER);
+   return scan(tINPUT, tOUTPUT, tINOUT, tLOCALPARAM, tPARAMETER, tCONST);
 }
 
 static ident_t p_identifier(void)
@@ -1374,7 +1374,7 @@ static void p_list_of_arguments(vlog_node_t call)
       return;
 
    do {
-      if (peek() == tCOMMA) {
+      if (peek() == tCOMMA || peek() == tRPAREN) {
          vlog_node_t v = vlog_new(V_EMPTY);
          vlog_set_loc(v, &state.last_loc);
          vlog_add_param(call, v);
@@ -1402,6 +1402,7 @@ static vlog_node_t p_system_tf_call(vlog_kind_t kind)
    case W_DLR_RTOI:     subk = V_SYSTF_RTOI; break;
    case W_DLR_CEIL:     subk = V_SYSTF_CEIL; break;
    case W_DLR_FLOOR:    subk = V_SYSTF_FLOOR; break;
+   case W_DLR_ISUNKNOWN: subk = V_SYSTF_ISUNKNOWN; break;
    default:             subk = V_SYSTF_NONE; break;
    }
 
@@ -4092,6 +4093,7 @@ static void p_data_declaration(vlog_node_t parent, vlog_kind_t kind)
       break;
    default:
       {
+         optional(tCONST);
          optional(tVAR);
 
          vlog_node_t dt = p_data_type_or_implicit();
@@ -4229,8 +4231,13 @@ static void p_tf_item_declaration(vlog_node_t tf)
    case tINPUT:
    case tOUTPUT:
    case tINOUT:
-   case tCONST:
       p_tf_port_declaration(tf);
+      break;
+   case tCONST:
+      if (peek_nth(2) == tREF)
+         p_tf_port_declaration(tf);
+      else
+         p_block_item_declaration(tf);
       break;
    default:
       p_block_item_declaration(tf);
@@ -4350,7 +4357,10 @@ static vlog_node_t p_function_data_type_or_implicit(void)
    case tREALTIME:
    case tLOGIC:
    case tBIT:
+   case tBYTE:
    case tSHORTINT:
+   case tLONGINT:
+   case tTIME:
    case tSTRINGK:
    case tEVENT:
    case tVOID:
@@ -4477,6 +4487,15 @@ static vlog_node_t p_param_assignment(vlog_node_t datatype, vlog_kind_t kind)
    vlog_node_t v = vlog_new(kind);
    vlog_set_ident(v, p_identifier());
    vlog_set_type(v, datatype);
+
+   while (peek() == tLSQUARE) {
+      vlog_node_t dim = p_unpacked_dimension();
+      if (kind == V_LOCALPARAM)
+         vlog_add_range(v, dim);
+      else
+         parse_error(vlog_loc(dim), "sorry, unpacked array parameters are "
+                     "not yet supported");
+   }
 
    if (optional(tEQ))
       vlog_set_value(v, p_constant_param_expression());
@@ -4772,6 +4791,7 @@ static void p_block_item_declaration(vlog_node_t parent)
    case tLOGIC:
    case tSHORTINT:
    case tTIME:
+   case tCONST:
    case tID:
       p_data_declaration(parent, V_LOCAL_DECL);
       break;
@@ -5623,6 +5643,9 @@ static vlog_node_t p_pull_gate_instance(vlog_gate_kind_t kind, vlog_node_t st)
       vlog_set_ident(v, p_identifier());
       vlog_set_loc(v, &state.last_loc);
       vlog_symtab_put(symtab, v);
+
+      if (peek() == tLSQUARE)
+         vlog_add_range(v, p_unpacked_dimension());
    }
    else
       vlog_set_ident(v, default_label("gate"));
@@ -5656,6 +5679,9 @@ static vlog_node_t p_n_terminal_gate_instance(vlog_gate_kind_t kind,
       vlog_set_ident(v, p_identifier());
       vlog_set_loc(v, &state.last_loc);
       vlog_symtab_put(symtab, v);
+
+      if (peek() == tLSQUARE)
+         vlog_add_range(v, p_unpacked_dimension());
    }
    else
       vlog_set_ident(v, default_label("gate"));
@@ -5696,6 +5722,9 @@ static vlog_node_t p_enable_gate_instance(vlog_gate_kind_t kind,
       vlog_set_ident(v, p_identifier());
       vlog_set_loc(v, &state.last_loc);
       vlog_symtab_put(symtab, v);
+
+      if (peek() == tLSQUARE)
+         vlog_add_range(v, p_unpacked_dimension());
    }
    else
       vlog_set_ident(v, default_label("gate"));

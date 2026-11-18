@@ -39,6 +39,7 @@
 #include "tree.h"
 #include "type.h"
 #include "vlog/vlog-node.h"
+#include "vlog/vlog-number.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -130,6 +131,7 @@ typedef struct _rt_model {
    deferq_t           next_inactiveq;
    deferq_t           nonblockq;
    deferq_t           reschedq;
+   deferq_t           zeroq;
    heap_t            *driving_heap;
    heap_t            *effective_heap;
    rt_callback_t     *phase_cbs[END_OF_SIMULATION + 1];
@@ -171,6 +173,7 @@ static void put_driving(rt_model_t *m, rt_nexus_t *n, const void *value);
 static void put_effective(rt_model_t *m, rt_nexus_t *n, const void *value);
 static bool run_trigger(rt_model_t *m, rt_trigger_t *t);
 static void wakeup_all(rt_model_t *m, void **pending);
+static void notify_event(rt_model_t *m, rt_nexus_t *n);
 static void reset_scope(rt_model_t *m, rt_scope_t *s);
 static void async_run_process(rt_model_t *m, void *arg);
 static void async_update_property(rt_model_t *m, void *arg);
@@ -635,6 +638,7 @@ void model_free(rt_model_t *m)
    free(m->next_inactiveq.tasks);
    free(m->nonblockq.tasks);
    free(m->reschedq.tasks);
+   free(m->zeroq.tasks);
    free(m->driverq.tasks);
    free(m->next_driverq.tasks);
 
@@ -1196,6 +1200,13 @@ static void check_multiple_sources(rt_nexus_t *n, source_kind_t kind)
       diag_hint(d, tree_loc(root->where), "composite signal %pI declared with "
                 "unresolved type %pT", tree_ident(root->where),
                 tree_type(root->where));
+   }
+   else if (tree_kind(n->signal->where) == T_VERILOG) {
+      d = diag_new(DIAG_FATAL, tree_loc(n->signal->where));
+      diag_printf(d, "variable %pI has multiple sources",
+                  tree_ident(n->signal->where));
+      diag_hint(d, tree_loc(n->signal->where), "variable %pI declared here",
+                tree_ident(n->signal->where));
    }
    else {
       d = diag_new(DIAG_FATAL, tree_loc(n->signal->where));
@@ -2323,6 +2334,33 @@ static void create_processes(rt_model_t *m, rt_scope_t *s)
    }
 }
 
+static bool is_driven_vlog_net(rt_nexus_t *n)
+{
+   // True for a Verilog net that is no longer Z after initialisation
+   if (n->size != 1 || n->signal->resolution == NULL)
+      return false;
+   else if (tree_kind(n->signal->where) != T_VERILOG)
+      return false;
+
+   const uint8_t *value = nexus_effective(n);
+   for (int i = 0; i < n->width; i++) {
+      if (value[i] != LOGIC_Z)
+         return true;
+   }
+
+   return false;
+}
+
+static void async_zero_event(rt_model_t *m, void *arg)
+{
+   rt_nexus_t *n = arg;
+
+   // The continuous assignments that drive the net ran before the
+   // procedures waiting for a change of the net: this is not an edge
+   memcpy(nexus_last_value(n), nexus_effective(n), n->width);
+   notify_event(m, n);
+}
+
 void model_reset(rt_model_t *m)
 {
    MODEL_ENTRY(m);
@@ -2394,6 +2432,11 @@ void model_reset(rt_model_t *m)
    for (int i = 0; i < m->reschedq.count; i++)
       (*m->reschedq.tasks[i].fn)(m, m->reschedq.tasks[i].arg);
    m->reschedq.count = 0;
+
+   for (rt_nexus_t *n = m->nexuses; n != NULL; n = n->chain) {
+      if (is_driven_vlog_net(n))
+         deferq_do(&m->zeroq, async_zero_event, n);
+   }
 
    tlab_reset(thread->tlab);   // No allocations can be live past here
 
@@ -3331,6 +3374,10 @@ static void model_cycle(rt_model_t *m)
    // Run all non-postponed processes and event callbacks
    deferq_swap(&m->next_procq, &m->procq);
    deferq_run(m, &m->next_procq);
+
+   // Verilog nets given a value during initialisation change from Z
+   // at time zero once the initial and always procedures have started
+   deferq_run(m, &m->zeroq);
 
    run_callbacks(m, END_OF_PROCESSES);
 
