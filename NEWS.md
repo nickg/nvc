@@ -11,6 +11,8 @@
   choice are now accepted with `--relaxed` (#1637).
 - `process(all)` sensitivity list construction now correctly checks
   all nested subprograms instead of only procedures (#1721).
+- An alias of a subprogram or enumeration literal now requires a
+  signature (#1751).
 - Signed integral operands of Verilog expressions mixed with real
   operands are now converted to real as signed values.
 - Fixed a JIT bug where sign extension of a Verilog vector could
