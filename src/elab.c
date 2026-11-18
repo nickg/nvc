@@ -43,6 +43,7 @@
 #include <assert.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <string.h>
 #include <inttypes.h>
 
 #define MAX_DEPTH 127    // Limited by vcode type indexes
@@ -92,6 +93,9 @@ typedef struct _generic_list {
    generic_list_t *next;
    ident_t         name;
    char           *value;
+   bool            pattern;
+   bool            soft;
+   unsigned        uses;
 } generic_list_t;
 
 typedef struct {
@@ -1147,7 +1151,7 @@ static tree_t elab_parse_generic_string(tree_t generic, const char *str)
       tree_set_type(result, type);
       tree_set_ival(result, value.integer);
       tree_set_loc(result, tree_loc(generic));
-      tree_set_ident(result, tree_ident(type_unit(type, 0)));
+      tree_set_ident(result, tree_ident(type_unit(type_base_recur(type), 0)));
 
       return result;
    }
@@ -1174,6 +1178,48 @@ static tree_t elab_parse_generic_string(tree_t generic, const char *str)
             type);
 }
 
+static bool elab_override_matches(generic_list_t *it, ident_t path,
+                                  ident_t legacy)
+{
+   if (!it->pattern)
+      return ident_casecmp(it->name, path)
+         || (legacy != NULL && ident_casecmp(it->name, legacy));
+
+   LOCAL_TEXT_BUF glob = tb_new();
+   tb_istr(glob, it->name);
+   tb_upcase(glob);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_istr(tb, path);
+   tb_upcase(tb);
+
+   // A pattern starting with "*." also matches a top-level generic
+   ident_t upath = ident_new(tb_get(tb));
+   const char *str = tb_get(glob);
+   return ident_glob(upath, str, -1)
+      || (str[0] == '*' && str[1] == '.' && ident_glob(upath, str + 2, -1));
+}
+
+static generic_list_t *elab_find_override(ident_t path, ident_t legacy,
+                                          bool soft)
+{
+   // A full name is preferred to a pattern, otherwise the override given
+   // last on the command line wins
+   for (generic_list_t *it = generic_override; it; it = it->next) {
+      if (it->soft == soft && !it->pattern
+          && elab_override_matches(it, path, legacy))
+         return it;
+   }
+
+   for (generic_list_t *it = generic_override; it; it = it->next) {
+      if (it->soft == soft && it->pattern
+          && elab_override_matches(it, path, legacy))
+         return it;
+   }
+
+   return NULL;
+}
+
 static tree_t elab_find_generic_override(tree_t g, const elab_ctx_t *ctx)
 {
    if (generic_override == NULL)
@@ -1181,22 +1227,54 @@ static tree_t elab_find_generic_override(tree_t g, const elab_ctx_t *ctx)
 
    ident_t name = tree_ident(g);
 
-   generic_list_t **it, *tmp;
-   for (it = &generic_override;
-        *it && !ident_casecmp((*it)->name, name);
-        it = &((*it)->next))
-      ;
+   generic_list_t *it = elab_find_override(name, NULL, false);
+   if (it == NULL)
+      it = elab_find_override(name, NULL, true);
 
-   if (*it == NULL)
+   if (it == NULL)
       return NULL;
 
-   tree_t value = elab_parse_generic_string(g, (*it)->value);
+   it->uses++;
+   return elab_parse_generic_string(g, it->value);
+}
 
-   *it = (tmp = (*it))->next;
-   free(tmp->value);
-   free(tmp);
+static bool elab_is_component_scope(const elab_ctx_t *ctx)
+{
+   return ctx->inst != NULL && tree_kind(tree_ref(ctx->inst)) == T_COMPONENT;
+}
 
-   return value;
+static void elab_override_path(const elab_ctx_t *ctx, bool legacy,
+                               text_buf_t *tb)
+{
+   // Labels of the instances, blocks and generate statements between the
+   // top level and the context, or only the instance labels for the
+   // older form of name
+   const elab_ctx_t *parent = ctx->parent;
+   if (parent == NULL || parent->parent == NULL)
+      return;
+
+   elab_override_path(parent, legacy, tb);
+
+   const char *dotted = istr(ctx->dotted);
+   const size_t plen = ident_len(parent->dotted);
+
+   if (ctx->dotted == parent->dotted || dotted[plen] != '.')
+      return;
+   else if (elab_is_component_scope(parent))
+      return;   // Implicit block of a component instance
+   else if (legacy && ctx->inst == parent->inst)
+      return;   // Block or generate statement
+
+   tb_cat(tb, dotted + plen + 1);
+   tb_append(tb, '.');
+}
+
+static bool elab_generic_is_open(tree_t g, tree_t m)
+{
+   // True if the generic map has no actual for the generic
+   tree_t value = tree_value(m);
+   return tree_kind(value) == T_OPEN
+      || (tree_has_value(g) && value == tree_value(g));
 }
 
 static tree_t elab_override_instance_generics(tree_t t, const elab_ctx_t *ctx)
@@ -1204,9 +1282,18 @@ static tree_t elab_override_instance_generics(tree_t t, const elab_ctx_t *ctx)
    if (generic_override == NULL)
       return t;
 
-   ident_t prefix = tree_ident(t);
-   for (const elab_ctx_t *e = ctx; e->inst; e = e->parent)
-      prefix = ident_prefix(tree_ident(e->inst), prefix, '.');
+   LOCAL_TEXT_BUF tb = tb_new();
+   LOCAL_TEXT_BUF legacy = tb_new();
+   elab_override_path(ctx, false, tb);
+   elab_override_path(ctx, true, legacy);
+
+   // The instance inside a component instance has the same name
+   if (!elab_is_component_scope(ctx)) {
+      tb_printf(tb, "%s.", istr(tree_ident(t)));
+      tb_printf(legacy, "%s.", istr(tree_ident(t)));
+   }
+
+   const size_t tblen = tb_len(tb), legacylen = tb_len(legacy);
 
    tree_t unit = tree_ref(t), entity = primary_unit_of(unit);
 
@@ -1226,27 +1313,29 @@ static tree_t elab_override_instance_generics(tree_t t, const elab_ctx_t *ctx)
       assert(tree_subkind(m) == P_POS);
       assert(tree_pos(m) == i);
 
-      ident_t qual = ident_prefix(prefix, tree_ident(g), '.');
+      tb_trim(tb, tblen);
+      tb_istr(tb, tree_ident(g));
+      ident_t qual = ident_new(tb_get(tb));
 
-      generic_list_t **it, *tmp;
-      for (it = &generic_override;
-           *it && !ident_casecmp((*it)->name, qual);
-           it = &((*it)->next))
-         ;
+      tb_trim(legacy, legacylen);
+      tb_istr(legacy, tree_ident(g));
+      ident_t lqual = ident_new(tb_get(legacy));
 
-      if (*it == NULL)
+      generic_list_t *it = elab_find_override(qual, lqual, false);
+      if (it == NULL && elab_generic_is_open(g, m))
+         it = elab_find_override(qual, lqual, true);
+
+      if (it == NULL)
          tree_add_genmap(new, m);
       else {
          tree_t m2 = tree_new(T_PARAM);
          tree_set_subkind(m2, P_POS);
          tree_set_pos(m2, i);
-         tree_set_value(m2, elab_parse_generic_string(g, (*it)->value));
+         tree_set_value(m2, elab_parse_generic_string(g, it->value));
 
          tree_add_genmap(new, m2);
 
-         *it = (tmp = (*it))->next;
-         free(tmp->value);
-         free(tmp);
+         it->uses++;
       }
    }
 
@@ -2810,21 +2899,33 @@ static tree_t elab_top_level_binding(tree_t arch, const elab_ctx_t *ctx)
    return inst;
 }
 
-void elab_set_generic(const char *name, const char *value)
+static void elab_add_generic(const char *name, const char *value, bool soft)
 {
    ident_t id = ident_new(name);
 
    for (generic_list_t *it = generic_override; it != NULL; it = it->next) {
-      if (it->name == id)
+      if (it->name == id && it->soft == soft)
          fatal("generic %s already has value '%s'", name, it->value);
    }
 
-   generic_list_t *new = xmalloc(sizeof(generic_list_t));
-   new->name  = id;
-   new->value = xstrdup(value);
-   new->next  = generic_override;
+   generic_list_t *new = xcalloc(sizeof(generic_list_t));
+   new->name    = id;
+   new->value   = xstrdup(value);
+   new->pattern = (strchr(name, '*') != NULL);
+   new->soft    = soft;
+   new->next    = generic_override;
 
    generic_override = new;
+}
+
+void elab_set_generic(const char *name, const char *value)
+{
+   elab_add_generic(name, value, false);
+}
+
+void elab_set_generic_default(const char *name, const char *value)
+{
+   elab_add_generic(name, value, true);
 }
 
 static void elab_vhdl_root(tree_t t, const elab_ctx_t *ctx)
@@ -3078,8 +3179,16 @@ tree_t elab(object_t **top, int ntop, jit_t *jit, unit_registry_t *ur,
    if (opt_get_verbose(OPT_ELAB_VERBOSE, NULL))
       dump(e);
 
-   for (generic_list_t *it = generic_override; it != NULL; it = it->next)
-      warnf("generic value for %pI not used", it->name);
+   for (generic_list_t *it = generic_override, *tmp; it != NULL; it = tmp) {
+      if (it->uses == 0)
+         warnf("generic value for %pI not used", it->name);
+
+      tmp = it->next;
+      free(it->value);
+      free(it);
+   }
+
+   generic_override = NULL;
 
    ident_t b0_name = tree_ident(tree_stmt(e, 0));
    ident_t vu_name = ident_prefix(lib_name(ctx.library), b0_name, '.');

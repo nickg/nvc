@@ -46,6 +46,9 @@ tree_t elab(object_t **top, int ntop, jit_t *jit, unit_registry_t *ur,
 // Set the value of a top-level generic
 void elab_set_generic(const char *name, const char *value);
 
+// Set the value of generics that have no actual in a generic map
+void elab_set_generic_default(const char *name, const char *value);
+
 // Reinitialise elaborated design
 void reheat(tree_t top, unit_registry_t *ur, mir_context_t *mc,
             cover_data_t *cover, rt_model_t *m);
