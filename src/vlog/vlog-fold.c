@@ -105,7 +105,12 @@ static fold_state_t get_fold_state(vlog_node_t v, fold_ctx_t *ctx)
          return state == FOLD_CONST ? FOLD_POSSIBLE : state;
       }
    case V_USER_FCALL:
-      {
+      if (vlog_has_value(v)) {
+         // A hierarchical function call is never a constant expression
+         ctx->nonconst = NULL;
+         return FOLD_NON_CONST;
+      }
+      else {
          vlog_node_t d = vlog_ref(v);
          const vlog_flags_t flags = vlog_flags(d);
          if (!(flags & VLOG_F_CONST)) {

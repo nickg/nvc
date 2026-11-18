@@ -1609,6 +1609,21 @@ static mir_value_t vlog_context_for_call(vlog_gen_t *g, vlog_node_t v)
 {
    if (mir_get_kind(g->mu) == MIR_UNIT_THUNK || g->constfunc)
       return MIR_NULL_VALUE;
+   else if (vlog_has_value(v)) {
+      // Hierarchical call: the context is that of the instance which
+      // declares the task or function
+      ident_t parent = vlog_ident2(vlog_ref(v));
+      mir_type_t t_context = mir_context_type(g->mu, parent);
+
+      vlog_node_t href = vlog_value(v);
+      mir_value_t locus = mir_build_debug_locus(g->mu, vlog_to_object(href));
+      ident_t scope = mir_get_parent(g->mu);
+
+      mir_value_t ptr = mir_build_bind_external(g->mu, locus, scope,
+                                                t_context, MIR_NULL_STAMP,
+                                                NULL, 0);
+      return mir_build_load(g->mu, ptr);
+   }
 
    return mir_build_context_upref(g->mu, 1);  // XXX
 }
@@ -1948,7 +1963,7 @@ static mir_value_t vlog_lower_with_context(vlog_gen_t *g, vlog_node_t v,
          mir_value_t *args LOCAL =
             xmalloc_array(nparams + 1, sizeof(mir_value_t));
 
-         mir_value_t context = vlog_context_for_call(g, decl);
+         mir_value_t context = vlog_context_for_call(g, v);
 
          int pos = 0;
          if (!mir_is_null(context))
@@ -3035,7 +3050,7 @@ static void vlog_lower_user_tcall(vlog_gen_t *g, vlog_node_t v)
 
    SCOPED_A(mir_value_t) temps = AINIT;
 
-   args[0] = vlog_context_for_call(g, decl);
+   args[0] = vlog_context_for_call(g, v);
    for (int i = 0; i < nparams; i++) {
       vlog_node_t port = vlog_port(decl, i);
       const type_info_t *ti = vlog_type_info(g, vlog_type(port));

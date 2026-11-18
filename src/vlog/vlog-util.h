@@ -40,6 +40,8 @@ uint32_t vlog_hash_node(vlog_node_t v);
 vlog_node_t vlog_get_type(vlog_node_t v);
 vlog_node_t vlog_get_dim(vlog_node_t v, int n);
 tree_t vlog_walk_mod_refs(vlog_node_t v, tree_t where);
+bool vlog_scope_has_mod_ref(vlog_node_t v, tree_t where);
+ident_t vlog_mod_ref_name(vlog_node_t v);
 
 #define CANNOT_HANDLE(v) do {                                           \
       fatal_at(vlog_loc(v), "cannot handle %pK in %s" ,                 \

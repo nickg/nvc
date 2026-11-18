@@ -2270,6 +2270,28 @@ START_TEST(test_pp18)
 }
 END_TEST
 
+START_TEST(test_hiercall1)
+{
+   input_from_file(TESTDIR "/vlog/hiercall1.v");
+
+   const error_t expect[] = {
+      { 15, "'t' is not a function" },
+      {  0, "'t' declared here" },
+      { 16, "'f' is not a task" },
+      { 17, "missing 'f' argument 'x' without a default value" },
+      { 18, "expected at most 2 arguments for 'f' but have 3" },
+      { 19, "name 'xxx' not found in 'u1'" },
+      {  0, "'u1' is an instance of WORK.SUB1" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   run_elab();
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_vlog_tests(void)
 {
    Suite *s = suite_create("vlog");
@@ -2355,6 +2377,7 @@ Suite *get_vlog_tests(void)
    tcase_add_test(tc, test_pp17);
    tcase_add_test(tc, test_number3);
    tcase_add_test(tc, test_pp18);
+   tcase_add_test(tc, test_hiercall1);
    suite_add_tcase(s, tc);
 
    return s;
