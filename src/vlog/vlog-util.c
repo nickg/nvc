@@ -669,7 +669,8 @@ tree_t vlog_walk_mod_refs(vlog_node_t v, tree_t where)
       assert(tree_kind(where) == T_ELAB);
    }
    else {
-      assert(vlog_kind(vlog_ref(v)) == V_MOD_INST);
+      assert(vlog_kind(vlog_ref(v)) == V_MOD_INST
+             || vlog_kind(vlog_ref(v)) == V_GEN_BLOCK);
       assert(tree_kind(where) == T_BLOCK);
    }
 

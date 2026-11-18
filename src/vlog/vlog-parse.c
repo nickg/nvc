@@ -88,6 +88,13 @@ static vlog_node_t peek_reference(void)
    return vlog_symtab_query(symtab, id);
 }
 
+static bool is_hier_scope(vlog_node_t d)
+{
+   // Unknown names are assumed to be instances declared later
+   return d == NULL || vlog_kind(d) == V_MOD_INST
+      || vlog_kind(d) == V_GEN_BLOCK;
+}
+
 static void vlog_parse_error_cb(void)
 {
    vlog_symtab_suppress(symtab);
@@ -1293,7 +1300,7 @@ static vlog_node_t p_select(ident_t id)
    EXTEND("select");
 
    vlog_node_t d = vlog_symtab_query(symtab, id), prefix;
-   if (d != NULL && vlog_kind(d) == V_MOD_INST)
+   if (d != NULL && is_hier_scope(d))
       prefix = p_hierarchical_identifier(id);
    else if (d == NULL && peek() == tDOT) {
       // Assume this is a hierarchical reference to a later instance
@@ -1426,7 +1433,15 @@ static vlog_node_t p_tf_call(vlog_kind_t kind)
    BEGIN("task or function call");
 
    vlog_node_t v = vlog_new(kind);
-   vlog_set_ident(v, p_identifier());
+
+   ident_t id = p_identifier();
+   if (peek() == tDOT) {
+      vlog_node_t href = p_hierarchical_identifier(id);
+      vlog_set_value(v, vlog_value(href));
+      id = vlog_ident(href);
+   }
+
+   vlog_set_ident(v, id);
 
    optional_attributes();
 
@@ -1436,7 +1451,29 @@ static vlog_node_t p_tf_call(vlog_kind_t kind)
    }
 
    vlog_set_loc(v, CURRENT_LOC);
-   vlog_symtab_lookup(symtab, v);
+
+   if (!vlog_has_value(v))
+      vlog_symtab_lookup(symtab, v);   // Hierarchical names resolved later
+
+   return v;
+}
+
+static vlog_node_t p_hier_tf_call(vlog_node_t href, vlog_kind_t kind)
+{
+   // Hierarchical name already parsed by p_select followed by arguments
+
+   EXTEND("task or function call");
+
+   vlog_node_t v = vlog_new(kind);
+   vlog_set_value(v, vlog_value(href));
+   vlog_set_ident(v, vlog_ident(href));
+
+   if (optional(tLPAREN)) {
+      p_list_of_arguments(v);
+      consume(tRPAREN);
+   }
+
+   vlog_set_loc(v, CURRENT_LOC);
    return v;
 }
 
@@ -1493,7 +1530,7 @@ static vlog_node_t p_subroutine_call(vlog_kind_t kind)
 
    if (peek() == tSYSTASK)
       return p_system_tf_call(kind);
-   else if (peek_nth(2) == tDOT)
+   else if (peek_nth(2) == tDOT && !is_hier_scope(peek_reference()))
       return p_method_call();
    else
       return p_tf_call(kind);
@@ -1767,9 +1804,12 @@ static vlog_node_t p_primary(void)
          break;
       case tDOT:
          if (peek_nth(4) == tLPAREN)
-            head = p_subroutine_call(V_METHOD_CALL);
-         else
+            head = p_subroutine_call(V_USER_FCALL);
+         else {
             head = p_select(p_identifier());
+            if (vlog_kind(head) == V_HIER_REF && peek() == tLPAREN)
+               head = p_hier_tf_call(head, V_USER_FCALL);
+         }
          break;
       case tSCOPE:
          p_package_scope();
@@ -3467,6 +3507,13 @@ static vlog_node_t p_statement_item(ident_t id)
             case tMINUSMINUS:
                v = p_inc_or_dec_expression(lhs);
                break;
+            case tLPAREN:
+            case tSEMI:
+               if (vlog_kind(lhs) == V_HIER_REF) {
+                  v = p_hier_tf_call(lhs, V_USER_TCALL);
+                  break;
+               }
+               // Fall-through
             default:
                v = p_blocking_assignment(lhs);
                break;
@@ -4940,8 +4987,8 @@ static vlog_node_t p_generate_block(void)
 
    vlog_node_t b = vlog_new(V_GEN_BLOCK);
 
+   ident_t label = NULL;
    if (scan(tID, tBEGIN)) {
-      ident_t label = NULL;
       if (peek() == tID) {
          vlog_set_ident(b, (label = p_identifier()));
          consume(tCOLON);
@@ -4985,6 +5032,12 @@ static vlog_node_t p_generate_block(void)
    }
 
    vlog_set_loc(b, CURRENT_LOC);
+
+   // Make named blocks visible for hierarchical references: branches of
+   // an if generate may reuse the same name
+   if (label != NULL && vlog_symtab_query(symtab, label) == NULL)
+      vlog_symtab_put(symtab, b);
+
    return b;
 }
 

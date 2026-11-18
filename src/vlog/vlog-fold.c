@@ -108,7 +108,7 @@ static fold_state_t get_fold_state(vlog_node_t v, fold_ctx_t *ctx)
       {
          vlog_node_t d = vlog_ref(v);
          const vlog_flags_t flags = vlog_flags(d);
-         if (!(flags & VLOG_F_CONST)) {
+         if (vlog_has_value(v) || !(flags & VLOG_F_CONST)) {
             ctx->nonconst = d;
             return FOLD_NON_CONST;
          }

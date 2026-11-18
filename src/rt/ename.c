@@ -325,8 +325,6 @@ static void bind_external_name(tree_t name, jit_handle_t scope,
 static void bind_hier_ref(vlog_node_t v, jit_handle_t scope,
                           jit_scalar_t *args)
 {
-   assert(vlog_kind(v) == V_HIER_REF);
-
    rt_model_t *m = get_model();
    rt_scope_t *s = get_active_scope(m);
 
@@ -343,6 +341,12 @@ static void bind_hier_ref(vlog_node_t v, jit_handle_t scope,
    if (ctx == NULL)
       jit_msg(vlog_loc(v), DIAG_FATAL, "%pi has not yet been elaborated",
               tree_ident(b));
+
+   if (vlog_kind(v) != V_HIER_REF) {
+      // Hierarchical task or function call needs the scope context
+      args[0].pointer = mptr_get(rts->privdata);
+      return;
+   }
 
    jit_t *j = jit_for_thread();
    jit_handle_t handle = jit_compile(j, tree_ident2(h));

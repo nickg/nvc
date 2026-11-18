@@ -2875,7 +2875,9 @@ static void elab_verilog_root(vlog_node_t v, const elab_ctx_t *ctx)
 
 static vlog_node_t elab_rewrite_hier_ref_cb(vlog_node_t v, void *arg)
 {
-   if (vlog_kind(v) != V_HIER_REF)
+   const vlog_kind_t kind = vlog_kind(v);
+   if ((kind != V_HIER_REF && kind != V_USER_FCALL && kind != V_USER_TCALL)
+       || !vlog_has_value(v))
       return v;
 
    vlog_node_t prefix = vlog_value(v);
@@ -2902,6 +2904,14 @@ static vlog_node_t elab_rewrite_hier_ref_cb(vlog_node_t v, void *arg)
          return v;
       case V_PORT_MAP:
          continue;
+      case V_FUNC_DECL:
+      case V_TASK_DECL:
+         if (kind != V_HIER_REF) {
+            // Bind to the copy in the elaborated generate block
+            vlog_set_ref(v, vd);
+            return v;
+         }
+         // Fall-through
       default:
          {
             diag_t *d = diag_new(DIAG_ERROR, vlog_loc(v));
