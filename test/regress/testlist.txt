@@ -1507,6 +1507,12 @@ vlog50          verilog
 vlog49          verilog,gold
 force5          verilog
 deassign1       verilog
+vtops1          verilog,top=vtops1_b
+mixed_str1      mixed
+sens_assign1    verilog
+href_lval1      verilog
+nba_deassign1   verilog
+mixed_open1     mixed
 issue1726       normal,2008
 vlog52          verilog,gold
 udp3            verilog
