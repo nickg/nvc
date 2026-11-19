@@ -1151,6 +1151,7 @@ void intern_strings(void)
       [W_DLR_CEIL]        = "$ceil",
       [W_DLR_FLOOR]        = "$floor",
       [W_COUNTERS]        = "#counters",
+      [W_TIMING_CHECKS_ON]= "TimingChecksOn",
 
       [W_IEEE_LOGIC_VECTOR]      = "IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR",
       [W_IEEE_ULOGIC_VECTOR]     = "IEEE.STD_LOGIC_1164.STD_ULOGIC_VECTOR",

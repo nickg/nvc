@@ -584,6 +584,7 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
       { "no-collapse",     no_argument,       0, 'C' },
       { "stats",           no_argument,       0, 'S' },
       { "trace",           no_argument,       0, 't' },
+      { "notimingchecks",  no_argument,       0, 'n' },
       { 0, 0, 0, 0 }
    };
 
@@ -645,6 +646,10 @@ static int elaborate(int argc, char **argv, cmd_state_t *state)
          break;
       case 'S':
          opt_set_int(OPT_ELAB_STATS, 1);
+         break;
+      case 'n':
+         opt_set_int(OPT_NO_TCHECKS, 1);
+         meta.no_tchecks = true;
          break;
       case 0:
          // Set a flag
@@ -1099,6 +1104,7 @@ static int run_cmd(int argc, char **argv, cmd_state_t *state)
    assert(top != NULL);
 
    opt_set_int(OPT_NO_COLLAPSE, meta->no_collapse);
+   opt_set_int(OPT_NO_TCHECKS, meta->no_tchecks);
 
    wave_dumper_t *dumper = NULL;
    if (wave_fname != NULL) {
@@ -2629,20 +2635,20 @@ int main(int argc, char **argv)
    atexit(fbuf_cleanup);
 
    static struct option long_options[] = {
-      { "help",          no_argument,       0, 'h' },
-      { "version",       no_argument,       0, 'v' },
-      { "work",          required_argument, 0, 'w' },
-      { "std",           required_argument, 0, 's' },
-      { "messages",      required_argument, 0, 'I' },
-      { "map",           required_argument, 0, 'p' },
-      { "ieee-warnings", required_argument, 0, 'W' },
-      { "ignore-time",   no_argument,       0, 'i' },
-      { "force-init",    no_argument,       0, 'f' }, // DEPRECATED 1.7
-      { "stderr",        required_argument, 0, 'E' },
-      { "load",          required_argument, 0, 'l' },
-      { "vhpi-debug",    no_argument,       0, 'D' },
-      { "vhpi-trace",    no_argument,       0, 'T' },
-      { "seed",          required_argument, 0, 'S' },
+      { "help",            no_argument,       0, 'h' },
+      { "version",         no_argument,       0, 'v' },
+      { "work",            required_argument, 0, 'w' },
+      { "std",             required_argument, 0, 's' },
+      { "messages",        required_argument, 0, 'I' },
+      { "map",             required_argument, 0, 'p' },
+      { "ieee-warnings",   required_argument, 0, 'W' },
+      { "ignore-time",     no_argument,       0, 'i' },
+      { "force-init",      no_argument,       0, 'f' }, // DEPRECATED 1.7
+      { "stderr",          required_argument, 0, 'E' },
+      { "load",            required_argument, 0, 'l' },
+      { "vhpi-debug",      no_argument,       0, 'D' },
+      { "vhpi-trace",      no_argument,       0, 'T' },
+      { "seed",            required_argument, 0, 'S' },
       { 0, 0, 0, 0 }
    };
 

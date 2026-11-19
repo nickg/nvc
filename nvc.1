@@ -410,6 +410,14 @@ option.  For example:
 .Bd -literal -offset indent
 $ nvc -e --no-save tb -r
 .Ed
+.\" --notimingchecks
+.It Fl \-notimingchecks
+Disable Verilog
+.Ql specify
+block timing checks and set VHDL VITAL
+.Ql TimingChecksOn
+generics to false.  See
+.Sx TIMING CHECKS .
 .\"
 .It Fl O0 , Fl O1 , Fl O2 , Fl O3
 Set LLVM optimisation level.  Default is
@@ -1270,6 +1278,21 @@ and
 are case-insensitive. You can get examples of exclude commands
 from generated Code coverage report by clicking on
 a "Get Exclude Command" button.
+.\" ------------------------------------------------------------
+.\" Timing Checks
+.\" ------------------------------------------------------------
+.Sh TIMING CHECKS
+NVC partially supports Verilog timing checks and VHDL timing
+checks via built-in VITAL libraries.  The
+.Fl \-notimingchecks
+elaboration option disables all Verilog timing checks and sets VHDL
+.Ql TimingChecksOn
+generics to false.  Violations of disabled timing checks are not
+reported and notifiers do not trigger.  A
+.Ql TimingChecksOn
+value given with
+.Fl g
+takes precedence.
 .\" ------------------------------------------------------------
 .\" Relaxed rules
 .\" ------------------------------------------------------------
